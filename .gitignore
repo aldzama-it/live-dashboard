@@ -1,0 +1,22 @@
+# Node modules
+node_modules/
+
+# Laravel
+vendor/
+.env
+.env.backup
+.env.example
+storage/
+bootstrap/cache/
+*.log
+
+# Frontend (Vite/React)
+dist/
+dist-ssr/
+*.local
+.eslintcache
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
