@@ -18,7 +18,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
 
             return response()->json([
-                'user' => Auth::user()->load('roles', 'division', 'department')
+                'user' => Auth::user()->load(['roles', 'division', 'department'])
             ]);
         }
 
@@ -40,7 +40,7 @@ class AuthController extends Controller
     public function user(Request $request)
     {
         return response()->json([
-            'user' => $request->user()->load('roles', 'division', 'department')
+            'user' => $request->user()->load(['roles', 'division', 'department'])
         ]);
     }
 }
