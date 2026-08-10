@@ -1,0 +1,5 @@
+pandas
+pymysql
+scikit-learn
+Sastrawi
+nltk
