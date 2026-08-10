@@ -7,10 +7,11 @@ export default function KpiCard({
   notes,
   icon: Icon,
   colorClass = 'text-primary bg-primary/10',
-  delay = ''
+  delay = '',
+  onClick
 }) {
   return (
-    <Card delay={delay} className="flex flex-col">
+    <Card delay={delay} className={`flex flex-col h-full ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} onClick={onClick}>
       <div className={`flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full mb-3 md:mb-4 ${colorClass}`}>
         {Icon && <Icon size={20} className="md:w-[22px] md:h-[22px]" />}
       </div>

@@ -8,37 +8,51 @@ import Card from '../components/ui/Card';
 import KpiCard from '../components/ui/KpiCard';
 import ChartContainer from '../components/ui/ChartContainer';
 
-// Placeholder Component for all division overviews
-function DivisionOverview({ user }) {
+// Import Division Components
+import BusinessDevelopment from './divisions/sales-engineering/BusinessDevelopment';
+import Trading from './divisions/sales-engineering/Trading';
+import Marketing from './divisions/sales-engineering/Marketing';
+import Engineering from './divisions/sales-engineering/Engineering';
+
+import SiteOperations from './divisions/operations/SiteOperations';
+import ProjectControl from './divisions/operations/ProjectControl';
+import HSE from './divisions/operations/HSE';
+
+import AdHoc from './divisions/projects/AdHoc';
+import Fabrication from './divisions/projects/Fabrication';
+
+import AssetMaintenance from './divisions/asset-logistics/AssetMaintenance';
+import Transport from './divisions/asset-logistics/Transport';
+import Procurement from './divisions/asset-logistics/Procurement';
+import Warehouse from './divisions/asset-logistics/Warehouse';
+
+import OfficeSupport from './divisions/general-affairs/OfficeSupport';
+import ExternalRelation from './divisions/general-affairs/ExternalRelation';
+import ExportImport from './divisions/general-affairs/ExportImport';
+
+import Finance from './divisions/finance-admin/Finance';
+import HRD from './divisions/finance-admin/HRD';
+import QMSAudit from './divisions/finance-admin/QMSAudit';
+import Legal from './divisions/finance-admin/Legal';
+import ITSystem from './divisions/finance-admin/ITSystem';
+
+// Import Admin Pages
+import UserManagement from './UserManagement';
+
+// Placeholder Component for main dashboard overview
+function MainOverview({ user }) {
   const revenueCount = useCountUp(1250, 800);
   const projectsCount = useCountUp(42, 800);
   const teamCount = useCountUp(128, 800);
   const location = useLocation();
-
-  // Extract department and division from path for display purposes
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  const deptPath = pathParts[0];
-  const divPath = pathParts[1];
-
-  // Find names
-  let deptName = "Overview";
-  let divName = "";
-  if (deptPath) {
-    const dept = menuData.find(d => d.pathPrefix === deptPath);
-    if (dept) {
-      deptName = dept.name;
-      const div = dept.divisions.find(d => d.path === divPath);
-      if (div) {
-        divName = div.name;
-      }
-    }
-  }
+  const deptName = "Overview";
+  const divName = "Main Dashboard";
 
   return (
     <>
       {/* KPI Cards Grid - Staggered reveal */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
-        
+
         {/* Welcome Card */}
         <KpiCard
           value={divName || 'Welcome!'}
@@ -111,6 +125,27 @@ export default function Dashboard({ user, setUser }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
 
+  // RBAC logic for sidebar
+  const isAdmin = user?.roles?.some(r => r.name === 'Admin');
+  const isTopManagement = user?.roles?.some(r => r.name === 'Top Management');
+  const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
+
+  const filteredMenuData = menuData.map(dept => {
+    if (isAdmin || isTopManagement) return dept;
+    if (isPIC && user?.department) {
+       const matchingDivisions = dept.divisions.filter(d => 
+         d.name.toLowerCase() === user.department.name.toLowerCase()
+       );
+       if (matchingDivisions.length > 0) {
+          return { ...dept, divisions: matchingDivisions };
+       }
+       return null;
+    }
+    // Fallback: if no role matches correctly, show nothing
+    return null;
+  }).filter(Boolean);
+
+
   // Handle window resize to auto-collapse on small screens
   useEffect(() => {
     const handleResize = () => {
@@ -133,12 +168,12 @@ export default function Dashboard({ user, setUser }) {
     const pathParts = location.pathname.split('/').filter(Boolean);
     if (pathParts.length >= 1) {
       const currentDeptPath = pathParts[0];
-      const deptIndex = menuData.findIndex(d => d.pathPrefix === currentDeptPath);
+      const deptIndex = filteredMenuData.findIndex(d => d.pathPrefix === currentDeptPath);
       if (deptIndex !== -1) {
         setExpandedDept(deptIndex);
         if (pathParts.length >= 2) {
           const currentDivPath = pathParts[1];
-          const divIndex = menuData[deptIndex].divisions.findIndex(div => div.path === currentDivPath);
+          const divIndex = filteredMenuData[deptIndex].divisions.findIndex(div => div.path === currentDivPath);
           if (divIndex !== -1) {
             setExpandedDiv(divIndex);
           }
@@ -181,7 +216,7 @@ export default function Dashboard({ user, setUser }) {
       {/* Mobile Overlay */}
       {!isCollapsed && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 md:hidden animate-fade-in-up"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in-up"
           style={{ animationDuration: '0.2s', transform: 'none' }}
           onClick={() => setIsCollapsed(true)}
         />
@@ -189,16 +224,16 @@ export default function Dashboard({ user, setUser }) {
 
       {/* Sidebar */}
       <aside
-        className={`bg-boxdark text-white flex flex-col transition-all duration-300 ease-in-out absolute md:relative z-30 h-full ${isCollapsed ? '-translate-x-full md:translate-x-0 md:w-20' : 'translate-x-0 w-72'
+        className={`bg-white border-r border-stroke text-boxdark flex flex-col transition-all duration-300 ease-in-out absolute md:relative z-50 md:z-30 h-full ${isCollapsed ? '-translate-x-full md:translate-x-0 md:w-20' : 'translate-x-0 w-72'
           }`}
       >
-        <div className="p-4 md:p-6 text-center border-b border-boxdark-2 flex items-center justify-center min-h-[73px]">
+        <div className="p-2 text-center border-b border-stroke flex items-center justify-center h-[76px]">
           {!isCollapsed ? (
             <div className="flex items-center gap-3 w-full justify-start pl-2">
               <img src="/Symbol.png" alt="PT Aldzama" className="w-15 h-15 object-contain" />
-              <h2 className="text-lg font-bold text-white text-left leading-tight">
+              <h2 className="text-lg font-bold text-boxdark text-left leading-tight">
                 Dashboard<br />
-                <span className="text-sm font-normal text-gray-300">PT. Aldzama</span>
+                <span className="text-sm font-normal text-body">PT. Aldzama</span>
               </h2>
             </div>
           ) : (
@@ -209,7 +244,7 @@ export default function Dashboard({ user, setUser }) {
           {/* Main Dashboard Link */}
           <Link
             to="/"
-            className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all mb-4 ${location.pathname === '/' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-boxdark-2 hover:text-white'
+            className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all mb-4 ${location.pathname === '/' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-primary'
               }`}
             title="Main Dashboard"
             onClick={() => {
@@ -228,8 +263,8 @@ export default function Dashboard({ user, setUser }) {
             </span>
           </Link>
 
-          {/* Dynamic 3-level Menu */}
-          {menuData.map((dept, deptIndex) => {
+          {/* Dynamic 3-level Menu (RBAC filtered) */}
+          {filteredMenuData.map((dept, deptIndex) => {
             const isDeptExpanded = expandedDept === deptIndex && !isCollapsed;
             const isDeptActive = location.pathname.startsWith(`/${dept.pathPrefix}`);
             const Icon = dept.icon;
@@ -239,7 +274,7 @@ export default function Dashboard({ user, setUser }) {
                 {/* Level 1: Department */}
                 <button
                   onClick={() => handleDeptClick(deptIndex)}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md transition-all ${isDeptActive && !isDeptExpanded ? 'text-white' : 'text-gray-300 hover:bg-boxdark-2 hover:text-white'
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md transition-all ${isDeptActive && !isDeptExpanded ? 'text-primary font-medium' : 'text-gray-500 hover:bg-gray-100 hover:text-primary'
                     }`}
                   title={dept.name}
                 >
@@ -267,7 +302,7 @@ export default function Dashboard({ user, setUser }) {
                         <div key={divIndex}>
                           <button
                             onClick={() => handleDivClick(divIndex)}
-                            className={`w-full flex items-center justify-between py-2 text-left transition-all ${isDivActive ? 'text-white font-medium' : 'text-gray-400 hover:text-gray-200'
+                            className={`w-full flex items-center justify-between py-2 text-left transition-all ${isDivActive ? 'text-primary font-medium' : 'text-gray-500 hover:text-primary'
                               }`}
                           >
                             <span className="text-sm">{div.name}</span>
@@ -278,7 +313,7 @@ export default function Dashboard({ user, setUser }) {
 
                           {/* Level 3: Pages */}
                           {isDivExpanded && (
-                            <div className="mt-1 flex flex-col gap-1 pl-4 border-l border-boxdark-2 ml-1 py-1">
+                            <div className="mt-1 flex flex-col gap-1 pl-4 border-l border-stroke ml-1 py-1">
                               {div.pages.map((page, pageIndex) => {
                                 const pagePath = `/${dept.pathPrefix}/${div.path}/${page.path}`;
                                 const isPageActive = location.pathname === pagePath;
@@ -292,7 +327,7 @@ export default function Dashboard({ user, setUser }) {
                                     }}
                                     className={`py-1.5 px-3 rounded-md text-sm transition-all ${isPageActive
                                       ? 'bg-primary text-white font-medium'
-                                      : 'text-gray-400 hover:text-white hover:bg-boxdark-2'
+                                      : 'text-gray-500 hover:text-primary hover:bg-gray-100'
                                       }`}
                                   >
                                     {page.name}
@@ -315,7 +350,7 @@ export default function Dashboard({ user, setUser }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header - Appears first */}
-        <header className="bg-white shadow-sm border-b border-stroke flex items-center justify-between px-6 py-4 animate-fade-in-up delay-0 relative z-30">
+        <header className="bg-white shadow-sm border-b border-stroke flex items-center justify-between px-6 h-[76px] animate-fade-in-up delay-0 relative z-30">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -342,10 +377,10 @@ export default function Dashboard({ user, setUser }) {
             <div className="text-right hidden sm:block">
               <span className="block text-sm font-medium text-boxdark">{user?.name}</span>
               <span className="block text-xs text-body">
-                {user?.roles?.[0]?.name || 'User'} - {user?.division?.name || 'No Division'}
+                {user?.roles?.[0]?.name || 'User'} - {user?.department?.name || 'No Division'}
               </span>
             </div>
-            
+
             {/* Profile Toggle Button */}
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -361,25 +396,25 @@ export default function Dashboard({ user, setUser }) {
             {/* Dropdown Menu */}
             {isProfileOpen && (
               <>
-                <div 
-                  className="fixed inset-0 z-40" 
+                <div
+                  className="fixed inset-0 z-40"
                   onClick={() => setIsProfileOpen(false)}
                 ></div>
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-lg border border-stroke py-2 z-50 animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
                   <a href="#" onClick={(e) => { e.preventDefault(); setIsProfileOpen(false); }} className="flex items-center gap-3 px-4 py-2 text-sm text-boxdark hover:bg-gray-50 transition">
                     <User size={16} /> Profile
                   </a>
-                  
+
                   {/* Settings only for admin */}
-                  {user?.roles?.[0]?.name?.toLowerCase().includes('admin') && (
-                    <a href="#" onClick={(e) => { e.preventDefault(); setIsProfileOpen(false); }} className="flex items-center gap-3 px-4 py-2 text-sm text-boxdark hover:bg-gray-50 transition">
-                      <Settings size={16} /> Settings
-                    </a>
+                  {isAdmin && (
+                    <Link to="/users" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-boxdark hover:bg-gray-50 transition">
+                      <Users size={16} /> User Management
+                    </Link>
                   )}
-                  
+
                   <div className="border-t border-stroke my-1"></div>
-                  
-                  <button 
+
+                  <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-danger hover:bg-gray-50 transition"
                   >
@@ -394,18 +429,46 @@ export default function Dashboard({ user, setUser }) {
         {/* Main Body */}
         <main className="flex-1 overflow-auto p-6 bg-gray-50">
           <Routes>
-            <Route path="/" element={<DivisionOverview user={user} />} />
-            {menuData.map(dept => (
-              dept.divisions.map(div => (
-                div.pages.map(page => (
-                  <Route
-                    key={`${dept.pathPrefix}-${div.path}-${page.path}`}
-                    path={`/${dept.pathPrefix}/${div.path}/${page.path}`}
-                    element={<DivisionOverview user={user} />}
-                  />
-                ))
-              ))
-            ))}
+            <Route path="/" element={<MainOverview user={user} />} />
+            
+            {/* Sales & Engineering */}
+            <Route path="/sales-engineering/business-development/overview" element={<BusinessDevelopment user={user} />} />
+            <Route path="/sales-engineering/trading/overview" element={<Trading user={user} />} />
+            <Route path="/sales-engineering/marketing/overview" element={<Marketing user={user} />} />
+            <Route path="/sales-engineering/engineering/overview" element={<Engineering user={user} />} />
+
+            {/* Operations */}
+            <Route path="/operations/site-operations/overview" element={<SiteOperations user={user} />} />
+            <Route path="/operations/project-control/overview" element={<ProjectControl user={user} />} />
+            <Route path="/operations/hse/overview" element={<HSE user={user} />} />
+
+            {/* Projects */}
+            <Route path="/projects/ad-hoc/overview" element={<AdHoc user={user} />} />
+            <Route path="/projects/fabrication/overview" element={<Fabrication user={user} />} />
+
+            {/* Asset & Logistics */}
+            <Route path="/asset-logistics/asset-maintenance/overview" element={<AssetMaintenance user={user} />} />
+            <Route path="/asset-logistics/transport/overview" element={<Transport user={user} />} />
+            <Route path="/asset-logistics/procurement/overview" element={<Procurement user={user} />} />
+            <Route path="/asset-logistics/warehouse/overview" element={<Warehouse user={user} />} />
+
+            {/* General Affairs */}
+            <Route path="/general-affairs/office-support/overview" element={<OfficeSupport user={user} />} />
+            <Route path="/general-affairs/external-relation/overview" element={<ExternalRelation user={user} />} />
+            <Route path="/general-affairs/export-import/overview" element={<ExportImport user={user} />} />
+
+            {/* Finance & Administration */}
+            <Route path="/finance-admin/finance/overview" element={<Finance user={user} />} />
+            <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
+            <Route path="/finance-admin/qms-audit/overview" element={<QMSAudit user={user} />} />
+            <Route path="/finance-admin/legal/overview" element={<Legal user={user} />} />
+            <Route path="/finance-admin/it-system/overview" element={<ITSystem user={user} />} />
+
+            {/* Admin Routes */}
+            {isAdmin && (
+              <Route path="/users" element={<UserManagement user={user} />} />
+            )}
+
             {/* Catch all to redirect back to root if path not found */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
