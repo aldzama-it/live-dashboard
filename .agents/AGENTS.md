@@ -524,3 +524,73 @@ Is the Change Large / Risky?
 12. **Never push Git commits automatically.**
 13. **When asked to commit, inspect changes, group them by context, use semantic English commit messages, and provide the Git commands.**
 14. **Keep changes focused, maintainable, reusable, and safe for team development.**
+
+---
+
+# 15. How to Run the Project
+
+Follow these steps to run the project locally across its different services.
+
+### 15.1 Backend (Laravel) - `dashboard-all-division` directory
+
+1. Navigate to the backend directory:
+   ```bash
+   cd dashboard-all-division
+   ```
+2. Install PHP dependencies:
+   ```bash
+   composer install
+   ```
+3. Copy the environment file:
+   ```bash
+   cp .env.example .env
+   ```
+4. Generate the application key:
+   ```bash
+   php artisan key:generate
+   ```
+5. Configure your `.env` file with the correct database credentials.
+6. Run database migrations and seeders:
+   ```bash
+   php artisan migrate --seed
+   ```
+7. Start the local development server:
+   ```bash
+   php artisan serve
+   ```
+
+### 15.2 Frontend (React) - `frontend` directory
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install Node dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+
+### 15.3 NLP Service (Python) - `nlp-service` directory
+
+1. Navigate to the NLP service directory:
+   ```bash
+   cd nlp-service
+   ```
+2. Create and activate a virtual environment (optional but recommended):
+   ```bash
+   python -m venv venv
+   # On Windows use: venv\Scripts\activate
+   # On macOS/Linux use: source venv/bin/activate
+   ```
+3. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Run the NLP processor:
+   ```bash
+   python nlp_processor.py
+   ```
