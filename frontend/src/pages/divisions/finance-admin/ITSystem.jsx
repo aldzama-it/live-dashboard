@@ -4,7 +4,7 @@ import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
 import Modal from '../../../components/ui/Modal';
-import MonthFilter from '../../../components/ui/MonthFilter';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 import Select from 'react-select';
@@ -179,7 +179,7 @@ const AssetRow = ({ asset, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
       <td className={`px-4 py-3 ${asset.condition?.toLowerCase().includes('baik') ? 'text-success' : 'text-warning'}`}>{asset.condition}</td>
       {isPIC && (
         <td className="px-4 py-3 text-right">
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-1">
             <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14}/></button>
             <button onClick={() => onDelete(asset.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14}/></button>
           </div>
@@ -279,7 +279,7 @@ const EmailRow = ({ email, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
       <td className="px-4 py-3">{email.division_project}</td>
       {isPIC && (
         <td className="px-4 py-3 text-right">
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-1">
             <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14}/></button>
             <button onClick={() => onDelete(email.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14}/></button>
           </div>
@@ -291,14 +291,22 @@ const EmailRow = ({ email, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
 
 export default function ITSystem({ user }) {
   const [modalType, setModalType] = useState(null);
-  const [selectedMonths, setSelectedMonths] = useState(['Agustus 2026']);
+  
+  // Default to current month range
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
   const isPIC = user?.roles?.[0]?.name === 'Division PIC';
   
   const [assetsData, setAssetsData] = useState({ general: [], individual: [], total: 0 });
   const [departmentsData, setDepartmentsData] = useState([]);
   const [newAssetType, setNewAssetType] = useState(null); // 'general' or 'individual'
   const [emailsData, setEmailsData] = useState([]);
-  const [isAddingEmail, setIsAddingEmail] = useState(false);
+  const [ticketsData, setTicketsData] = useState(null);
+  const [budgetData, setBudgetData] = useState(null);
+  const [softwareData, setSoftwareData] = useState(null);
   
   const fetchAssets = async () => {
     try {
@@ -327,11 +335,43 @@ export default function ITSystem({ user }) {
     }
   };
 
+  const fetchTickets = async () => {
+    try {
+      const qs = dateRange.startDate && dateRange.endDate ? `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}` : '';
+      const res = await api.get(`/api/it-dashboard/tickets${qs}`);
+      setTicketsData(res.data.data);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const fetchBudget = async () => {
+    try {
+      const qs = dateRange.startDate && dateRange.endDate ? `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}` : '';
+      const res = await api.get(`/api/it-dashboard/budget${qs}`);
+      setBudgetData(res.data.data);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const fetchSoftware = async () => {
+    try {
+      const res = await api.get('/api/it-dashboard/software');
+      setSoftwareData(res.data.data);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchAssets();
     fetchEmails();
     fetchDepartments();
-  }, []);
+    fetchTickets();
+    fetchBudget();
+    fetchSoftware();
+  }, [dateRange]);
 
   const handleAddAsset = (type) => {
     setNewAssetType(type);
@@ -556,11 +596,9 @@ export default function ITSystem({ user }) {
 
   return (
     <>
-      <div className="flex justify-end mb-6">
-        <MonthFilter selectedMonths={selectedMonths} onChange={setSelectedMonths} />
-      </div>
+      <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-y-1 gap-x-2 mb-3">
         <KpiCard
           title="Total Asset Fisik"
           value={assetsData.total.toString()}
@@ -571,38 +609,45 @@ export default function ITSystem({ user }) {
         />
         <KpiCard title="Total Active Email" value={emailsData.length.toString()} subtitle="All Domains" icon={Mail} colorClass="text-[#3C50E0] bg-primary/10" onClick={() => setModalType('email')} />
         <KpiCard title="Total Software" value="8" subtitle="Active & In Progress" icon={Terminal} colorClass="text-[#F59E0B] bg-warning/10" onClick={() => scrollToElement('software-develop')} />
-        <KpiCard title="Total Budget Used" value="$100k" subtitle="From $125k Allocated" icon={DollarSign} colorClass="text-danger bg-danger/10" onClick={() => scrollToElement('budget-section')} />
+        <KpiCard 
+          title="Pemakaian Budget" 
+          value={budgetData ? `${parseFloat(((budgetData.total_used / (budgetData.total_budget || 1)) * 100).toFixed(1))}%` : '0%'} 
+          subtitle={budgetData ? `Rp ${parseFloat((budgetData.total_used / 1000000).toFixed(1))}Jt / Rp ${parseFloat((budgetData.total_budget / 1000000).toFixed(1))}Jt` : 'Loading...'} 
+          icon={DollarSign} 
+          colorClass="text-danger bg-danger/10" 
+          onClick={() => scrollToElement('budget-section')} 
+        />
         <KpiCard title="Rating IT Support" value="4.8/5" subtitle="Average Satisfaction" icon={Star} colorClass="text-[#F59E0B] bg-warning/10" onClick={() => scrollToElement('it-support-section')} />
       </div>
 
       {/* Row 2: Highlights */}
-      <Card delay="delay-150" className="mb-6 p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Star className="text-warning w-5 h-5" />
-          <h4 className="text-md font-bold text-boxdark uppercase">Key Highlights & Milestones</h4>
+      <Card delay="delay-150" className="mb-3 p-3">
+        <div className="flex items-center gap-1 mb-2">
+          <Star className="text-warning w-4 h-4" />
+          <h4 className="text-sm font-bold text-boxdark uppercase">Key Highlights & Milestones</h4>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-          <div className="border-l-4 border-success pl-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Highlight</p>
-            <p className="text-sm font-medium text-boxdark">Migrated 90% of local servers to cloud.</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-3">
+          <div className="border-l-4 border-success pl-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Highlight</p>
+            <p className="text-xs font-medium text-boxdark leading-snug">Migrated 90% of local servers to cloud.</p>
           </div>
-          <div className="border-l-4 border-danger pl-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Risk</p>
-            <p className="text-sm font-medium text-boxdark">Hardware replacement delays (Supply Chain).</p>
+          <div className="border-l-4 border-danger pl-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Risk</p>
+            <p className="text-xs font-medium text-boxdark leading-snug">Hardware replacement delays (Supply Chain).</p>
           </div>
-          <div className="border-l-4 border-primary pl-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Achievement</p>
-            <p className="text-sm font-medium text-boxdark">IT Support rating hit 4.8 this month.</p>
+          <div className="border-l-4 border-primary pl-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Achievement</p>
+            <p className="text-xs font-medium text-boxdark leading-snug">IT Support rating hit 4.8 this month.</p>
           </div>
-          <div className="border-l-4 border-warning pl-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Plan</p>
-            <p className="text-sm font-medium text-boxdark">ERP Alpha testing next week.</p>
+          <div className="border-l-4 border-warning pl-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Plan</p>
+            <p className="text-xs font-medium text-boxdark leading-snug">ERP Alpha testing next week.</p>
           </div>
         </div>
       </Card>
 
       {/* Row 3: 2 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-1 gap-x-2 mb-3">
         <ChartContainer title="Network & Infrastructure" delay="delay-200">
           <div className="flex flex-col justify-center items-center h-48 bg-gray-50 rounded-md border border-dashed border-stroke">
             <Network className="text-gray-400 mb-2 w-8 h-8" />
@@ -613,77 +658,251 @@ export default function ITSystem({ user }) {
         </ChartContainer>
 
         <ChartContainer title="Software Develop" delay="delay-200" id="software-develop">
-          <div className="flex flex-col justify-between h-48">
-            <div className="flex-1 flex flex-col justify-center items-center text-body">
-               <Terminal size={32} className="text-gray-300 mb-2" />
-               <p className="text-sm font-medium text-boxdark">3 Projects In Progress</p>
-               <p className="text-xs text-body">5 Live Systems Active</p>
-               <p className="text-xs mt-1 text-gray-400 italic">(Primary Software Chart)</p>
+          {softwareData ? (
+            <div className="flex flex-col gap-4 h-[400px] overflow-y-auto pr-2">
+              {/* Donut Chart: Launched vs Development */}
+              <div className="h-48 shrink-0 relative mt-2">
+                <Chart
+                  options={{
+                    chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+                    labels: ['Launched', 'In Development'],
+                    colors: ['#10B981', '#3C50E0'],
+                    dataLabels: { enabled: true, style: { fontSize: '10px' } },
+                    plotOptions: { pie: { donut: { size: '65%' } } },
+                    legend: { position: 'bottom', fontSize: '10px' },
+                    tooltip: { theme: 'light' }
+                  }}
+                  series={[softwareData.summary.launched, softwareData.summary.development]}
+                  type="donut"
+                  height="100%"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
+                  <span className="text-xl font-bold text-boxdark">{softwareData.summary.launched + softwareData.summary.development}</span>
+                  <span className="text-[9px] text-gray-500 uppercase tracking-widest">Total Apps</span>
+                </div>
+              </div>
+
+              {/* Development Progress List */}
+              <div className="flex flex-col gap-2">
+                <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-1">In Development</h5>
+                {softwareData.development_list.map((sw, idx) => (
+                  <div key={idx} className="p-2 bg-gray-50 rounded border border-stroke flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-boxdark">{sw.name}</span>
+                      <span className="text-primary font-medium">{sw.progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${sw.progress}%` }}></div>
+                    </div>
+                  </div>
+                ))}
+                {softwareData.development_list.length === 0 && <p className="text-xs text-gray-400 text-center py-2">No active development</p>}
+              </div>
+
+              {/* Launched Software List */}
+              <div className="flex flex-col gap-2 mt-2">
+                <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-1">Launched Software</h5>
+                {softwareData.launched_list.map((sw, idx) => (
+                  <div key={idx} className="p-2 bg-gray-50 rounded border border-stroke flex justify-between items-center">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-semibold text-boxdark truncate">{sw.name}</span>
+                      <span className="text-[9px] text-gray-500 truncate">{sw.description}</span>
+                    </div>
+                    <div className="flex flex-col items-end shrink-0 pl-2">
+                      <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">
+                        {new Intl.NumberFormat('id-ID').format(sw.active_users)}
+                      </span>
+                      <span className="text-[8px] text-gray-400 uppercase mt-0.5">Active Users</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-2 py-2 border-t border-dashed border-stroke flex items-center justify-center cursor-pointer hover:bg-gray-50 transition rounded-b-md" onClick={() => setModalType('software')}>
-               <span className="text-xs text-primary flex items-center gap-1 font-medium">Click for view more <ChevronRight size={14}/></span>
-            </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading software data...</div>
+          )}
         </ChartContainer>
       </div>
 
       {/* Row 4: 2 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <ChartContainer title="Budget" delay="delay-300" id="budget-section">
-           <div className="flex flex-col justify-between h-48">
-             <div className="flex-1 flex flex-col justify-center items-center text-body">
-                <DollarSign size={32} className="text-gray-300 mb-2" />
-                <p className="text-sm font-medium text-boxdark">$100k Used</p>
-                <div className="w-1/2 h-2 bg-gray-200 rounded-full mt-2"><div className="h-full bg-danger w-[80%] rounded-full"></div></div>
-                <p className="text-xs mt-2 text-gray-400 italic">(Primary Budget Chart)</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-1 gap-x-2 mb-3">
+        <ChartContainer title="IT Budget" delay="delay-300" id="budget-section">
+           {budgetData && budgetData.monthly_trend ? (
+             <div className="flex flex-col gap-4">
+                {/* Mixed Chart: Trend Pengeluaran */}
+                <div className="h-48 mt-2">
+                  <Chart
+                    options={{
+                      chart: {
+                        type: 'line',
+                        stacked: false,
+                        toolbar: { show: false },
+                        fontFamily: 'inherit'
+                      },
+                      colors: ['#3C50E0', '#10B981', '#F59E0B', '#64748B', '#EF4444'], // Asset, Sub, Maint, Ops, Line
+                      stroke: { width: [0, 0, 0, 0, 2], curve: 'smooth' },
+                      plotOptions: { bar: { columnWidth: '50%' } },
+                      xaxis: {
+                        categories: budgetData.monthly_trend.map(item => item.month),
+                        labels: { style: { fontSize: '9px' } }
+                      },
+                      yaxis: {
+                        labels: {
+                          formatter: (val) => "Rp" + (val / 1000000).toFixed(0) + "Jt",
+                          style: { fontSize: '9px' }
+                        }
+                      },
+                      legend: { position: 'top', fontSize: '10px' },
+                      dataLabels: { enabled: false },
+                      tooltip: { shared: true, intersect: false }
+                    }}
+                    series={[
+                      { name: 'Asset', type: 'column', data: budgetData.monthly_trend.map(item => item.Asset) },
+                      { name: 'Sub', type: 'column', data: budgetData.monthly_trend.map(item => item.Subscription) },
+                      { name: 'Maint', type: 'column', data: budgetData.monthly_trend.map(item => item.Maintenance) },
+                      { name: 'Ops', type: 'column', data: budgetData.monthly_trend.map(item => item.Operational) },
+                      { name: 'Total', type: 'line', data: budgetData.monthly_trend.map(item => item.Total) }
+                    ]}
+                    type="line"
+                    height="100%"
+                  />
+                </div>
+
+                {/* Top 3 Pengeluaran */}
+                <div className="flex flex-col gap-2">
+                  <h5 className="text-xs font-bold text-boxdark px-1">Top 3 Pengeluaran</h5>
+                  <div className="flex flex-col gap-2">
+                    {budgetData.top_expenses && budgetData.top_expenses.map((expense, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-stroke">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`flex items-center justify-center min-w-6 h-6 rounded-full text-white font-bold text-[10px] ${
+                            index === 0 ? 'bg-warning' : index === 1 ? 'bg-body' : 'bg-orange-700'
+                          }`}>
+                            #{index + 1}
+                          </div>
+                          <div className="truncate">
+                            <p className="text-[10px] font-semibold text-boxdark truncate" title={expense.description}>
+                              {expense.description}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right pl-2">
+                          <p className="text-[10px] font-bold text-danger whitespace-nowrap">
+                            Rp {(expense.amount / 1000000).toFixed(1)}Jt
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="py-1 border-t border-dashed border-stroke flex items-center justify-center cursor-pointer hover:bg-gray-50 transition rounded-b-md" onClick={() => setModalType('budget')}>
+                  <span className="text-xs text-primary flex items-center gap-1 font-medium">Click for view more <ChevronRight size={14}/></span>
+                </div>
              </div>
-             <div className="mt-2 py-2 border-t border-dashed border-stroke flex items-center justify-center cursor-pointer hover:bg-gray-50 transition rounded-b-md" onClick={() => setModalType('budget')}>
-                <span className="text-xs text-primary flex items-center gap-1 font-medium">Click for view more <ChevronRight size={14}/></span>
-              </div>
-           </div>
+           ) : (
+             <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading budget data...</div>
+           )}
         </ChartContainer>
 
-        <Card title="IT Service Support" delay="delay-300" id="it-support-section">
-           <div className="space-y-4">
-              <div>
-                <h5 className="text-xs font-semibold uppercase text-gray-500 mb-2">Most Frequent Keywords (NLP Extraction)</h5>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-medium">Jaringan lambat (45%)</span>
-                  <span className="px-3 py-1 bg-orange-100 text-orange-600 rounded-full text-xs font-medium">Lupa password (30%)</span>
-                  <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">Printer error (25%)</span>
+         <Card delay="delay-300" id="it-support-section">
+            {ticketsData ? (
+              <div className="flex flex-col h-full">
+                {/* Custom Header integrated with total resolved */}
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-sm font-bold text-boxdark">IT Ticketing</h4>
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    {ticketsData.total_resolved} Resolved
+                  </span>
+                </div>
+                
+                {/* 2 Top Boxes */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {/* Top Left: NLP Donut Chart */}
+                  <div className="p-2 bg-transparent rounded border border-stroke flex flex-col">
+                    <h5 className="text-[10px] font-semibold uppercase text-gray-500 mb-2 text-center">Masalah Paling Sering</h5>
+                    <div className="h-48">
+                      <Chart 
+                        options={{
+                          chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+                          labels: ticketsData.categories ? ticketsData.categories.map(c => c.category) : [],
+                          legend: { show: false }, 
+                          dataLabels: { enabled: true, dropShadow: { enabled: false }, style: { fontSize: '10px' } },
+                          colors: ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#8B5CF6'],
+                          plotOptions: { pie: { donut: { size: '60%' } } },
+                          tooltip: { theme: 'light' },
+                          stroke: { width: 1 }
+                        }}
+                        series={ticketsData.categories ? ticketsData.categories.map(c => parseInt(c.total)) : []}
+                        type="donut"
+                        height="100%"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Top Right: Ticket Volume */}
+                  <div className="p-2 bg-transparent rounded border border-stroke flex flex-col">
+                    <h5 className="text-[10px] font-semibold uppercase text-gray-500 mb-2 text-center">Tickets per Day (Sen-Min)</h5>
+                    <div className="h-48">
+                      <Chart 
+                        options={{
+                          chart: { type: 'bar', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
+                          colors: ['#3C50E0'],
+                          plotOptions: { bar: { horizontal: true, borderRadius: 2, barHeight: '70%' } },
+                          xaxis: { 
+                            categories: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+                            labels: { style: { fontSize: '10px' } },
+                          },
+                          yaxis: { labels: { style: { fontSize: '10px' } } },
+                          dataLabels: { enabled: false },
+                          tooltip: { theme: 'light' }
+                        }}
+                        series={[{ name: 'Tickets', data: ticketsData.daily_ticket_volume || [] }]}
+                        type="bar"
+                        height="100%"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1 Bottom Box: Line chart average response time */}
+                <div className="p-2 bg-transparent rounded border border-stroke flex flex-col mt-1">
+                  <h5 className="text-[10px] font-semibold uppercase text-gray-500 mb-2 text-center">Avg Resolution (Daily Hours)</h5>
+                  <div className="h-40">
+                    <Chart 
+                      options={{
+                        chart: { type: 'line', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
+                        stroke: { curve: 'smooth', width: 2 },
+                        colors: ['#10B981'],
+                        xaxis: { 
+                          categories: ticketsData.daily_resolution_labels || Array.from({length: ticketsData.daily_resolution_time?.length || 31}, (_, i) => i + 1),
+                          labels: { style: { fontSize: '9px' } },
+                          tickAmount: 15
+                        },
+                        yaxis: {
+                          labels: { style: { fontSize: '10px' }, formatter: (value) => value + 'h' },
+                          min: 0
+                        },
+                        dataLabels: { enabled: false },
+                        tooltip: { theme: 'light', y: { formatter: (val) => val + " hours" } }
+                      }}
+                      series={[{ name: 'Resolution Time', data: ticketsData.daily_resolution_time || [] }]}
+                      type="line"
+                      height="100%"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-3 bg-gray-50 rounded border border-stroke">
-                    <p className="text-xs text-gray-500 mb-1">Avg Resolution Time</p>
-                    <p className="text-lg font-bold text-boxdark">1h 45m</p>
-                 </div>
-                 <div className="p-3 bg-gray-50 rounded border border-stroke">
-                    <p className="text-xs text-gray-500 mb-1">Total Resolved (Month)</p>
-                    <p className="text-lg font-bold text-boxdark">150 Tickets</p>
-                 </div>
-              </div>
-              <div>
-                <h5 className="text-xs font-semibold uppercase text-gray-500 mb-2">Workload by Assignee</h5>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-body">Budi Santoso</span>
-                    <span className="font-medium text-boxdark">60 (40%)</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-body">Andi Pratama</span>
-                    <span className="font-medium text-boxdark">45 (30%)</span>
-                  </div>
-                </div>
-              </div>
-           </div>
+            ) : (
+             <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading tickets data...</div>
+           )}
         </Card>
       </div>
 
       {/* Asset Modal */}
       <Modal isOpen={modalType === 'asset'} onClose={() => setModalType(null)} title="Rincian Total Asset Fisik" maxWidth="max-w-6xl">
         <div className="space-y-8">
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-y-1 gap-x-2">
              <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
                <h5 className="text-sm font-bold text-boxdark mb-2">Tipe Aset</h5>
                <div className="flex-1 w-full min-h-0">
@@ -720,7 +939,7 @@ export default function ITSystem({ user }) {
              <div className="flex justify-between items-center mb-3">
                <h4 className="font-bold text-boxdark">General Assets</h4>
                {isPIC && (
-                 <div className="flex gap-2">
+                 <div className="flex gap-1">
                    <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                      Import
                    </button>
@@ -770,7 +989,7 @@ export default function ITSystem({ user }) {
              <div className="flex justify-between items-center mb-3">
                <h4 className="font-bold text-boxdark">Individual Assets</h4>
                {isPIC && (
-                 <div className="flex gap-2">
+                 <div className="flex gap-1">
                    <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                      Import
                    </button>
@@ -821,7 +1040,7 @@ export default function ITSystem({ user }) {
       {/* Email Modal */}
       <Modal isOpen={modalType === 'email'} onClose={() => setModalType(null)} title="Rincian Active Email" maxWidth="max-w-6xl">
         <div className="space-y-8">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-2">
              <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
                <h5 className="text-sm font-bold text-boxdark mb-2">Distribusi Domain Email</h5>
                <div className="flex-1 w-full min-h-0 -ml-2 mt-2">
@@ -850,7 +1069,7 @@ export default function ITSystem({ user }) {
              <div className="flex justify-between items-center mb-3">
                <h4 className="font-bold text-boxdark">Daftar Email Aktif</h4>
                {isPIC && (
-                 <div className="flex gap-2">
+                 <div className="flex gap-1">
                    <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                      Import
                    </button>
@@ -915,7 +1134,7 @@ export default function ITSystem({ user }) {
                 <td className="px-4 py-3 font-medium text-boxdark">New ERP System</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">Development</span></td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
                       <div className="h-full bg-primary w-3/4"></div>
                     </div>
@@ -928,7 +1147,7 @@ export default function ITSystem({ user }) {
                 <td className="px-4 py-3 font-medium text-boxdark">Internal HRIS</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-success/10 text-success text-xs rounded-full">Live (Exist)</span></td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
                       <div className="h-full bg-success w-full"></div>
                     </div>
@@ -943,25 +1162,73 @@ export default function ITSystem({ user }) {
       </Modal>
 
       {/* Budget Modal */}
-      <Modal isOpen={modalType === 'budget'} onClose={() => setModalType(null)} title="Rincian Visualisasi Budget">
-         <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stroke rounded-xl bg-gray-50">
-           <DollarSign className="w-12 h-12 text-gray-400 mb-4" />
-           <p className="text-boxdark font-medium mb-1">Detailed Budget Visualization</p>
-           <p className="text-sm text-body text-center max-w-sm">This area will contain detailed charts (e.g., Pie chart or Bar chart) showing budget allocated vs used per IT category once the charting library is fully integrated.</p>
-           <div className="w-full mt-6 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>Software Licenses</span>
-                <span className="font-medium">$45k / $50k</span>
-              </div>
-              <div className="h-2 w-full bg-gray-200 rounded-full"><div className="h-full bg-primary w-[90%] rounded-full"></div></div>
-              
-              <div className="flex justify-between text-sm mt-4">
-                <span>Hardware Upgrades</span>
-                <span className="font-medium">$32k / $40k</span>
-              </div>
-              <div className="h-2 w-full bg-gray-200 rounded-full"><div className="h-full bg-warning w-[80%] rounded-full"></div></div>
+      <Modal isOpen={modalType === 'budget'} onClose={() => setModalType(null)} title="Rincian Penggunaan Budget" maxWidth="max-w-4xl">
+         {budgetData ? (
+           <div className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
+                 <p className="text-sm text-gray-500 font-medium mb-1">Total Alokasi (Tahun Ini)</p>
+                 <h3 className="text-2xl font-bold text-boxdark">Rp {(budgetData.total_budget / 1000000).toLocaleString('id-ID', {minimumFractionDigits: 1})} Jt</h3>
+               </div>
+               <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
+                 <p className="text-sm text-gray-500 font-medium mb-1">Total Terpakai</p>
+                 <h3 className="text-2xl font-bold text-danger">Rp {(budgetData.total_used / 1000000).toLocaleString('id-ID', {minimumFractionDigits: 1})} Jt</h3>
+               </div>
+             </div>
+
+             <div className="bg-white rounded border border-stroke p-4">
+               <h4 className="font-bold text-boxdark mb-3">Breakdown per Kategori</h4>
+               <div className="space-y-3">
+                 {budgetData.breakdown.map((cat, idx) => {
+                   const pct = cat.allocated > 0 ? (cat.used / cat.allocated) * 100 : 0;
+                   const barColor = pct > 100 ? 'bg-danger' : (pct > 80 ? 'bg-warning' : 'bg-primary');
+                   return (
+                     <div key={idx}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-medium text-boxdark">{cat.category}</span>
+                          <span className="text-gray-500">Rp {(cat.used/1000).toLocaleString('id-ID')}k / Rp {(cat.allocated/1000).toLocaleString('id-ID')}k</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }}></div>
+                        </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             </div>
+             
+             <div className="bg-white rounded border border-stroke p-4">
+               <h4 className="font-bold text-boxdark mb-3">Histori Pengeluaran (Terbaru)</h4>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-xs text-left">
+                   <thead className="bg-gray-50 text-gray-500 border-b border-stroke">
+                     <tr>
+                       <th className="px-3 py-2">Tanggal</th>
+                       <th className="px-3 py-2">Keterangan</th>
+                       <th className="px-3 py-2">Kategori</th>
+                       <th className="px-3 py-2 text-right">Nominal</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-stroke">
+                     {budgetData.raw_expenses && budgetData.raw_expenses.map((exp, idx) => (
+                       <tr key={idx} className="hover:bg-gray-50">
+                         <td className="px-3 py-2">{exp.expense_date}</td>
+                         <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{exp.description}</td>
+                         <td className="px-3 py-2 text-primary">{exp.budget?.category}</td>
+                         <td className="px-3 py-2 text-right font-medium text-boxdark">Rp {parseFloat(exp.amount).toLocaleString('id-ID')}</td>
+                       </tr>
+                     ))}
+                     {(!budgetData.raw_expenses || budgetData.raw_expenses.length === 0) && (
+                       <tr><td colSpan={4} className="text-center py-4 text-gray-400">Belum ada pengeluaran</td></tr>
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
            </div>
-         </div>
+         ) : (
+           <div className="flex items-center justify-center h-48 text-gray-400">Loading data...</div>
+         )}
       </Modal>
     </>
   );

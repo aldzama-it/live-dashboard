@@ -92,12 +92,12 @@ export default function UserManagement({ user }) {
   return (
     <>
       <div className="animate-fade-in-up">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-3">
           <div>
           <h2 className="text-2xl font-bold text-boxdark">User Management</h2>
           <p className="text-sm text-body mt-1">Manage system users, roles, and division assignments.</p>
         </div>
-        <button onClick={openAddModal} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition">
+        <button onClick={openAddModal} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition">
           <Plus size={18} />
           <span>Add New User</span>
         </button>

@@ -12,21 +12,23 @@ export default function KpiCard({
 }) {
   return (
     <Card delay={delay} className={`flex flex-col h-full ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} onClick={onClick}>
-      <div className={`flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-full mb-3 md:mb-4 ${colorClass}`}>
-        {Icon && <Icon size={20} className="md:w-[22px] md:h-[22px]" />}
-      </div>
-      
-      <div className="flex-1">
-        {title && (
-          <p className="text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wider">{title}</p>
-        )}
-        <h4 className="text-xl md:text-2xl font-bold text-boxdark mb-1 truncate">{value}</h4>
-        <p className="text-xs md:text-sm font-medium text-body truncate">{subtitle}</p>
+      <div className="flex items-center gap-4 mb-2">
+        <div className={`flex shrink-0 h-11 w-11 items-center justify-center rounded-full ${colorClass}`}>
+          {Icon && <Icon size={22} />}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          {title && (
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide truncate">{title}</p>
+          )}
+          <h4 className="text-lg md:text-xl font-bold text-boxdark truncate leading-none mt-1">{value}</h4>
+        </div>
       </div>
 
-      {notes && (
-        <div className="mt-4 pt-3 border-t border-stroke text-xs text-gray-400">
-          {notes}
+      {(subtitle || notes) && (
+        <div className="mt-auto pt-2 border-t border-stroke text-[11px] flex items-center justify-between">
+          {subtitle && <span className="text-body font-medium truncate">{subtitle}</span>}
+          {notes && <span className="text-gray-400 ml-2 whitespace-nowrap">{notes}</span>}
         </div>
       )}
     </Card>

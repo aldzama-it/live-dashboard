@@ -75,7 +75,7 @@ export default function DataEntry({ user }) {
 
   return (
     <div className="animate-fade-in-up">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-3">
         <div>
           <h2 className="text-2xl font-bold text-boxdark">Update Data - {title}</h2>
           <p className="text-sm text-body mt-1">Input KPI metrics and dynamic data for this period.</p>
@@ -85,13 +85,13 @@ export default function DataEntry({ user }) {
       <Card>
         <div className="p-6">
           {message.text && (
-            <div className={`mb-6 p-4 rounded-md ${message.type === 'success' ? 'bg-success/10 text-success border border-success/20' : 'bg-danger/10 text-danger border border-danger/20'}`}>
+            <div className={`mb-3 p-4 rounded-md ${message.type === 'success' ? 'bg-success/10 text-success border border-success/20' : 'bg-danger/10 text-danger border border-danger/20'}`}>
               {message.text}
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
-            <div className="mb-6 max-w-sm">
+            <div className="mb-3 max-w-sm">
               <label className="mb-2 block text-sm font-medium text-boxdark">Period</label>
               <select 
                 value={selectedPeriod} 
@@ -141,7 +141,7 @@ export default function DataEntry({ user }) {
               <button 
                 type="button" 
                 onClick={addField}
-                className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
               >
                 <Plus size={16} /> Add Another Metric
               </button>
@@ -151,7 +151,7 @@ export default function DataEntry({ user }) {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="flex items-center gap-2 px-6 py-2 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-all disabled:opacity-50"
+                className="flex items-center gap-1 px-6 py-2 bg-primary text-white font-medium rounded-md hover:bg-opacity-90 transition-all disabled:opacity-50"
               >
                 <Save size={18} /> {loading ? 'Saving...' : 'Save Data'}
               </button>

@@ -7,6 +7,7 @@ import { menuData } from '../menuData';
 import Card from '../components/ui/Card';
 import KpiCard from '../components/ui/KpiCard';
 import ChartContainer from '../components/ui/ChartContainer';
+import PageHeader from '../components/ui/PageHeader';
 
 // Import Division Components
 import BusinessDevelopment from './divisions/sales-engineering/BusinessDevelopment';
@@ -51,7 +52,7 @@ function MainOverview({ user }) {
   return (
     <>
       {/* KPI Cards Grid - Staggered reveal */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-1 gap-x-2 md:gap-y-1 gap-x-2 mb-3">
 
         {/* Welcome Card */}
         <KpiCard
@@ -95,7 +96,7 @@ function MainOverview({ user }) {
       </div>
 
       {/* Main Chart/Insights Area - Appears after KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-1 gap-x-2">
         <ChartContainer title="Revenue Growth Chart" delay="delay-300" className="lg:col-span-2">
           <div className="flex flex-col justify-center items-center text-body h-full min-h-[200px]">
             <TrendingUp size={48} className="text-gray-300 mb-4" />
@@ -121,7 +122,7 @@ function MainOverview({ user }) {
 }
 
 export default function Dashboard({ user, setUser }) {
-  const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 768);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
 
@@ -359,17 +360,7 @@ export default function Dashboard({ user, setUser }) {
               <Menu size={20} />
             </button>
             <h1 className="text-xl font-semibold text-boxdark">
-              {/* Dynamic Header Title */}
-              {(() => {
-                const parts = location.pathname.split('/').filter(Boolean);
-                if (parts.length === 0) return "Main Dashboard";
-                const dept = menuData.find(d => d.pathPrefix === parts[0]);
-                if (dept) {
-                  const div = dept.divisions.find(d => d.path === parts[1]);
-                  return div ? `${dept.name} / ${div.name}` : dept.name;
-                }
-                return "Overview";
-              })()}
+              Live Dashboard
             </h1>
           </div>
 
@@ -384,7 +375,7 @@ export default function Dashboard({ user, setUser }) {
             {/* Profile Toggle Button */}
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1.5 text-body hover:text-primary rounded-full hover:bg-gray-100 transition"
+              className="flex items-center gap-1 p-1.5 text-body hover:text-primary rounded-full hover:bg-gray-100 transition"
               title="Profile"
             >
               <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
@@ -428,6 +419,26 @@ export default function Dashboard({ user, setUser }) {
 
         {/* Main Body */}
         <main className="flex-1 overflow-auto p-6 bg-gray-50">
+          {location.pathname !== '/' && (
+            <PageHeader 
+              title={(() => {
+                const parts = location.pathname.split('/').filter(Boolean);
+                if (location.pathname.startsWith('/users')) return "User Management";
+                const dept = menuData.find(d => d.pathPrefix === parts[0]);
+                if (dept) {
+                  const div = dept.divisions.find(d => d.path === parts[1]);
+                  return div ? div.name : dept.name;
+                }
+                return "Overview";
+              })()} 
+              subtitle={(() => {
+                if (location.pathname.includes('/finance-admin/it-system')) {
+                  return "Overview of IT Infrastructure, Digital Assets, and Service Operations.";
+                }
+                return null;
+              })()}
+            />
+          )}
           <Routes>
             <Route path="/" element={<MainOverview user={user} />} />
             

@@ -13,11 +13,9 @@ export default function HSE({ user }) {
 
   return (
     <>
-      <div className="flex justify-end mb-6">
-        <MonthFilter />
-      </div>
+      <MonthFilter />
       {/* KPI Cards Grid - Staggered reveal */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-1 gap-x-2 md:gap-y-1 gap-x-2 mb-3">
         
         {/* Welcome Card */}
         <KpiCard
@@ -61,7 +59,7 @@ export default function HSE({ user }) {
       </div>
 
       {/* Main Chart/Insights Area - Appears after KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-1 gap-x-2">
         <ChartContainer title="Revenue Growth Chart" delay="delay-300" className="lg:col-span-2">
           <div className="flex flex-col justify-center items-center text-body h-full min-h-[200px]">
             <TrendingUp size={48} className="text-gray-300 mb-4" />

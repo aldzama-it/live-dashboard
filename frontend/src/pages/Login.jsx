@@ -71,7 +71,7 @@ export default function Login({ setUser }) {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 rounded-lg bg-danger/10 text-danger text-sm border border-danger/20 flex items-center">
+            <div className="mb-3 p-4 rounded-lg bg-danger/10 text-danger text-sm border border-danger/20 flex items-center">
               <span className="block sm:inline">{error}</span>
             </div>
           )}
@@ -121,7 +121,7 @@ export default function Login({ setUser }) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full cursor-pointer rounded-lg border border-[#4056A6] bg-[#4056A6] p-4 text-white transition-all duration-300 hover:bg-[#32458a] hover:shadow-lg hover:-translate-y-1 active:bg-[#253366] active:shadow-inner active:-translate-y-0 active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none disabled:hover:bg-[#4056A6] disabled:active:scale-100"
+                className="w-full cursor-pointer rounded-lg border border-[#4056A6] bg-[#4056A6] p-4 text-white transition-all duration-300 hover:bg-[#32458a] hover:shadow-lg hover:-translate-y-1 active:bg-[#253366] active:shadow-inner active:-translate-y-0 active:scale-[0.98] flex justify-center items-center gap-1 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none disabled:hover:bg-[#4056A6] disabled:active:scale-100"
               >
                 {isLoading ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-t-transparent"></div>

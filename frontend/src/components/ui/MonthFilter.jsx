@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
 const availableMonths = [
@@ -47,7 +48,7 @@ export default function MonthFilter({ selectedMonths, onChange }) {
     return `${activeMonths.length} Months Selected`;
   };
 
-  return (
+  const filterContent = (
     <div className="relative inline-block text-left z-20" ref={dropdownRef}>
       <div>
         <button
@@ -83,4 +84,11 @@ export default function MonthFilter({ selectedMonths, onChange }) {
       )}
     </div>
   );
+
+  const targetNode = document.getElementById('page-header-actions');
+  if (targetNode) {
+    return ReactDOM.createPortal(filterContent, targetNode);
+  }
+
+  return filterContent;
 }

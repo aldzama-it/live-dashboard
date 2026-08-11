@@ -7,11 +7,11 @@ export default function Card({ title, children, className = '', delay = 'delay-0
 
   return (
     <div 
-      className={`bg-white p-6 rounded-xl border border-stroke shadow-sm animate-fade-in-up ${delay} ${interactiveClasses} ${className}`}
+      className={`bg-white p-3 rounded-xl border border-stroke shadow-sm animate-fade-in-up ${delay} ${interactiveClasses} ${className}`}
       onClick={onClick}
     >
       {title && (
-        <h4 className="text-lg font-bold text-boxdark mb-4">{title}</h4>
+        <h4 className="text-sm font-bold text-boxdark mb-3">{title}</h4>
       )}
       {children}
     </div>
