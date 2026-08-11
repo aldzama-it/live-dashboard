@@ -37,4 +37,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/it-dashboard/assets', [ItDashboardController::class, 'getAssets']);
     Route::get('/it-dashboard/emails', [ItDashboardController::class, 'getEmails']);
     Route::get('/it-dashboard/tickets', [ItDashboardController::class, 'getTickets']);
+    Route::get('/it-dashboard/budget', [ItDashboardController::class, 'getBudget']);
+    Route::get('/it-dashboard/software', [ItDashboardController::class, 'getSoftware']);
 });

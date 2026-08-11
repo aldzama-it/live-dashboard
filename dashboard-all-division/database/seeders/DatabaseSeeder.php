@@ -10,8 +10,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolePermissionSeeder::class,
+            RoleAndPermissionSeeder::class, // Added to prevent RBAC loss
             AdminUserSeeder::class,
             DivisionDepartmentSeeder::class,
+            ItTicketSeeder::class, // Added to ensure ticket data is seeded
+            ItBudgetSeeder::class,
         ]);
     }
 }

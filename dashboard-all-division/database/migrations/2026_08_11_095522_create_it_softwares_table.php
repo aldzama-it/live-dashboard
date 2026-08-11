@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('it_softwares', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->enum('status', ['launched', 'development'])->default('development');
+            $table->integer('progress')->default(0); // For development
+            $table->integer('active_users')->default(0); // For launched
+            $table->text('description')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('it_softwares');
+    }
+};

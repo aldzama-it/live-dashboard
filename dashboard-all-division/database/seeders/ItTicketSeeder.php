@@ -18,6 +18,7 @@ class ItTicketSeeder extends Seeder
         $tickets = [
             [
                 'ticket_number' => 'INC-1001',
+                'category' => 'Jaringan/Internet',
                 'subject' => 'Jaringan Wifi di lantai 2 sangat lambat',
                 'description' => 'Halo tim IT, jaringan wifi di ruang meeting lantai 2 HRD putus nyambung dari pagi. Tolong dicek. Email saya budi@aldzama.com atau hubungi 081234567890.',
                 'assigned_to' => 'Andi Pratama',
@@ -26,6 +27,7 @@ class ItTicketSeeder extends Seeder
             ],
             [
                 'ticket_number' => 'INC-1002',
+                'category' => 'Akun & Akses',
                 'subject' => 'Lupa password email',
                 'description' => 'Saya lupa password email perusahaan aldzama.com. Tolong resetkan password saya secepatnya.',
                 'assigned_to' => 'Budi Santoso',
@@ -34,6 +36,7 @@ class ItTicketSeeder extends Seeder
             ],
             [
                 'ticket_number' => 'INC-1003',
+                'category' => 'Hardware',
                 'subject' => 'Printer error paper jam',
                 'description' => 'Printer Brother di ruangan finance nyangkut kertasnya (paper jam). Tolong mekanik segera perbaiki.',
                 'assigned_to' => 'Budi Santoso',
@@ -42,6 +45,7 @@ class ItTicketSeeder extends Seeder
             ],
             [
                 'ticket_number' => 'INC-1004',
+                'category' => 'Jaringan/Internet',
                 'subject' => 'Koneksi internet lambat sekali',
                 'description' => 'Jaringan internet dan LAN sangat lambat untuk upload dokumen ke server.',
                 'assigned_to' => 'Siti Aminah',
@@ -50,6 +54,7 @@ class ItTicketSeeder extends Seeder
             ],
             [
                 'ticket_number' => 'INC-1005',
+                'category' => 'Akun & Akses',
                 'subject' => 'Password reset untuk akun ERP',
                 'description' => 'Mohon bantu reset password untuk aplikasi ERP, akun saya terkunci.',
                 'assigned_to' => 'Andi Pratama',
