@@ -304,6 +304,8 @@ export default function ITSystem({ user }) {
   const [departmentsData, setDepartmentsData] = useState([]);
   const [newAssetType, setNewAssetType] = useState(null); // 'general' or 'individual'
   const [emailsData, setEmailsData] = useState([]);
+  const [isAddingEmail, setIsAddingEmail] = useState(false);
+  const [showSoftwareDetails, setShowSoftwareDetails] = useState(false);
   const [ticketsData, setTicketsData] = useState(null);
   const [budgetData, setBudgetData] = useState(null);
   const [softwareData, setSoftwareData] = useState(null);
@@ -658,65 +660,93 @@ export default function ITSystem({ user }) {
         </ChartContainer>
 
         <ChartContainer title="Software Develop" delay="delay-200" id="software-develop">
-          {softwareData ? (
-            <div className="flex flex-col gap-4 h-[400px] overflow-y-auto pr-2">
-              {/* Donut Chart: Launched vs Development */}
-              <div className="h-48 shrink-0 relative mt-2">
-                <Chart
-                  options={{
-                    chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
-                    labels: ['Launched', 'In Development'],
-                    colors: ['#10B981', '#3C50E0'],
-                    dataLabels: { enabled: true, style: { fontSize: '10px' } },
-                    plotOptions: { pie: { donut: { size: '65%' } } },
-                    legend: { position: 'bottom', fontSize: '10px' },
-                    tooltip: { theme: 'light' }
-                  }}
-                  series={[softwareData.summary.launched, softwareData.summary.development]}
-                  type="donut"
-                  height="100%"
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
-                  <span className="text-xl font-bold text-boxdark">{softwareData.summary.launched + softwareData.summary.development}</span>
-                  <span className="text-[9px] text-gray-500 uppercase tracking-widest">Total Apps</span>
+          {softwareData && softwareData.summary ? (
+            <div className="flex flex-col gap-2 h-full justify-center relative">
+              {/* Clickable Donut Chart Area */}
+              <div 
+                className="h-56 shrink-0 relative cursor-pointer hover:opacity-80 transition flex items-center justify-center w-full"
+                onClick={() => setShowSoftwareDetails(true)}
+                title="Click to view details"
+              >
+                <div className="w-[85%] h-[85%] relative">
+                  <Chart
+                    options={{
+                      chart: { 
+                        type: 'donut', 
+                        fontFamily: 'Inter, sans-serif',
+                        events: {
+                          dataPointSelection: () => setShowSoftwareDetails(true)
+                        }
+                      },
+                      labels: ['Launched', 'In Development'],
+                      colors: ['#10B981', '#3C50E0'],
+                      dataLabels: { enabled: false },
+                      plotOptions: { pie: { donut: { size: '70%' }, offsetY: 5 } },
+                      legend: { position: 'bottom', fontSize: '11px', offsetY: 0 },
+                      tooltip: { theme: 'light' }
+                    }}
+                    series={[softwareData.summary?.launched || 0, softwareData.summary?.development || 0]}
+                    type="donut"
+                    height="100%"
+                    width="100%"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-[25px]">
+                    <span className="text-3xl font-bold text-boxdark leading-none mb-1">{(softwareData.summary?.launched || 0) + (softwareData.summary?.development || 0)}</span>
+                    <span className="text-[9px] text-gray-500 uppercase tracking-widest">Total Apps</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Development Progress List */}
-              <div className="flex flex-col gap-2">
-                <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-1">In Development</h5>
-                {softwareData.development_list.map((sw, idx) => (
-                  <div key={idx} className="p-2 bg-gray-50 rounded border border-stroke flex flex-col gap-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-boxdark">{sw.name}</span>
-                      <span className="text-primary font-medium">{sw.progress}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${sw.progress}%` }}></div>
-                    </div>
+              {/* Inline Pop-up / Overlay */}
+              {showSoftwareDetails && (
+                <div className="absolute inset-0 bg-white z-20 flex flex-col overflow-y-auto">
+                  <div className="flex justify-between items-center mb-2 pb-2 border-b border-stroke sticky top-0 bg-white pt-1">
+                    <h4 className="text-xs font-bold text-boxdark">Software Details</h4>
+                    <button onClick={() => setShowSoftwareDetails(false)} className="text-gray-400 hover:text-danger">
+                      <X size={16} />
+                    </button>
                   </div>
-                ))}
-                {softwareData.development_list.length === 0 && <p className="text-xs text-gray-400 text-center py-2">No active development</p>}
-              </div>
+                  
+                  {/* Lists */}
+                  <div className="flex flex-col gap-3 pb-2 pr-1">
+                    {/* Development Progress List */}
+                    <div className="flex flex-col gap-1.5">
+                      <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">In Development</h5>
+                      {softwareData.development_list?.map((sw, idx) => (
+                        <div key={idx} className="p-1.5 bg-gray-50 rounded border border-stroke flex flex-col gap-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-boxdark">{sw.name}</span>
+                            <span className="text-primary font-medium">{sw.progress}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full" style={{ width: `${sw.progress}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
+                      {(!softwareData.development_list || softwareData.development_list.length === 0) && <p className="text-[10px] text-gray-400">No active development</p>}
+                    </div>
 
-              {/* Launched Software List */}
-              <div className="flex flex-col gap-2 mt-2">
-                <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-1">Launched Software</h5>
-                {softwareData.launched_list.map((sw, idx) => (
-                  <div key={idx} className="p-2 bg-gray-50 rounded border border-stroke flex justify-between items-center">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-semibold text-boxdark truncate">{sw.name}</span>
-                      <span className="text-[9px] text-gray-500 truncate">{sw.description}</span>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0 pl-2">
-                      <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">
-                        {new Intl.NumberFormat('id-ID').format(sw.active_users)}
-                      </span>
-                      <span className="text-[8px] text-gray-400 uppercase mt-0.5">Active Users</span>
+                    {/* Launched Software List */}
+                    <div className="flex flex-col gap-1.5">
+                      <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Launched Software</h5>
+                      {softwareData.launched_list?.map((sw, idx) => (
+                        <div key={idx} className="p-1.5 bg-gray-50 rounded border border-stroke flex justify-between items-center">
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11px] font-semibold text-boxdark truncate">{sw.name}</span>
+                            <span className="text-[9px] text-gray-500 truncate">{sw.description}</span>
+                          </div>
+                          <div className="flex flex-col items-end shrink-0 pl-1">
+                            <span className="text-[9px] font-bold text-success bg-success/10 px-1 py-0.5 rounded">
+                              {new Intl.NumberFormat('id-ID').format(sw.active_users || 0)}
+                            </span>
+                            <span className="text-[8px] text-gray-400 mt-0.5">Users</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading software data...</div>
@@ -743,7 +773,7 @@ export default function ITSystem({ user }) {
                       stroke: { width: [0, 0, 0, 0, 2], curve: 'smooth' },
                       plotOptions: { bar: { columnWidth: '50%' } },
                       xaxis: {
-                        categories: budgetData.monthly_trend.map(item => item.month),
+                        categories: budgetData.monthly_trend?.map(item => item.month) || [],
                         labels: { style: { fontSize: '9px' } }
                       },
                       yaxis: {
@@ -1117,50 +1147,6 @@ export default function ITSystem({ user }) {
         </div>
       </Modal>
 
-      {/* Software Modal */}
-      <Modal isOpen={modalType === 'software'} onClose={() => setModalType(null)} title="Software Develop Details" maxWidth="max-w-3xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-500">
-              <tr>
-                <th className="px-4 py-2 font-medium rounded-tl-md">Software Name</th>
-                <th className="px-4 py-2 font-medium">Status (Progress / Exist)</th>
-                <th className="px-4 py-2 font-medium">Progress %</th>
-                <th className="px-4 py-2 font-medium rounded-tr-md">Active Users</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stroke">
-              <tr>
-                <td className="px-4 py-3 font-medium text-boxdark">New ERP System</td>
-                <td className="px-4 py-3"><span className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">Development</span></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary w-3/4"></div>
-                    </div>
-                    <span className="text-xs">75%</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-body">0 (Testing)</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium text-boxdark">Internal HRIS</td>
-                <td className="px-4 py-3"><span className="px-2 py-1 bg-success/10 text-success text-xs rounded-full">Live (Exist)</span></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-success w-full"></div>
-                    </div>
-                    <span className="text-xs">100%</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-body">245 Users</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Modal>
-
       {/* Budget Modal */}
       <Modal isOpen={modalType === 'budget'} onClose={() => setModalType(null)} title="Rincian Penggunaan Budget" maxWidth="max-w-4xl">
          {budgetData ? (
@@ -1179,7 +1165,7 @@ export default function ITSystem({ user }) {
              <div className="bg-white rounded border border-stroke p-4">
                <h4 className="font-bold text-boxdark mb-3">Breakdown per Kategori</h4>
                <div className="space-y-3">
-                 {budgetData.breakdown.map((cat, idx) => {
+                 {budgetData.breakdown && budgetData.breakdown.map((cat, idx) => {
                    const pct = cat.allocated > 0 ? (cat.used / cat.allocated) * 100 : 0;
                    const barColor = pct > 100 ? 'bg-danger' : (pct > 80 ? 'bg-warning' : 'bg-primary');
                    return (
