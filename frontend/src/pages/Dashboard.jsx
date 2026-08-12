@@ -36,6 +36,7 @@ import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
 import ITSystem from './divisions/finance-admin/ITSystem';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Import Admin Pages
 import UserManagement from './UserManagement';
@@ -473,7 +474,11 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
             <Route path="/finance-admin/qms-audit/overview" element={<QMSAudit user={user} />} />
             <Route path="/finance-admin/legal/overview" element={<Legal user={user} />} />
-            <Route path="/finance-admin/it-system/overview" element={<ITSystem user={user} />} />
+            <Route path="/finance-admin/it-system/overview" element={
+              <ErrorBoundary>
+                <ITSystem user={user} />
+              </ErrorBoundary>
+            } />
 
             {/* Admin Routes */}
             {isAdmin && (
