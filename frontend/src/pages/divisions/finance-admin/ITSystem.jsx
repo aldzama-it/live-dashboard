@@ -629,7 +629,7 @@ export default function ITSystem({ user }) {
           <KpiCard
             title="Pemakaian Budget"
             value={budgetData ? `${parseFloat(((budgetData.total_used / (budgetData.total_budget || 1)) * 100).toFixed(1))}%` : '0%'}
-            subtitle={budgetData ? `Rp ${parseFloat((budgetData.total_used / 1000000).toFixed(1))}Jt / Rp ${parseFloat((budgetData.total_budget / 1000000).toFixed(1))}Jt` : 'Loading...'}
+            subtitle={budgetData ? `Rp ${budgetData.total_used.toLocaleString('id-ID')} / Rp ${budgetData.total_budget.toLocaleString('id-ID')}` : 'Loading...'}
             icon={DollarSign}
             colorClass="text-danger bg-danger/10"
             onClick={() => scrollToElement('budget-section')}
@@ -687,7 +687,7 @@ export default function ITSystem({ user }) {
                         labels: { style: { fontSize: '10px' } }
                       },
                       yaxis: {
-                        labels: { formatter: (val) => "Rp" + (val / 1000000).toFixed(0) + "Jt", style: { fontSize: '10px' } }
+                        labels: { formatter: (val) => "Rp " + val.toLocaleString('id-ID'), style: { fontSize: '10px' } }
                       },
                       legend: { position: 'top', fontSize: '10px', itemMargin: { horizontal: 5, vertical: 0 } },
                       dataLabels: { enabled: false },
@@ -1130,11 +1130,11 @@ export default function ITSystem({ user }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
                 <p className="text-sm text-gray-500 font-medium mb-1">Total Alokasi (Tahun Ini)</p>
-                <h3 className="text-2xl font-bold text-boxdark">Rp {(budgetData.total_budget / 1000000).toLocaleString('id-ID', { minimumFractionDigits: 1 })} Jt</h3>
+                <h3 className="text-2xl font-bold text-boxdark">Rp {budgetData.total_budget.toLocaleString('id-ID')}</h3>
               </div>
               <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
                 <p className="text-sm text-gray-500 font-medium mb-1">Total Terpakai</p>
-                <h3 className="text-2xl font-bold text-danger">Rp {(budgetData.total_used / 1000000).toLocaleString('id-ID', { minimumFractionDigits: 1 })} Jt</h3>
+                <h3 className="text-2xl font-bold text-danger">Rp {budgetData.total_used.toLocaleString('id-ID')}</h3>
               </div>
             </div>
 
@@ -1148,7 +1148,7 @@ export default function ITSystem({ user }) {
                     <div key={idx}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-medium text-boxdark">{cat.category}</span>
-                        <span className="text-gray-500">Rp {(cat.used / 1000).toLocaleString('id-ID')}k / Rp {(cat.allocated / 1000).toLocaleString('id-ID')}k</span>
+                        <span className="text-gray-500">Rp {cat.used.toLocaleString('id-ID')} / Rp {cat.allocated.toLocaleString('id-ID')}</span>
                       </div>
                       <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }}></div>
