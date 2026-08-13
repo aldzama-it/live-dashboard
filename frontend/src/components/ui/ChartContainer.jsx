@@ -4,14 +4,15 @@ export default function ChartContainer({
   title, 
   children, 
   delay = '',
-  className = ''
+  className = '',
+  action = null
 }) {
   return (
     <Card delay={delay} className={`flex flex-col min-h-[260px] ${className}`}>
-      {title && (
+      {(title || action) && (
         <div className="mb-2 flex items-center justify-between">
           <h4 className="text-sm font-bold text-boxdark">{title}</h4>
-          {/* Header controls can be added here later (e.g. date filters, export buttons) */}
+          {action && <div>{action}</div>}
         </div>
       )}
       
