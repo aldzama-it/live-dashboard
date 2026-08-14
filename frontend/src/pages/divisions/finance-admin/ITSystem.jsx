@@ -837,7 +837,7 @@ export default function ITSystem({ user }) {
                       options={{
                         chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
                         labels: ticketsData.categories.map(c => c.category),
-                        legend: { show: true, position: 'right', fontSize: '10px' },
+                        legend: { show: true, position: 'right', fontSize: '9px', offsetY: 0, itemMargin: { horizontal: 0, vertical: 2 } },
                         dataLabels: { enabled: false },
                         colors: ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#8B5CF6'],
                         plotOptions: { 
@@ -852,14 +852,14 @@ export default function ITSystem({ user }) {
                                   fontSize: '9px',
                                   fontWeight: 600,
                                   color: '#64748B',
-                                  offsetY: 20
+                                  offsetY: 15
                                 },
                                 value: {
                                   show: true,
-                                  fontSize: '26px',
+                                  fontSize: '20px',
                                   fontWeight: 'bold',
                                   color: '#1c2434',
-                                  offsetY: -16
+                                  offsetY: -10
                                 },
                                 total: {
                                   show: true,
