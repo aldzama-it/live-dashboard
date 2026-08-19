@@ -1,0 +1,9 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+
+# QMS runtime/business data must stay outside Git.
+data/*.xlsx
+storage/uploads/*
+!storage/uploads/.gitignore
