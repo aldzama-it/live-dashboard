@@ -1,4 +1,4 @@
-﻿# QMS Live KPI â€” Modul Python
+# QMS Live KPI — Modul Python
 
 Modul ini hanya menangani **LIVE KPI**. Sheet `LIST` dan `MENU` diabaikan. Nama setiap sheet lain dianggap sebagai nama divisi.
 
@@ -22,10 +22,10 @@ Parser mencari secara otomatis:
 
 Aturan umum:
 
-- Actual lebih besar atau sama dengan Plan â†’ memenuhi.
-- KPI dengan kata seperti `maksimal`, `tidak melebihi`, `zero incident`, `budget utilization`, dan simbol `<=` atau `â‰¤` menggunakan aturan Actual lebih kecil atau sama dengan Plan.
-- Plan ada tetapi Actual kosong â†’ belum lengkap.
-- Plan dan Actual kosong â†’ tidak dijadwalkan.
+- Actual lebih besar atau sama dengan Plan → memenuhi.
+- KPI dengan kata seperti `maksimal`, `tidak melebihi`, `zero incident`, `budget utilization`, dan simbol `<=` atau `≤` menggunakan aturan Actual lebih kecil atau sama dengan Plan.
+- Plan ada tetapi Actual kosong → belum lengkap.
+- Plan dan Actual kosong → tidak dijadwalkan.
 - Satu KPI gagal membuat status divisi menjadi tidak memenuhi.
 
 ## Instalasi Windows
@@ -85,4 +85,3 @@ Python hanya menjadi pengolah data KPI. Nantinya halaman Laravel dapat mengambil
 ## Jika hasil pembacaan belum tepat
 
 Buka detail divisi. Setiap KPI menampilkan Plan, Actual, status, alasan, serta nomor baris Plan dan Actual pada respons API. Karena posisi tabel antar-sheet dapat berbeda, parser memakai deteksi pola dan bukan nomor kolom tetap.
-
