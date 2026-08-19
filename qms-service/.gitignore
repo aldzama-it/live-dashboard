@@ -7,3 +7,6 @@ __pycache__/
 data/*.xlsx
 storage/uploads/*
 !storage/uploads/.gitignore
+
+# Local QMS dev helper
+open-qms-dev.ps1
