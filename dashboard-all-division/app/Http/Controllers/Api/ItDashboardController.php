@@ -112,16 +112,16 @@ class ItDashboardController extends Controller
         foreach($tickets as $t) {
             $created = \Carbon\Carbon::parse($t->created_at);
             
-            // Resolution (per day of month)
-            $dayOfMonth = $created->format('j');
+            // Resolution (per exact date)
+            $dateKey = $created->format('Y-m-d');
             $resolved = \Carbon\Carbon::parse($t->resolved_at);
             $minutes = $resolved->diffInMinutes($created);
             
-            if(!isset($dailyResolution[$dayOfMonth])) {
-                $dailyResolution[$dayOfMonth] = ['total_minutes' => 0, 'count' => 0];
+            if(!isset($dailyResolution[$dateKey])) {
+                $dailyResolution[$dateKey] = ['total_minutes' => 0, 'count' => 0];
             }
-            $dailyResolution[$dayOfMonth]['total_minutes'] += $minutes;
-            $dailyResolution[$dayOfMonth]['count'] += 1;
+            $dailyResolution[$dateKey]['total_minutes'] += $minutes;
+            $dailyResolution[$dateKey]['count'] += 1;
             
             // Volume (per day of week 1-7)
             $dayOfWeek = $created->format('N');
@@ -133,14 +133,13 @@ class ItDashboardController extends Controller
         $start = \Carbon\Carbon::parse($startDate);
         $end = \Carbon\Carbon::parse($endDate);
         
-        // Loop from start day to end day (just using days in that span)
-        // If range spans multiple months, dayOfMonth collision happens, but keeping simple for UI
+        // Loop from start day to end day
         for($date = $start->copy(); $date->lte($end); $date->addDay()) {
-            $dayStr = $date->format('j');
+            $dateKey = $date->format('Y-m-d');
             $dailyResolutionLabels[] = $date->format('d M');
             // Resolution
-            if(isset($dailyResolution[$dayStr])) {
-                $avgMin = $dailyResolution[$dayStr]['total_minutes'] / $dailyResolution[$dayStr]['count'];
+            if(isset($dailyResolution[$dateKey])) {
+                $avgMin = $dailyResolution[$dateKey]['total_minutes'] / $dailyResolution[$dateKey]['count'];
                 $dailyResolutionData[] = round($avgMin / 60, 2);
             } else {
                 $dailyResolutionData[] = 0;

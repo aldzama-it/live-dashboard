@@ -350,7 +350,7 @@ export default function Dashboard({ user, setUser }) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header - Appears first */}
         <header className="bg-white shadow-sm border-b border-stroke flex items-center justify-between px-6 h-[76px] animate-fade-in-up delay-0 relative z-30">
           <div className="flex items-center gap-4">
@@ -419,7 +419,7 @@ export default function Dashboard({ user, setUser }) {
         </header>
 
         {/* Main Body */}
-        <main className="flex-1 overflow-auto p-6 bg-gray-50">
+        <main className="flex-1 overflow-auto px-6 pt-2 pb-6 bg-gray-50 min-w-0">
           {location.pathname !== '/' && (
             <PageHeader 
               title={(() => {

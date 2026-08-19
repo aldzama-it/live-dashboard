@@ -7,7 +7,7 @@ export default function Card({ title, children, className = '', delay = 'delay-0
 
   return (
     <div 
-      className={`bg-white p-3 rounded-xl border border-stroke shadow-sm animate-fade-in-up ${delay} ${interactiveClasses} ${className}`}
+      className={`bg-white p-3 rounded-xl border border-stroke shadow-sm animate-fade-in-up min-w-0 ${delay} ${interactiveClasses} ${className}`}
       onClick={onClick}
     >
       {title && (
