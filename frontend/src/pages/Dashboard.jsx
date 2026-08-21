@@ -128,7 +128,7 @@ export default function Dashboard({ user, setUser }) {
   const location = useLocation();
 
   // RBAC logic for sidebar
-  const isAdmin = user?.roles?.some(r => r.name === 'Admin');
+  const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin'));
   const isTopManagement = user?.roles?.some(r => r.name === 'Top Management');
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
 
