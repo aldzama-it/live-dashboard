@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, Plus, Pencil, Trash2, Check, X, RefreshCw } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -69,7 +70,7 @@ const LOCATIONS = [
   "Aldzama - BAI"
 ];
 
-const AssetRow = ({ asset, isPIC, onUpdate, onDelete, onCancelAdd, departmentsData }) => {
+const AssetRow = ({ asset, canEdit, onUpdate, onDelete, onCancelAdd, departmentsData }) => {
   // If it's a new unsaved asset, start in editing mode
   const [isEditing, setIsEditing] = useState(asset.isNew || false);
   const [formData, setFormData] = useState(asset);
@@ -177,7 +178,7 @@ const AssetRow = ({ asset, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
         </>
       )}
       <td className={`px-4 py-3 ${asset.condition?.toLowerCase().includes('baik') ? 'text-success' : 'text-warning'}`}>{asset.condition}</td>
-      {isPIC && (
+      {canEdit && (
         <td className="px-4 py-3 text-right">
           <div className="flex justify-end gap-1">
             <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
@@ -189,7 +190,7 @@ const AssetRow = ({ asset, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
   );
 };
 
-const EmailRow = ({ email, isPIC, onUpdate, onDelete, onCancelAdd, departmentsData }) => {
+const EmailRow = ({ email, canEdit, onUpdate, onDelete, onCancelAdd, departmentsData }) => {
   const [isEditing, setIsEditing] = useState(email.isNew || false);
   const [formData, setFormData] = useState({
     ...email,
@@ -277,11 +278,228 @@ const EmailRow = ({ email, isPIC, onUpdate, onDelete, onCancelAdd, departmentsDa
       </td>
       <td className="px-4 py-3">{email.department}</td>
       <td className="px-4 py-3">{email.division_project}</td>
-      {isPIC && (
+      {canEdit && (
         <td className="px-4 py-3 text-right">
           <div className="flex justify-end gap-1">
             <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
             <button onClick={() => onDelete(email.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14} /></button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+};
+
+const BudgetRow = ({ expense, canEdit, onUpdate, onDelete, onCancelAdd, budgetCategories }) => {
+  const [isEditing, setIsEditing] = React.useState(expense.isNew || false);
+  const [formData, setFormData] = React.useState({ ...expense });
+
+  if (isEditing) {
+    return (
+      <tr>
+        <td className="px-2 py-2 min-w-[130px]">
+          <input type="date" className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.expense_date || ''} onChange={e => setFormData({ ...formData, expense_date: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 min-w-[200px]">
+          <input type="text" placeholder="Keterangan..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 min-w-[150px]">
+          <CreatableSelect
+            styles={selectStyles}
+            options={budgetCategories?.map(c => ({ label: c, value: c }))}
+            value={formData.group_category ? { label: formData.group_category, value: formData.group_category } : null}
+            onChange={v => setFormData({ ...formData, group_category: v?.value || '' })}
+            placeholder="Kategori..."
+            isClearable
+            menuPortalTarget={document.body}
+          />
+        </td>
+        <td className="px-2 py-2 min-w-[130px]">
+          <input type="number" placeholder="Nominal..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.amount || ''} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 text-right">
+          <div className="flex justify-end gap-1">
+            <button onClick={() => {
+              if (!formData.expense_date || !formData.description || !formData.amount || !formData.group_category) return alert('Data wajib diisi semua');
+              onUpdate({ ...formData });
+              if (!expense.isNew) setIsEditing(false);
+            }}
+              className="text-success p-1 hover:bg-success/10 rounded" title="Save">
+              <Check size={14} />
+            </button>
+            <button onClick={() => {
+              if (expense.isNew) onCancelAdd();
+              else { setIsEditing(false); setFormData(expense); }
+            }}
+              className="text-danger p-1 hover:bg-danger/10 rounded" title="Cancel">
+              <X size={14} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-3 py-2">{expense.expense_date}</td>
+      <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{expense.description}</td>
+      <td className="px-3 py-2 text-primary">{expense.budget?.category || expense.group_category}</td>
+      <td className="px-3 py-2 text-right font-medium text-boxdark">Rp {parseFloat(expense.amount).toLocaleString('id-ID')}</td>
+      {canEdit && (
+        <td className="px-3 py-2 text-right">
+          <div className="flex justify-end gap-1">
+            <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
+            <button onClick={() => onDelete(expense.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14} /></button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+};
+
+const SoftwareRow = ({ software, canEdit, onUpdate, onDelete, onCancelAdd }) => {
+  const [isEditing, setIsEditing] = React.useState(software.isNew || false);
+  const [formData, setFormData] = React.useState({ ...software });
+
+  if (isEditing) {
+    return (
+      <div className="p-3 bg-white rounded border border-primary/30 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <input type="text" placeholder="Nama Software..." className="flex-1 border rounded px-2 py-1 text-xs h-7" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+          <select className="border rounded px-2 py-1 text-xs h-7" value={formData.status || 'development'} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+            <option value="development">Development</option>
+            <option value="launched">Launched</option>
+          </select>
+        </div>
+        <div className="flex gap-2">
+          {formData.status === 'development' ? (
+            <input type="number" placeholder="Progress (0-100)..." className="w-1/2 border rounded px-2 py-1 text-xs h-7" value={formData.progress || ''} onChange={e => setFormData({ ...formData, progress: e.target.value })} />
+          ) : (
+            <input type="number" placeholder="Active Users..." className="w-1/2 border rounded px-2 py-1 text-xs h-7" value={formData.active_users || ''} onChange={e => setFormData({ ...formData, active_users: e.target.value })} />
+          )}
+          <input type="text" placeholder="Deskripsi..." className="flex-1 border rounded px-2 py-1 text-xs h-7" value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+        </div>
+        <div className="flex justify-end gap-1 mt-1">
+          <button onClick={() => {
+            if (!formData.name) return alert('Nama wajib diisi');
+            onUpdate({ ...formData });
+            if (!software.isNew) setIsEditing(false);
+          }} className="text-white bg-success px-2 py-1 rounded text-xs flex items-center gap-1"><Check size={12}/> Save</button>
+          <button onClick={() => {
+            if (software.isNew) onCancelAdd();
+            else { setIsEditing(false); setFormData(software); }
+          }} className="text-white bg-danger px-2 py-1 rounded text-xs flex items-center gap-1"><X size={12}/> Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (software.status === 'development') {
+    return (
+      <div className="p-3 bg-gray-50 rounded border border-stroke flex flex-col gap-2 group relative">
+        <div className="flex justify-between items-center text-sm">
+          <span className="font-semibold text-boxdark">{software.name}</span>
+          <span className="text-primary font-medium">{software.progress}%</span>
+        </div>
+        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-full bg-primary rounded-full" style={{ width: `${software.progress}%` }}></div>
+        </div>
+        {software.description && <p className="text-[10px] text-gray-500 mt-1">{software.description}</p>}
+        {canEdit && (
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1 bg-white p-1 rounded shadow">
+            <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
+            <button onClick={() => onDelete(software.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14} /></button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 bg-gray-50 rounded border border-stroke flex justify-between items-center group relative">
+      <div className="flex flex-col min-w-0 pr-10">
+        <span className="text-sm font-semibold text-boxdark truncate">{software.name}</span>
+        <span className="text-xs text-gray-500 truncate">{software.description}</span>
+      </div>
+      <div className="flex flex-col items-end shrink-0 pl-2">
+        <span className="text-xs font-bold text-success bg-success/10 px-2 py-1 rounded">
+          {new Intl.NumberFormat('id-ID').format(software.active_users || 0)}
+        </span>
+        <span className="text-[10px] text-gray-400 mt-1">Active Users</span>
+      </div>
+      {canEdit && (
+        <div className="absolute top-1/2 -translate-y-1/2 right-14 opacity-0 group-hover:opacity-100 transition flex gap-1 bg-white p-1 rounded shadow">
+          <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
+          <button onClick={() => onDelete(software.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14} /></button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TicketRow = ({ ticket, canEdit, onUpdate, onDelete, onCancelAdd }) => {
+  const [isEditing, setIsEditing] = React.useState(ticket.isNew || false);
+  const [formData, setFormData] = React.useState({ ...ticket });
+
+  if (isEditing) {
+    return (
+      <tr>
+        <td className="px-2 py-2 min-w-[120px]">
+          <input type="text" placeholder="No. Ticket..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.ticket_number || ''} onChange={e => setFormData({ ...formData, ticket_number: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 min-w-[200px]">
+          <input type="text" placeholder="Subject..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.subject || ''} onChange={e => setFormData({ ...formData, subject: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 min-w-[120px]">
+          <input type="text" placeholder="Department..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.department || ''} onChange={e => setFormData({ ...formData, department: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 min-w-[120px]">
+          <select className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.status || 'Open'} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </td>
+        <td className="px-2 py-2 min-w-[130px]">
+          <input type="text" placeholder="Assigned To..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.assigned_to || ''} onChange={e => setFormData({ ...formData, assigned_to: e.target.value })} />
+        </td>
+        <td className="px-2 py-2 text-right">
+          <div className="flex justify-end gap-1">
+            <button onClick={() => {
+              if (!formData.ticket_number || !formData.subject) return alert('No Ticket dan Subject wajib diisi');
+              onUpdate({ ...formData });
+              if (!ticket.isNew) setIsEditing(false);
+            }} className="text-success p-1 hover:bg-success/10 rounded"><Check size={14} /></button>
+            <button onClick={() => {
+              if (ticket.isNew) onCancelAdd();
+              else { setIsEditing(false); setFormData(ticket); }
+            }} className="text-danger p-1 hover:bg-danger/10 rounded"><X size={14} /></button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  const statusColors = { Open: 'bg-warning/20 text-warning', 'In Progress': 'bg-primary/20 text-primary', Resolved: 'bg-success/20 text-success', Closed: 'bg-gray-200 text-gray-500' };
+  
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-3 py-2 font-medium text-boxdark">{ticket.ticket_number}</td>
+      <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{ticket.subject}</td>
+      <td className="px-3 py-2">{ticket.department}</td>
+      <td className="px-3 py-2">
+        <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${statusColors[ticket.status] || 'bg-gray-100'}`}>
+          {ticket.status}
+        </span>
+      </td>
+      <td className="px-3 py-2">{ticket.assigned_to || '-'}</td>
+      {canEdit && (
+        <td className="px-3 py-2 text-right">
+          <div className="flex justify-end gap-1">
+            <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-primary"><Pencil size={14} /></button>
+            <button onClick={() => onDelete(ticket.id)} className="text-gray-400 hover:text-danger"><Trash2 size={14} /></button>
           </div>
         </td>
       )}
@@ -298,7 +516,9 @@ export default function ITSystem({ user }) {
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
 
   const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
-  const isPIC = user?.roles?.[0]?.name === 'Division PIC';
+  const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
+  const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
+  const canEdit = isPIC || isAdmin;
 
   const [assetsData, setAssetsData] = useState({ general: [], individual: [], total: 0 });
   const [departmentsData, setDepartmentsData] = useState([]);
@@ -307,8 +527,13 @@ export default function ITSystem({ user }) {
   const [isAddingEmail, setIsAddingEmail] = useState(false);
   const [showSoftwareDetails, setShowSoftwareDetails] = useState(false);
   const [ticketsData, setTicketsData] = useState(null);
+  const [isAddingTicket, setIsAddingTicket] = useState(false);
   const [budgetData, setBudgetData] = useState(null);
+  const [isAddingBudget, setIsAddingBudget] = useState(false);
   const [softwareData, setSoftwareData] = useState(null);
+  const [isAddingSoftware, setIsAddingSoftware] = useState(false);
+  const [highlightsData, setHighlightsData] = useState([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const fetchAssets = async () => {
     try {
@@ -366,6 +591,16 @@ export default function ITSystem({ user }) {
     }
   };
 
+  const fetchHighlights = async () => {
+    try {
+      const qs = dateRange.startDate ? `?month=${new Date(dateRange.startDate).toLocaleString('id-ID', { month: 'long' })}&year=${new Date(dateRange.startDate).getFullYear()}` : '';
+      const res = await api.get(`/api/it-dashboard/highlights${qs}`);
+      setHighlightsData(res.data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchAssets();
     fetchEmails();
@@ -373,7 +608,27 @@ export default function ITSystem({ user }) {
     fetchTickets();
     fetchBudget();
     fetchSoftware();
+    fetchHighlights();
   }, [dateRange]);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await api.post('/api/it-dashboard/sync');
+      fetchAssets();
+      fetchEmails();
+      fetchTickets();
+      fetchBudget();
+      fetchSoftware();
+      fetchHighlights();
+      alert('Data successfully synced from Synology!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to sync data: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleAddAsset = (type) => {
     setNewAssetType(type);
@@ -439,6 +694,84 @@ export default function ITSystem({ user }) {
   const scrollToElement = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleSaveBudget = async (formData) => {
+    try {
+      if (formData.isNew) {
+        await api.post('/api/it-budget-expenses', formData);
+        setIsAddingBudget(false);
+      } else {
+        await api.put(`/api/it-budget-expenses/${formData.id}`, formData);
+      }
+      fetchBudget();
+    } catch (err) {
+      alert('Gagal menyimpan data budget');
+      console.error(err);
+    }
+  };
+
+  const handleDeleteBudget = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus pengeluaran ini?')) return;
+    try {
+      await api.delete(`/api/it-budget-expenses/${id}`);
+      fetchBudget();
+    } catch (err) {
+      alert('Gagal menghapus data budget');
+      console.error(err);
+    }
+  };
+
+  const handleSaveSoftware = async (formData) => {
+    try {
+      if (formData.isNew) {
+        await api.post('/api/it-softwares', formData);
+        setIsAddingSoftware(false);
+      } else {
+        await api.put(`/api/it-softwares/${formData.id}`, formData);
+      }
+      fetchSoftware();
+    } catch (err) {
+      alert('Gagal menyimpan data software');
+      console.error(err);
+    }
+  };
+
+  const handleDeleteSoftware = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus software ini?')) return;
+    try {
+      await api.delete(`/api/it-softwares/${id}`);
+      fetchSoftware();
+    } catch (err) {
+      alert('Gagal menghapus data software');
+      console.error(err);
+    }
+  };
+
+  const handleSaveTicket = async (formData) => {
+    try {
+      if (formData.isNew) {
+        await api.post('/api/it-tickets', formData);
+        setIsAddingTicket(false);
+      } else {
+        await api.put(`/api/it-tickets/${formData.id}`, formData);
+      }
+      fetchTickets();
+    } catch (err) {
+      alert('Gagal menyimpan data ticket (pastikan no ticket unik)');
+      console.error(err);
+    }
+  };
+
+  const handleDeleteTicket = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus ticket ini?')) return;
+    try {
+      await api.delete(`/api/it-tickets/${id}`);
+      fetchTickets();
+    } catch (err) {
+      alert('Gagal menghapus data ticket');
+      console.error(err);
+    }
   };
 
   const getAssetChartsData = () => {
@@ -605,9 +938,20 @@ export default function ITSystem({ user }) {
         - min-h-0: Mencegah elemen anak dari memaksa ukuran melewati batas layar (mencegah scrollbar tidak terduga).
       */}
       <div className="flex flex-col pb-2">
-        <div className="shrink-0">
-          <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
-        </div>
+        {ReactDOM.createPortal(
+          canEdit && (
+            <button 
+              onClick={handleManualSync} 
+              disabled={isSyncing}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
+            >
+              <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </button>
+          ),
+          document.getElementById('page-header-actions') || document.body
+        )}
+        <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
 
         {/* 
           [PENGATURAN BARIS 1: KPI]
@@ -622,19 +966,40 @@ export default function ITSystem({ user }) {
             subtitle="Hardware & Devices"
             icon={Monitor}
             colorClass="text-[#10B981] bg-success/10"
-            onClick={() => setModalType('asset')}
+            // No onClick and no action for Asset, as requested by user.
           />
-          <KpiCard title="Total Active Email" value={emailsData.length.toString()} subtitle="All Domains" icon={Mail} colorClass="text-[#3C50E0] bg-primary/10" onClick={() => setModalType('email')} />
-          <KpiCard title="Total Software" value="8" subtitle="Active & In Progress" icon={Terminal} colorClass="text-[#F59E0B] bg-warning/10" onClick={() => scrollToElement('software-develop')} />
+          <KpiCard 
+            title="Total Active Email" 
+            value={emailsData.length.toString()} 
+            subtitle="All Domains" 
+            icon={Mail} 
+            colorClass="text-[#3C50E0] bg-primary/10" 
+            action={canEdit && <button onClick={(e) => { e.stopPropagation(); setModalType('email'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>} 
+          />
+          <KpiCard 
+            title="Total Software" 
+            value={softwareData && softwareData.summary ? ((softwareData.summary.launched || 0) + (softwareData.summary.development || 0)).toString() : '0'} 
+            subtitle="Active & In Progress" 
+            icon={Terminal} 
+            colorClass="text-[#F59E0B] bg-warning/10" 
+            action={canEdit && <button onClick={(e) => { e.stopPropagation(); setModalType('software'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>} 
+          />
           <KpiCard
             title="Pemakaian Budget"
             value={budgetData ? `${parseFloat(((budgetData.total_used / (budgetData.total_budget || 1)) * 100).toFixed(1))}%` : '0%'}
             subtitle={budgetData ? `Rp ${budgetData.total_used.toLocaleString('id-ID')} / Rp ${budgetData.total_budget.toLocaleString('id-ID')}` : 'Loading...'}
             icon={DollarSign}
             colorClass="text-danger bg-danger/10"
-            onClick={() => scrollToElement('budget-section')}
+            action={canEdit && <button onClick={(e) => { e.stopPropagation(); setModalType('budget'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>}
           />
-          <KpiCard title="Rating IT Support" value="4.8/5" subtitle="Average Satisfaction" icon={Star} colorClass="text-[#F59E0B] bg-warning/10" onClick={() => scrollToElement('it-support-section')} />
+          <KpiCard 
+            title="Resolved Tickets" 
+            value={ticketsData ? ticketsData.total_resolved.toString() : '0'} 
+            subtitle={ticketsData && ticketsData.avg_resolution_time ? `Avg Time: ${ticketsData.avg_resolution_time}` : "Tickets Resolved"} 
+            icon={Star} 
+            colorClass="text-[#F59E0B] bg-warning/10" 
+            action={canEdit && <button onClick={(e) => { e.stopPropagation(); setModalType('ticketing'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>} 
+          />
         </div>
 
 
@@ -645,22 +1010,22 @@ export default function ITSystem({ user }) {
         {/* Row 2: Highlights */}
         <Card delay="delay-150" className="mb-2 p-2 shrink-0">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-1">
-            <div className="border-l-[3px] border-success pl-2">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Highlight</p>
-              <p className="text-[10px] font-medium text-boxdark leading-tight">Migrated 90% of local servers to cloud.</p>
-            </div>
-            <div className="border-l-[3px] border-danger pl-2">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Risk</p>
-              <p className="text-[10px] font-medium text-boxdark leading-tight">Hardware replacement delays (Supply Chain).</p>
-            </div>
-            <div className="border-l-[3px] border-primary pl-2">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Achievement</p>
-              <p className="text-[10px] font-medium text-boxdark leading-tight">IT Support rating hit 4.8 this month.</p>
-            </div>
-            <div className="border-l-[3px] border-warning pl-2">
-              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Plan</p>
-              <p className="text-[10px] font-medium text-boxdark leading-tight">ERP Alpha testing next week.</p>
-            </div>
+            {['Highlight', 'Risk', 'Achievement', 'Plan'].map(type => {
+              const hData = highlightsData?.find(h => h.type?.toLowerCase() === type.toLowerCase());
+              let borderColor = 'border-primary';
+              if (type === 'Highlight') borderColor = 'border-success';
+              else if (type === 'Risk') borderColor = 'border-danger';
+              else if (type === 'Plan') borderColor = 'border-warning';
+              
+              return (
+                <div key={type} className={`border-l-[3px] ${borderColor} pl-2`}>
+                  <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">{type}</p>
+                  <p className="text-[10px] font-medium text-boxdark leading-tight">
+                    {hData?.description || '-'}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </Card>
 
@@ -797,7 +1162,7 @@ export default function ITSystem({ user }) {
                             } 
                           } 
                         },
-                        legend: { position: 'right', fontSize: '10px', offsetY: 0 },
+                        legend: { position: 'right', fontSize: '10px', offsetY: 0, formatter: function(val) { return val.length > 10 ? val.substring(0, 10) + '...' : val; } },
                         tooltip: { 
                           theme: 'light',
                           y: {
@@ -944,9 +1309,9 @@ export default function ITSystem({ user }) {
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="font-bold text-boxdark">General Assets</h4>
-              {isPIC && (
+              {canEdit && (
                 <div className="flex gap-1">
-                  <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                  <button onClick={() => handleImportModal('asset')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                     Import
                   </button>
                   <button onClick={() => handleAddAsset('general')} disabled={newAssetType === 'general'} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
@@ -969,7 +1334,7 @@ export default function ITSystem({ user }) {
                           }[header.column.getIsSorted()] ?? null}
                         </th>
                       ))}
-                      {isPIC && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
+                      {canEdit && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
                     </tr>
                   ))}
                 </thead>
@@ -977,14 +1342,14 @@ export default function ITSystem({ user }) {
                   {newAssetType === 'general' && (
                     <AssetRow
                       asset={{ isNew: true, type: 'general', asset_name: '', condition: 'Baik' }}
-                      isPIC={isPIC}
+                      canEdit={canEdit}
                       onUpdate={handleSaveAsset}
                       onCancelAdd={handleCancelAdd}
                       departmentsData={departmentsData}
                     />
                   )}
                   {generalTable.getRowModel().rows.length > 0 ? generalTable.getRowModel().rows.map(row => (
-                    <AssetRow key={row.original.id} asset={row.original} isPIC={isPIC} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
+                    <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
                   )) : (newAssetType !== 'general' && <tr><td colSpan={5} className="text-center py-4 text-gray-400">No data found</td></tr>)}
                 </tbody>
               </table>
@@ -994,9 +1359,9 @@ export default function ITSystem({ user }) {
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="font-bold text-boxdark">Individual Assets</h4>
-              {isPIC && (
+              {canEdit && (
                 <div className="flex gap-1">
-                  <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                  <button onClick={() => handleImportModal('email')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                     Import
                   </button>
                   <button onClick={() => handleAddAsset('individual')} disabled={newAssetType === 'individual'} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
@@ -1019,7 +1384,7 @@ export default function ITSystem({ user }) {
                           }[header.column.getIsSorted()] ?? null}
                         </th>
                       ))}
-                      {isPIC && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
+                      {canEdit && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
                     </tr>
                   ))}
                 </thead>
@@ -1027,14 +1392,14 @@ export default function ITSystem({ user }) {
                   {newAssetType === 'individual' && (
                     <AssetRow
                       asset={{ isNew: true, type: 'individual', asset_name: '', condition: 'Baik' }}
-                      isPIC={isPIC}
+                      canEdit={canEdit}
                       onUpdate={handleSaveAsset}
                       onCancelAdd={handleCancelAdd}
                       departmentsData={departmentsData}
                     />
                   )}
                   {individualTable.getRowModel().rows.length > 0 ? individualTable.getRowModel().rows.map(row => (
-                    <AssetRow key={row.original.id} asset={row.original} isPIC={isPIC} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
+                    <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
                   )) : (newAssetType !== 'individual' && <tr><td colSpan={8} className="text-center py-4 text-gray-400">No data found</td></tr>)}
                 </tbody>
               </table>
@@ -1074,9 +1439,9 @@ export default function ITSystem({ user }) {
           <div>
             <div className="flex justify-between items-center mb-3">
               <h4 className="font-bold text-boxdark">Daftar Email Aktif</h4>
-              {isPIC && (
+              {canEdit && (
                 <div className="flex gap-1">
-                  <button onClick={() => alert('Fitur Import Excel akan segera hadir!')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                  <button onClick={() => handleImportModal('software')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
                     Import
                   </button>
                   <button onClick={() => setIsAddingEmail(true)} disabled={isAddingEmail} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
@@ -1099,7 +1464,7 @@ export default function ITSystem({ user }) {
                           }[header.column.getIsSorted()] ?? null}
                         </th>
                       ))}
-                      {isPIC && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
+                      {canEdit && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
                     </tr>
                   ))}
                 </thead>
@@ -1107,14 +1472,14 @@ export default function ITSystem({ user }) {
                   {isAddingEmail && (
                     <EmailRow
                       email={{ isNew: true, domain: '', user_name: '', email_address: '' }}
-                      isPIC={isPIC}
+                      canEdit={canEdit}
                       onUpdate={handleSaveEmail}
                       onCancelAdd={() => setIsAddingEmail(false)}
                       departmentsData={departmentsData}
                     />
                   )}
                   {emailTable.getRowModel().rows.length > 0 ? emailTable.getRowModel().rows.map(row => (
-                    <EmailRow key={row.original.id} email={row.original} isPIC={isPIC} onUpdate={handleSaveEmail} onDelete={handleDeleteEmail} departmentsData={departmentsData} />
+                    <EmailRow key={row.original.id} email={row.original} canEdit={canEdit} onUpdate={handleSaveEmail} onDelete={handleDeleteEmail} departmentsData={departmentsData} />
                   )) : (!isAddingEmail && <tr><td colSpan={5} className="text-center py-4 text-gray-400">No data found</td></tr>)}
                 </tbody>
               </table>
@@ -1160,7 +1525,22 @@ export default function ITSystem({ user }) {
             </div>
 
             <div className="bg-white rounded border border-stroke p-4">
-              <h4 className="font-bold text-boxdark mb-3">Histori Pengeluaran (Terbaru)</h4>
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-boxdark">Histori Pengeluaran (Terbaru)</h4>
+                {canEdit && (
+                  <div className="flex gap-1">
+                    <button onClick={() => handleImportModal('budgetallocation')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                      Import Alokasi
+                    </button>
+                    <button onClick={() => handleImportModal('budgetexpenses')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                      Import Pengeluaran
+                    </button>
+                    <button onClick={() => setIsAddingBudget(true)} disabled={isAddingBudget} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
+                      <Plus size={14} /> Add Expense
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead className="bg-gray-50 text-gray-500 border-b border-stroke">
@@ -1169,19 +1549,31 @@ export default function ITSystem({ user }) {
                       <th className="px-3 py-2">Keterangan</th>
                       <th className="px-3 py-2">Kategori</th>
                       <th className="px-3 py-2 text-right">Nominal</th>
+                      {canEdit && <th className="px-3 py-2 text-right w-20">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stroke">
+                    {isAddingBudget && (
+                      <BudgetRow
+                        expense={{ isNew: true, group_category: '', description: '', expense_date: new Date().toISOString().split('T')[0], amount: '' }}
+                        canEdit={canEdit}
+                        onUpdate={handleSaveBudget}
+                        onCancelAdd={() => setIsAddingBudget(false)}
+                        budgetCategories={budgetData.breakdown ? budgetData.breakdown.map(c => c.category) : []}
+                      />
+                    )}
                     {budgetData.raw_expenses && budgetData.raw_expenses.map((exp, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-3 py-2">{exp.expense_date}</td>
-                        <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{exp.description}</td>
-                        <td className="px-3 py-2 text-primary">{exp.budget?.category}</td>
-                        <td className="px-3 py-2 text-right font-medium text-boxdark">Rp {parseFloat(exp.amount).toLocaleString('id-ID')}</td>
-                      </tr>
+                      <BudgetRow 
+                        key={exp.id || idx} 
+                        expense={{...exp, group_category: exp.budget?.category || exp.group_category}} 
+                        canEdit={canEdit} 
+                        onUpdate={handleSaveBudget} 
+                        onDelete={handleDeleteBudget} 
+                        budgetCategories={budgetData.breakdown ? budgetData.breakdown.map(c => c.category) : []} 
+                      />
                     ))}
-                    {(!budgetData.raw_expenses || budgetData.raw_expenses.length === 0) && (
-                      <tr><td colSpan={4} className="text-center py-4 text-gray-400">Belum ada pengeluaran</td></tr>
+                    {(!budgetData.raw_expenses || budgetData.raw_expenses.length === 0) && !isAddingBudget && (
+                      <tr><td colSpan={canEdit ? 5 : 4} className="text-center py-4 text-gray-400">Belum ada pengeluaran</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1241,7 +1633,7 @@ export default function ITSystem({ user }) {
       </Modal>
 
       {/* Ticketing Modal */}
-      <Modal isOpen={modalType === 'ticketing'} onClose={() => setModalType(null)} title="Rincian IT Ticketing" maxWidth="max-w-4xl">
+      <Modal isOpen={modalType === 'ticketing'} onClose={() => setModalType(null)} title="Rincian IT Ticketing" maxWidth="max-w-5xl">
         {ticketsData ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1295,6 +1687,52 @@ export default function ITSystem({ user }) {
                     height="100%"
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded border border-stroke p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-boxdark">Daftar Ticket</h4>
+                {canEdit && (
+                  <div className="flex gap-1">
+                    <button onClick={() => handleImportModal('ticketing')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                      Import Excel
+                    </button>
+                    <button onClick={() => setIsAddingTicket(true)} disabled={isAddingTicket} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
+                      <Plus size={14} /> Add Ticket
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-gray-50 text-gray-500 border-b border-stroke sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">No. Ticket</th>
+                      <th className="px-3 py-2">Subject</th>
+                      <th className="px-3 py-2">Department</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Assigned To</th>
+                      {canEdit && <th className="px-3 py-2 text-right w-20">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stroke">
+                    {isAddingTicket && (
+                      <TicketRow
+                        ticket={{ isNew: true, ticket_number: '', subject: '', department: '', status: 'Open', assigned_to: '' }}
+                        canEdit={canEdit}
+                        onUpdate={handleSaveTicket}
+                        onCancelAdd={() => setIsAddingTicket(false)}
+                      />
+                    )}
+                    {ticketsData.raw_tickets && ticketsData.raw_tickets.map((ticket, idx) => (
+                      <TicketRow key={ticket.id || idx} ticket={ticket} canEdit={canEdit} onUpdate={handleSaveTicket} onDelete={handleDeleteTicket} />
+                    ))}
+                    {(!ticketsData.raw_tickets || ticketsData.raw_tickets.length === 0) && !isAddingTicket && (
+                      <tr><td colSpan={canEdit ? 6 : 5} className="text-center py-4 text-gray-400">Belum ada ticket</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
