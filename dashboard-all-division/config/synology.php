@@ -47,6 +47,22 @@ return [
             'file' => 'dashboard-data/it/ticketing.xlsx',
             'imports' => ['ticketing' => \App\Imports\ItTicketImport::class],
         ],
+        'Finance_AP_Invoices' => [
+            'file' => 'dashboard-data/finance/ap_invoices.xlsx',
+            'imports' => ['ap_invoices' => \App\Imports\Finance\ApInvoiceImport::class],
+        ],
+        'Finance_AP_Aging' => [
+            'file' => 'dashboard-data/finance/ap_aging.xlsx',
+            'imports' => ['ap_aging' => \App\Imports\Finance\ApAgingImport::class],
+        ],
+        'Finance_AP_Payments' => [
+            'file' => 'dashboard-data/finance/ap_payments.xlsx',
+            'imports' => ['ap_payments' => \App\Imports\Finance\ApPaymentImport::class],
+        ],
+        'Finance_AP_PaymentDetails' => [
+            'file' => 'dashboard-data/finance/ap_payment_details.xlsx',
+            'imports' => ['ap_payment_details' => \App\Imports\Finance\ApPaymentDetailImport::class],
+        ],
 
     ],
 ];
