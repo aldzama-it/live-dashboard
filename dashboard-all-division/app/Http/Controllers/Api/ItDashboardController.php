@@ -84,7 +84,8 @@ class ItDashboardController extends Controller
         foreach($tickets as $t) {
             $created = \Carbon\Carbon::parse($t->created_at);
             $resolved = \Carbon\Carbon::parse($t->resolved_at);
-            $totalMinutes += $resolved->diffInMinutes($created);
+            // abs() untuk menghindari nilai negatif jika ada data entry error (resolved_at < created_at)
+            $totalMinutes += abs($resolved->diffInMinutes($created));
         }
         
         $avgMinutes = $resolvedCount > 0 ? ($totalMinutes / $resolvedCount) : 0;
@@ -115,7 +116,7 @@ class ItDashboardController extends Controller
             // Resolution (per exact date)
             $dateKey = $created->format('Y-m-d');
             $resolved = \Carbon\Carbon::parse($t->resolved_at);
-            $minutes = $resolved->diffInMinutes($created);
+            $minutes = abs($resolved->diffInMinutes($created));
             
             if(!isset($dailyResolution[$dateKey])) {
                 $dailyResolution[$dateKey] = ['total_minutes' => 0, 'count' => 0];

@@ -46,7 +46,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('it-softwares', \App\Http\Controllers\Api\ItSoftwareController::class);
     Route::apiResource('it-tickets', \App\Http\Controllers\Api\ItTicketController::class);
 
-    // IT Data Import Routes
-    Route::get('/it-data/template/{module}', [\App\Http\Controllers\Api\ItDataImportController::class, 'downloadTemplate']);
-    Route::post('/it-data/import/{module}', [\App\Http\Controllers\Api\ItDataImportController::class, 'importExcel']);
+
+
 });
