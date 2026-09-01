@@ -507,6 +507,24 @@ const TicketRow = ({ ticket, canEdit, onUpdate, onDelete, onCancelAdd }) => {
   );
 };
 
+const formatSimpleMoney = (amount) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
+  const num = Number(amount);
+  if (Math.abs(num) >= 1_000_000_000) {
+    const val = num / 1_000_000_000;
+    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Miliar`;
+  }
+  if (Math.abs(num) >= 1_000_000) {
+    const val = num / 1_000_000;
+    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Juta`;
+  }
+  if (Math.abs(num) >= 1_000) {
+    const val = num / 1_000;
+    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Ribu`;
+  }
+  return `Rp ${num.toLocaleString('id-ID')}`;
+};
+
 export default function ITSystem({ user }) {
   const [modalType, setModalType] = useState(null);
 
@@ -518,7 +536,8 @@ export default function ITSystem({ user }) {
   const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
-  const canEdit = isPIC || isAdmin;
+  const canSync = isPIC || isAdmin;
+  const canEdit = false;
 
   const [assetsData, setAssetsData] = useState({ general: [], individual: [], total: 0 });
   const [departmentsData, setDepartmentsData] = useState([]);
@@ -939,7 +958,7 @@ export default function ITSystem({ user }) {
       */}
       <div className="flex flex-col pb-2">
         {ReactDOM.createPortal(
-          canEdit && (
+          canSync && (
             <button 
               onClick={handleManualSync} 
               disabled={isSyncing}
@@ -986,7 +1005,7 @@ export default function ITSystem({ user }) {
           />
           <KpiCard
             title="Pemakaian Budget"
-            value={budgetData ? `${parseFloat(((budgetData.total_used / (budgetData.total_budget || 1)) * 100).toFixed(1))}%` : '0%'}
+            value={budgetData ? formatSimpleMoney(budgetData.total_used) : 'Rp 0'}
             subtitle={budgetData ? `Rp ${budgetData.total_used.toLocaleString('id-ID')} / Rp ${budgetData.total_budget.toLocaleString('id-ID')}` : 'Loading...'}
             icon={DollarSign}
             colorClass="text-danger bg-danger/10"
@@ -1195,74 +1214,76 @@ export default function ITSystem({ user }) {
               className="flex-1 !min-h-0"
               action={<button onClick={() => setModalType('ticketing')} className="text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded transition flex items-center gap-1">View Details <ChevronRight size={12} /></button>}
             >
-              {ticketsData && ticketsData.categories ? (
-                <div className="flex flex-col h-full items-center relative -mt-2">
-                  <div className="w-[100%] h-[100%] relative">
-                    <Chart
-                      options={{
-                        chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
-                        labels: ticketsData.categories.map(c => c.category),
-                        legend: { show: true, position: 'right', fontSize: '9px', offsetY: 0, itemMargin: { horizontal: 0, vertical: 2 } },
-                        dataLabels: { enabled: false },
-                        colors: ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#8B5CF6'],
-                        plotOptions: { 
-                          pie: { 
-                            donut: { 
-                              size: '70%', 
-                              offsetY: 0,
-                              labels: {
-                                show: true,
-                                name: {
+              {ticketsData && ticketsData.categories ? (() => {
+                const TICKET_COLORS = ['#EF4444','#F97316','#EAB308','#3B82F6','#8B5CF6','#10B981','#6366F1','#EC4899','#14B8A6','#F43F5E'];
+                const total = ticketsData.categories.reduce((s, c) => s + parseInt(c.total), 0);
+                return (
+                  <div className="flex h-full min-h-0 gap-1 -mt-1">
+                    {/* Donut */}
+                    <div className="flex-shrink-0 w-[55%] h-full">
+                      <Chart
+                        options={{
+                          chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+                          labels: ticketsData.categories.map(c => c.category),
+                          legend: { show: false },
+                          dataLabels: { enabled: false },
+                          colors: TICKET_COLORS,
+                          plotOptions: {
+                            pie: {
+                              donut: {
+                                size: '68%',
+                                labels: {
                                   show: true,
-                                  fontSize: '9px',
-                                  fontWeight: 600,
-                                  color: '#64748B',
-                                  offsetY: 15
-                                },
-                                value: {
-                                  show: true,
-                                  fontSize: '20px',
-                                  fontWeight: 'bold',
-                                  color: '#1c2434',
-                                  offsetY: -10
-                                },
-                                total: {
-                                  show: true,
-                                  showAlways: true,
-                                  label: 'RESOLVED',
-                                  fontSize: '9px',
-                                  fontWeight: 600,
-                                  color: '#64748B',
-                                  formatter: function (w) {
-                                    return ticketsData.total_resolved;
+                                  name: { show: true, fontSize: '8px', fontWeight: 600, color: '#64748B', offsetY: 14 },
+                                  value: { show: true, fontSize: '18px', fontWeight: 'bold', color: '#1c2434', offsetY: -8 },
+                                  total: {
+                                    show: true,
+                                    showAlways: true,
+                                    label: 'RESOLVED',
+                                    fontSize: '8px',
+                                    fontWeight: 600,
+                                    color: '#64748B',
+                                    formatter: () => ticketsData.total_resolved
                                   }
                                 }
                               }
-                            } 
-                          } 
-                        },
-                        tooltip: { 
-                          theme: 'light',
-                          y: {
-                            formatter: function (val, opts) {
-                              try {
-                                const total = opts.globals.seriesTotals.reduce((a, b) => a + b, 0);
-                                const percent = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                                return val + " (" + percent + "%)";
-                              } catch(e) { return val; }
                             }
-                          }
-                        },
-                        stroke: { width: 1 }
-                      }}
-                      series={ticketsData.categories.map(c => parseInt(c.total))}
-                      type="donut"
-                      height="100%"
-                      width="100%"
-                    />
+                          },
+                          tooltip: {
+                            theme: 'light',
+                            y: {
+                              formatter: (val) => {
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                return `${val} (${pct}%)`;
+                              }
+                            }
+                          },
+                          stroke: { width: 1 }
+                        }}
+                        series={ticketsData.categories.map(c => parseInt(c.total))}
+                        type="donut"
+                        height="100%"
+                        width="100%"
+                      />
+                    </div>
+                    {/* Custom scrollable legend */}
+                    <div className="flex-1 min-w-0 overflow-y-auto py-2 pr-1 flex flex-col gap-1.5">
+                      {ticketsData.categories.map((c, i) => {
+                        const pct = total > 0 ? ((parseInt(c.total) / total) * 100).toFixed(1) : 0;
+                        return (
+                          <div key={i} className="flex items-start gap-1.5 min-w-0">
+                            <span className="flex-shrink-0 mt-0.5 w-2 h-2 rounded-full" style={{ backgroundColor: TICKET_COLORS[i % TICKET_COLORS.length] }} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[9px] leading-tight text-gray-600 break-words">{c.category}</p>
+                              <p className="text-[9px] font-bold text-boxdark">{c.total} <span className="font-normal text-gray-400">({pct}%)</span></p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div className="flex items-center justify-center h-full text-gray-400 text-sm">Loading...</div>
               )}
             </ChartContainer>
