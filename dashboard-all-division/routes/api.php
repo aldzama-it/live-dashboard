@@ -39,4 +39,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/it-dashboard/tickets', [ItDashboardController::class, 'getTickets']);
     Route::get('/it-dashboard/budget', [ItDashboardController::class, 'getBudget']);
     Route::get('/it-dashboard/software', [ItDashboardController::class, 'getSoftware']);
+    Route::get('/it-dashboard/highlights', [ItDashboardController::class, 'getHighlights']);
+    Route::post('/it-dashboard/sync', [ItDashboardController::class, 'syncSynology']);
+
+    Route::apiResource('it-budget-expenses', \App\Http\Controllers\Api\ItBudgetExpenseController::class);
+    Route::apiResource('it-softwares', \App\Http\Controllers\Api\ItSoftwareController::class);
+    Route::apiResource('it-tickets', \App\Http\Controllers\Api\ItTicketController::class);
+
+
+
 });

@@ -1,84 +1,144 @@
-import React from 'react';
-import { Users, DollarSign, FolderOpen, TrendingUp } from 'lucide-react';
-import { useCountUp } from '../../../hooks/useCountUp';
-import Card from '../../../components/ui/Card';
-import KpiCard from '../../../components/ui/KpiCard';
-import ChartContainer from '../../../components/ui/ChartContainer';
-import MonthFilter from '../../../components/ui/MonthFilter';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
-export default function QMSAudit({ user }) {
-  const revenueCount = useCountUp(1250, 800);
-  const projectsCount = useCountUp(42, 800);
-  const teamCount = useCountUp(128, 800);
+const DEFAULT_QMS_SERVICE_URL = 'http://127.0.0.1:5002';
+
+const MONTHS = [
+  { value: '1', label: 'Januari 2026' },
+  { value: '2', label: 'Februari 2026' },
+  { value: '3', label: 'Maret 2026' },
+  { value: '4', label: 'April 2026' },
+  { value: '5', label: 'Mei 2026' },
+  { value: '6', label: 'Juni 2026' },
+  { value: '7', label: 'Juli 2026' },
+  { value: '8', label: 'Agustus 2026' },
+  { value: '9', label: 'September 2026' },
+  { value: '10', label: 'Oktober 2026' },
+  { value: '11', label: 'November 2026' },
+  { value: '12', label: 'Desember 2026' },
+];
+
+function getInitialMonth() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = Number(params.get('month'));
+
+  if (fromUrl >= 1 && fromUrl <= 12) {
+    return String(fromUrl);
+  }
+
+  const currentMonth = new Date().getMonth() + 1;
+
+  if (currentMonth >= 1 && currentMonth <= 12) {
+    return String(currentMonth);
+  }
+
+  return '8';
+}
+
+export default function QMSAudit() {
+  const [month, setMonth] = useState(getInitialMonth);
+  const [headerActions, setHeaderActions] = useState(null);
+
+  const configuredUrl =
+    import.meta.env.VITE_QMS_SERVICE_URL ||
+    DEFAULT_QMS_SERVICE_URL;
+
+  const qmsServiceUrl = configuredUrl.replace(/\/$/, '');
+
+  useEffect(() => {
+    const findHeaderActions = () => {
+      setHeaderActions(
+        document.getElementById('page-header-actions')
+      );
+    };
+
+    findHeaderActions();
+
+    const timer = window.setTimeout(findHeaderActions, 100);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+
+    url.searchParams.set('month', month);
+
+    window.history.replaceState(
+      {},
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  }, [month]);
+
+  const dashboardUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      embed: '1',
+      month,
+    });
+
+    return `${qmsServiceUrl}/live-kpi?${params.toString()}`;
+  }, [qmsServiceUrl, month]);
+
+  const monthFilter = (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium text-slate-500">
+        Periode
+      </span>
+
+      <div className="relative">
+        <select
+          value={month}
+          onChange={(event) => setMonth(event.target.value)}
+          aria-label="Filter bulan QMS"
+          className="
+            h-10 min-w-[170px]
+            cursor-pointer
+            rounded-lg
+            border border-slate-200
+            bg-white
+            px-3 pr-9
+            text-sm font-semibold
+            text-slate-700
+            shadow-sm
+            outline-none
+            transition
+            hover:border-slate-300
+            focus:border-indigo-500
+            focus:ring-2
+            focus:ring-indigo-100
+          "
+        >
+          {MONTHS.map((item) => (
+            <option
+              key={item.value}
+              value={item.value}
+            >
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
 
   return (
     <>
-      <MonthFilter />
-      {/* KPI Cards Grid - Staggered reveal */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-1 gap-x-2 md:gap-y-1 gap-x-2 mb-3">
-        
-        {/* Welcome Card */}
-        <KpiCard
-          value="QMSAudit"
-          subtitle="Finance & Administration"
-          icon={Users}
-          colorClass="text-primary bg-primary/10"
-          delay="delay-0"
-        />
+      {headerActions &&
+        createPortal(monthFilter, headerActions)}
 
-        {/* Mock KPI 1 */}
-        <KpiCard
-          title="Total Revenue"
-          value={`$${revenueCount.toLocaleString()}k`}
-          subtitle="Total Revenue"
-          icon={DollarSign}
-          colorClass="text-[#10B981] bg-success/10"
-          delay="delay-75"
-        />
-
-        {/* Mock KPI 2 */}
-        <KpiCard
-          title="Active Projects"
-          value={projectsCount}
-          subtitle="Active Projects"
-          icon={FolderOpen}
-          colorClass="text-[#F59E0B] bg-warning/10"
-          delay="delay-150"
-        />
-
-        {/* Mock KPI 3 */}
-        <KpiCard
-          title="Team Members"
-          value={teamCount}
-          subtitle="Team Members"
-          icon={Users}
-          colorClass="text-[#3C50E0] bg-secondary/10"
-          delay="delay-225"
-        />
-
-      </div>
-
-      {/* Main Chart/Insights Area - Appears after KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-y-1 gap-x-2">
-        <ChartContainer title="Revenue Growth Chart" delay="delay-300" className="lg:col-span-2">
-          <div className="flex flex-col justify-center items-center text-body h-full min-h-[200px]">
-            <TrendingUp size={48} className="text-gray-300 mb-4" />
-            <p className="text-sm opacity-70">(Data visualization placeholder for QMSAudit)</p>
-          </div>
-        </ChartContainer>
-
-        <Card title="Executive Insights" delay="delay-300" className="flex flex-col">
-          <div className="space-y-4 flex-1">
-            <div className="p-4 bg-gray-50 rounded border border-gray-100">
-              <p className="text-sm text-boxdark font-medium">Revenue up 15%</p>
-              <p className="text-xs text-body mt-1">Compared to last quarter performance.</p>
-            </div>
-            <div className="p-4 bg-gray-50 rounded border border-gray-100">
-              <p className="text-sm text-boxdark font-medium">3 Projects at risk</p>
-              <p className="text-xs text-body mt-1">Logistics division reporting delays.</p>
-            </div>
-          </div>
-        </Card>
+      <div className="-mt-3 w-full min-w-0 overflow-hidden">
+        <div className="h-[calc(100dvh-132px)] min-h-0 w-full overflow-hidden bg-gray-50">
+          <iframe
+            key={dashboardUrl}
+            title="QMS Executive Dashboard"
+            src={dashboardUrl}
+            className="h-full w-full border-0 bg-gray-50"
+            allow="fullscreen"
+          />
+        </div>
       </div>
     </>
   );

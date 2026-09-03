@@ -594,3 +594,15 @@ Follow these steps to run the project locally across its different services.
    ```bash
    python nlp_processor.py
    ```
+
+# 16. Synology Sync Standards
+
+When adding a new division or dashboard that needs to connect to the Synology NAS, the AI Agent MUST use the exact same architecture and follow the standard guide.
+
+1. **Do not create a different sync architecture.**
+2. Always create a Laravel Excel Importer (`app/Imports/`).
+3. Always map the new file and importer inside `config/synology.php` under the `divisions` array.
+4. Utilize the existing `App\Services\SynologySyncService` and `synology:sync` command.
+5. Reference the established `synology_sync_guide.md` if further clarification is needed.
+ 
+ 

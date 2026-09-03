@@ -84,7 +84,8 @@ class ItDashboardController extends Controller
         foreach($tickets as $t) {
             $created = \Carbon\Carbon::parse($t->created_at);
             $resolved = \Carbon\Carbon::parse($t->resolved_at);
-            $totalMinutes += $resolved->diffInMinutes($created);
+            // abs() untuk menghindari nilai negatif jika ada data entry error (resolved_at < created_at)
+            $totalMinutes += abs($resolved->diffInMinutes($created));
         }
         
         $avgMinutes = $resolvedCount > 0 ? ($totalMinutes / $resolvedCount) : 0;
@@ -115,7 +116,7 @@ class ItDashboardController extends Controller
             // Resolution (per exact date)
             $dateKey = $created->format('Y-m-d');
             $resolved = \Carbon\Carbon::parse($t->resolved_at);
-            $minutes = $resolved->diffInMinutes($created);
+            $minutes = abs($resolved->diffInMinutes($created));
             
             if(!isset($dailyResolution[$dateKey])) {
                 $dailyResolution[$dateKey] = ['total_minutes' => 0, 'count' => 0];
@@ -152,6 +153,8 @@ class ItDashboardController extends Controller
             $dailyVolumeData[] = $weeklyVolume[$i];
         }
 
+        $allTickets = ItTicket::whereBetween('created_at', [$startDate, $endDate])->orderBy('created_at', 'desc')->get();
+
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -162,7 +165,8 @@ class ItDashboardController extends Controller
                 'status_breakdown' => $statusBreakdown,
                 'daily_resolution_time' => $dailyResolutionData,
                 'daily_resolution_labels' => $dailyResolutionLabels,
-                'daily_ticket_volume' => $dailyVolumeData
+                'daily_ticket_volume' => $dailyVolumeData,
+                'raw_tickets' => $allTickets
             ]
         ]);
     }
@@ -262,6 +266,9 @@ class ItDashboardController extends Controller
             $mKey = $monthsMap[$expDate->month] . ' ' . $expDate->year;
             if (isset($monthlyTrend[$mKey])) {
                 $grp = $e->group_category ?? 'Operational';
+                if (!isset($monthlyTrend[$mKey][$grp])) {
+                    $monthlyTrend[$mKey][$grp] = 0;
+                }
                 $monthlyTrend[$mKey][$grp] += $e->amount;
                 $monthlyTrend[$mKey]['Total'] += $e->amount;
             }
@@ -298,5 +305,52 @@ class ItDashboardController extends Controller
                 'development_list' => $development
             ]
         ]);
+    }
+
+    public function getHighlights(Request $request)
+    {
+        // By default fetch for the current month and year
+        $monthName = \Carbon\Carbon::now()->translatedFormat('F'); // e.g. Agustus
+        $year = date('Y');
+
+        // You could also accept month and year from request query if needed
+        $month = $request->query('month', $monthName);
+        $yr = $request->query('year', $year);
+
+        $highlights = \App\Models\ItHighlight::where('month', $month)
+            ->where('year', $yr)
+            ->get();
+
+        // If not found for current month, maybe fallback to latest available?
+        if ($highlights->isEmpty()) {
+            $latestHighlight = \App\Models\ItHighlight::orderBy('year', 'desc')->orderBy('month', 'desc')->first();
+            if ($latestHighlight) {
+                $highlights = \App\Models\ItHighlight::where('month', $latestHighlight->month)
+                    ->where('year', $latestHighlight->year)
+                    ->get();
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $highlights
+        ]);
+    }
+
+    public function syncSynology()
+    {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('synology:sync');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Sync triggered successfully',
+                'output' => \Illuminate\Support\Facades\Artisan::output()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Sync failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

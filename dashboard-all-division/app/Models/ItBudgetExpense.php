@@ -11,6 +11,7 @@ class ItBudgetExpense extends Model
 
     protected $fillable = [
         'it_budget_id',
+        'group_category',
         'description',
         'amount',
         'expense_date',

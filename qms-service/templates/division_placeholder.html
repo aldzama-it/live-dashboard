@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard {{ division_name }}</title>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #172033;
+            background: #eef2f7;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+        body { background: #eef2f7; }
+
+        .shell {
+            display: grid;
+            grid-template-columns: 224px minmax(0, 1fr);
+            width: 100%;
+            height: 100vh;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            padding: 22px 16px 18px;
+            color: #fff;
+            background: #14213d;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 2px 7px 24px;
+        }
+
+        .brand-mark {
+            display: grid;
+            width: 42px;
+            height: 42px;
+            place-items: center;
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 13px;
+            background: rgba(255,255,255,.09);
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        .brand-name { margin: 0; font-size: 14px; font-weight: 900; }
+        .brand-caption { margin: 3px 0 0; color: rgba(255,255,255,.58); font-size: 10px; text-transform: uppercase; }
+        .nav-label { margin: 0 9px 9px; color: rgba(255,255,255,.42); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+        .nav-list { display: grid; gap: 6px; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 46px;
+            padding: 0 12px;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            color: rgba(255,255,255,.72);
+            text-decoration: none;
+        }
+
+        .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+        .nav-item.active { border-color: rgba(103,152,255,.5); background: linear-gradient(135deg,#3169e8,#2453bb); color: #fff; }
+        .nav-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: rgba(255,255,255,.09); font-size: 11px; font-weight: 900; }
+        .nav-name { font-size: 13px; font-weight: 750; }
+
+        .content {
+            display: grid;
+            place-items: center;
+            min-width: 0;
+            padding: 28px;
+            background: radial-gradient(circle at top right, rgba(47,103,232,.08), transparent 34rem), #eef2f7;
+        }
+
+        .card {
+            width: min(700px, 100%);
+            padding: 38px;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            background: #fff;
+            box-shadow: 0 20px 60px rgba(31,48,76,.08);
+            text-align: center;
+        }
+
+        .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #edf3ff; color: #2453bb; font-size: 11px; font-weight: 900; }
+        h1 { margin: 16px 0 8px; font-size: clamp(28px, 4vw, 44px); }
+        p { margin: 0 auto; max-width: 540px; color: #66758a; line-height: 1.65; }
+        .button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; margin-top: 22px; padding: 0 16px; border-radius: 10px; background: #2f67e8; color: #fff; font-size: 13px; font-weight: 850; text-decoration: none; }
+
+        @media (max-width: 760px) {
+            html, body { height: auto; overflow: auto; }
+            .shell { display: block; height: auto; min-height: 100vh; }
+            .sidebar { padding: 12px; }
+            .brand, .nav-label { display: none; }
+            .nav-list { display: flex; overflow-x: auto; }
+            .nav-item { flex: 0 0 auto; }
+            .content { min-height: calc(100vh - 70px); padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">AZM</div>
+            <div>
+                <p class="brand-name">ALDZAMA</p>
+                <p class="brand-caption">Executive Dashboard</p>
+            </div>
+        </div>
+        <p class="nav-label">Divisi F&amp;A</p>
+        <nav class="nav-list">
+            <a class="nav-item {% if active_division == 'hrd' %}active{% endif %}" href="{{ url_for('division_dashboard', division_key='hrd') }}"><span class="nav-icon">HR</span><span class="nav-name">HRD</span></a>
+            <a class="nav-item" href="{{ url_for('live_kpi') }}"><span class="nav-icon">QM</span><span class="nav-name">QMS</span></a>
+            <a class="nav-item {% if active_division == 'legal' %}active{% endif %}" href="{{ url_for('division_dashboard', division_key='legal') }}"><span class="nav-icon">LG</span><span class="nav-name">Legal</span></a>
+            <a class="nav-item {% if active_division == 'it' %}active{% endif %}" href="{{ url_for('division_dashboard', division_key='it') }}"><span class="nav-icon">IT</span><span class="nav-name">IT</span></a>
+            <a class="nav-item {% if active_division == 'finance' %}active{% endif %}" href="{{ url_for('division_dashboard', division_key='finance') }}"><span class="nav-icon">FN</span><span class="nav-name">Finance</span></a>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <section class="card">
+            <span class="badge">{{ '404' if is_unknown else 'Tahap Berikutnya' }}</span>
+            <h1>{{ division_name }}</h1>
+            <p>
+                {% if is_unknown %}
+                    Dashboard yang diminta tidak tersedia.
+                {% else %}
+                    Struktur menu sudah tersedia. Pengembangan saat ini difokuskan pada dashboard QMS,
+                    sedangkan dashboard {{ division_name }} akan dihubungkan pada tahap berikutnya.
+                {% endif %}
+            </p>
+            <a class="button" href="{{ url_for('live_kpi') }}">Kembali ke Dashboard QMS</a>
+        </section>
+    </main>
+</div>
+</body>
+</html>

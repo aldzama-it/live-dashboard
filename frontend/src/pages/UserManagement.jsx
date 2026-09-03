@@ -131,7 +131,7 @@ export default function UserManagement({ user }) {
                     </td>
                     <td className="border-b border-[#eee] py-5 px-4">
                       <span className={`inline-flex rounded-full py-1 px-3 text-sm font-medium ${
-                        u.roles?.[0]?.name === 'Admin' ? 'bg-danger/10 text-danger' : 
+                        u.roles?.[0]?.name.toLowerCase().includes('admin') ? 'bg-danger/10 text-danger' : 
                         u.roles?.[0]?.name === 'Top Management' ? 'bg-warning/10 text-warning' : 
                         'bg-primary/10 text-primary'
                       }`}>
