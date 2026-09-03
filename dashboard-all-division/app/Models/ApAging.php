@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ItTicket extends Model
+class ApAging extends Model
 {
+    use HasFactory;
     protected $guarded = [];
 }

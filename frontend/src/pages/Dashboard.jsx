@@ -32,6 +32,7 @@ import ExternalRelation from './divisions/general-affairs/ExternalRelation';
 import ExportImport from './divisions/general-affairs/ExportImport';
 
 import Finance from './divisions/finance-admin/Finance';
+import AccountsPayable from './divisions/finance-admin/AccountsPayable';
 import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
@@ -428,7 +429,14 @@ export default function Dashboard({ user, setUser }) {
                 const dept = menuData.find(d => d.pathPrefix === parts[0]);
                 if (dept) {
                   const div = dept.divisions.find(d => d.path === parts[1]);
-                  return div ? div.name : dept.name;
+                  if (div) {
+                    const page = parts[2] ? div.pages.find(p => p.path === parts[2]) : null;
+                    if (page && page.name !== "Overview") {
+                      return `${div.name} > ${page.name}`;
+                    }
+                    return div.name;
+                  }
+                  return dept.name;
                 }
                 return "Overview";
               })()} 
@@ -469,8 +477,12 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/general-affairs/external-relation/overview" element={<ExternalRelation user={user} />} />
             <Route path="/general-affairs/export-import/overview" element={<ExportImport user={user} />} />
 
-            {/* Finance & Administration */}
             <Route path="/finance-admin/finance/overview" element={<Finance user={user} />} />
+            <Route path="/finance-admin/finance/ap" element={
+              <ErrorBoundary>
+                <AccountsPayable user={user} />
+              </ErrorBoundary>
+            } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
             <Route path="/finance-admin/qms-audit/overview" element={<QMSAudit user={user} />} />
             <Route path="/finance-admin/legal/overview" element={<Legal user={user} />} />

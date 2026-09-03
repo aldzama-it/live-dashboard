@@ -41,4 +41,12 @@ return [
     'password' => env('ADMIN_PASSWORD', 'password'),
 ],
 
+'accurate' => [
+    'client_id' => env('ACCURATE_CLIENT_ID'),
+    'client_secret' => env('ACCURATE_CLIENT_SECRET'),
+    'redirect_uri' => env('ACCURATE_REDIRECT_URI', 'http://localhost:8000/api/accurate/callback'),
+    'app_key' => env('ACCURATE_APP_KEY'),
+    'db_id' => env('ACCURATE_DB_ID'),
+],
+
 ];
