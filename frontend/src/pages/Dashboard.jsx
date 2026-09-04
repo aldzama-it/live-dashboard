@@ -33,6 +33,7 @@ import ExportImport from './divisions/general-affairs/ExportImport';
 
 import Finance from './divisions/finance-admin/Finance';
 import AccountsPayable from './divisions/finance-admin/AccountsPayable';
+import AccountsReceivable from './divisions/finance-admin/AccountsReceivable';
 import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
@@ -481,6 +482,11 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/finance-admin/finance/ap" element={
               <ErrorBoundary>
                 <AccountsPayable user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/ar" element={
+              <ErrorBoundary>
+                <AccountsReceivable user={user} />
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
