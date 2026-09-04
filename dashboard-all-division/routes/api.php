@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance Dashboard Routes
     Route::get('/finance-dashboard/ap', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'getApDashboard']);
+    Route::get('/finance-dashboard/ar', [\App\Http\Controllers\Api\Finance\ArDashboardController::class, 'getArDashboard']);
     Route::post('/finance-dashboard/sync', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'syncSynology']);
 
 

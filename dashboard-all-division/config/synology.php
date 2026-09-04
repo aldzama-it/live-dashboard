@@ -63,6 +63,18 @@ return [
             'file' => 'dashboard-data/finance/ap_payment_details.xlsx',
             'imports' => ['ap_payment_details' => \App\Imports\Finance\ApPaymentDetailImport::class],
         ],
+        'Finance_AR_Invoices' => [
+            'file' => 'dashboard-data/finance/ar_invoices.xlsx',
+            'imports' => ['ar_invoices' => \App\Imports\Finance\ArInvoiceImport::class],
+        ],
+        'Finance_AR_Aging' => [
+            'file' => 'dashboard-data/finance/ar_aging.xlsx',
+            'imports' => ['ar_aging' => \App\Imports\Finance\ArAgingImport::class],
+        ],
+        'Finance_AR_Receipts' => [
+            'file' => 'dashboard-data/finance/ar_receipts.xlsx',
+            'imports' => ['ar_receipts' => \App\Imports\Finance\ArReceiptImport::class],
+        ],
 
     ],
 ];
