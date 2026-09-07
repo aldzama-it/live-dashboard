@@ -57,7 +57,7 @@ export const menuData = [
     icon: Calculator,
     pathPrefix: "finance-admin",
     divisions: [
-      { name: "Finance, Accounting & Tax", path: "finance", pages: [{ name: "Overview", path: "overview" }, { name: "Accounts Payable", path: "ap" }, { name: "Accounts Receivable", path: "ar" }] },
+      { name: "Finance, Accounting & Tax", path: "finance", pages: [{ name: "Overview", path: "overview" }, { name: "Accounts Payable", path: "ap" }, { name: "Accounts Receivable", path: "ar" }, { name: "Tax Dashboard", path: "tax" }] },
       { name: "HRD", path: "hrd", pages: [{ name: "Overview", path: "overview" }] },
       { name: "QMS & Audit", path: "qms-audit", pages: [{ name: "Overview", path: "overview" }] },
       { name: "Legal & Document Control", path: "legal", pages: [{ name: "Overview", path: "overview" }] },

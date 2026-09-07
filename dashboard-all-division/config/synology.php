@@ -75,6 +75,14 @@ return [
             'file' => 'dashboard-data/finance/ar_receipts.xlsx',
             'imports' => ['ar_receipts' => \App\Imports\Finance\ArReceiptImport::class],
         ],
+        'Tax_PPN_Masukan' => [
+            'file' => 'dashboard-data/finance/ppn_masukan.xlsx',
+            'imports' => ['ppn_masukan' => \App\Imports\Tax\PpnMasukanImport::class],
+        ],
+        'Tax_PPN_Keluaran' => [
+            'file' => 'dashboard-data/finance/ppn_keluaran.xlsx',
+            'imports' => ['ppn_keluaran' => \App\Imports\Tax\PpnKeluaranImport::class],
+        ],
 
     ],
 ];

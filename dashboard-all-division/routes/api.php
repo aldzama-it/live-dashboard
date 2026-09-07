@@ -51,5 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/finance-dashboard/ar', [\App\Http\Controllers\Api\Finance\ArDashboardController::class, 'getArDashboard']);
     Route::post('/finance-dashboard/sync', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'syncSynology']);
 
+    // Tax Dashboard Routes
+    Route::get('/tax-dashboard/summary', [\App\Http\Controllers\Api\TaxController::class, 'index']);
+    Route::post('/tax-dashboard/sync', [\App\Http\Controllers\Api\TaxController::class, 'syncSynology']);
+
 
 });
