@@ -48,8 +48,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance Dashboard Routes
     Route::get('/finance-dashboard/ap', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'getApDashboard']);
+    Route::get('/finance-dashboard/ap-api', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'getApDashboardApi']);
     Route::get('/finance-dashboard/ar', [\App\Http\Controllers\Api\Finance\ArDashboardController::class, 'getArDashboard']);
     Route::post('/finance-dashboard/sync', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'syncSynology']);
+    Route::get('/finance-dashboard/test-connection', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'testConnection']);
 
     // Tax Dashboard Routes
     Route::get('/tax-dashboard/summary', [\App\Http\Controllers\Api\TaxController::class, 'index']);
