@@ -167,8 +167,11 @@ export default function AccountsReceivable({ user }) {
     if (statusFilter !== 'all') {
       const age = parseInt(inv.age_days || 0);
       if (statusFilter === 'not_due' && age > 0) return false;
-      if (statusFilter === 'due_1_30' && (age <= 0 || age > 30)) return false;
-      if (statusFilter === 'due_30_plus' && age <= 30) return false;
+      if (statusFilter === 'due_1_15' && (age < 1 || age > 15)) return false;
+      if (statusFilter === 'due_16_30' && (age < 16 || age > 30)) return false;
+      if (statusFilter === 'due_31_45' && (age < 31 || age > 45)) return false;
+      if (statusFilter === 'due_46_60' && (age < 46 || age > 60)) return false;
+      if (statusFilter === 'due_60_plus' && age <= 60) return false;
     }
 
     if (customerFilter !== 'all' && inv.customer !== customerFilter) {
@@ -503,8 +506,11 @@ export default function AccountsReceivable({ user }) {
             >
               <option value="all">Semua Status</option>
               <option value="not_due">Belum Jatuh Tempo</option>
-              <option value="due_1_30">Jatuh Tempo (1-30 Hari)</option>
-              <option value="due_30_plus">Jatuh Tempo (&gt;30 Hari)</option>
+              <option value="due_1_15">Jatuh Tempo (1-15 Hari)</option>
+              <option value="due_16_30">Jatuh Tempo (16-30 Hari)</option>
+              <option value="due_31_45">Jatuh Tempo (31-45 Hari)</option>
+              <option value="due_46_60">Jatuh Tempo (46-60 Hari)</option>
+              <option value="due_60_plus">Jatuh Tempo (&gt;60 Hari)</option>
             </select>
             <div className="relative w-64">
               <input 

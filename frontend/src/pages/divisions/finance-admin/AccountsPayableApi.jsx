@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2 } from 'lucide-react';
+import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -43,20 +44,16 @@ const formatSimpleMoney = (amount) => {
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-export default function AccountsPayable({ user }) {
+export default function AccountsPayableApi({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Menyambungkan ke server Accurate...");
   
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
+  // Default: tidak ada filter tanggal, tampilkan SEMUA invoice OUTSTANDING
+  // Jika user set filter tanggal, maka akan filter by transDate (tgl faktur)
+  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   
-  const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
-  const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
-  const canSync = isAdmin || isPIC;
-  const [isSyncing, setIsSyncing] = useState(false);
-
   // Pagination, Filtering & Sorting state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -70,16 +67,51 @@ export default function AccountsPayable({ user }) {
     return [...new Set(data.invoices.map(inv => inv.vendor).filter(Boolean))].sort();
   }, [data?.invoices]);
 
+  // Update Loading Message and Progress
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += (90 - progress) * 0.1; 
+      setLoadingProgress(Math.floor(progress));
+    }, 200);
+
+    const messages = [
+      "Menyambungkan ke server Accurate...",
+      "Mendownload faktur terbaru...",
+      "Memproses perhitungan umur utang...",
+      "Menyiapkan grafik dan tabel..."
+    ];
+    let messageIndex = 0;
+    
+    const messageInterval = setInterval(() => {
+      messageIndex = (messageIndex + 1) % messages.length;
+      setLoadingMessage(messages[messageIndex]);
+    }, 2000);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, [isLoading]);
+
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Pass date filters if needed for future API updates
-      const res = await api.get(`/api/finance-dashboard/ap?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      // Jika ada filter tanggal, kirim sebagai query param (filter by transDate / tgl faktur)
+      // Jika tidak ada, backend akan ambil SEMUA invoice OUTSTANDING (termasuk saldo lama)
+      let url = '/api/finance-dashboard/ap-api';
+      if (dateRange.startDate && dateRange.endDate) {
+        url += `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`;
+      }
+      const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoadingProgress(100);
+      setTimeout(() => setIsLoading(false), 500);
     }
   };
 
@@ -87,30 +119,47 @@ export default function AccountsPayable({ user }) {
     fetchDashboardData();
   }, [dateRange]);
 
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    try {
-      await api.post('/api/finance-dashboard/sync');
-      fetchDashboardData();
-      alert('Data successfully synced from Synology!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to sync data: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="p-6 h-full flex flex-col gap-6 items-center justify-center">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500">Memuat data Dashboard Utang...</p>
+        
+        <div className="flex flex-col items-center gap-2 w-full max-w-md mt-4">
+          <p className="text-gray-600 font-medium animate-pulse">{loadingMessage}</p>
+          
+          <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+            <div 
+              className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-out" 
+              style={{ width: `${loadingProgress}%` }}
+            ></div>
+          </div>
+          <p className="text-xs text-gray-400 text-right w-full">{loadingProgress}%</p>
+        </div>
       </div>
     );
   }
 
-  // --- Charts Data Preparation ---
+  if (!data) {
+    return (
+      <div className="p-6 h-full flex flex-col items-center justify-center text-center">
+        <div className="text-red-500 mb-4">
+          <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">Gagal Memuat Data</h3>
+        <p className="text-gray-600 mb-4">Terjadi kesalahan saat menyambung ke API Accurate atau data kosong.</p>
+        <button 
+          onClick={fetchDashboardData}
+          className="px-4 py-2 bg-primary text-white rounded hover:bg-blue-700 transition"
+        >
+          Coba Lagi
+        </button>
+      </div>
+    );
+  }
+
+  // --- Calculations for Table ---
   const agingSeries = data.aging_chart?.map(item => item.value) || [];
   const agingLabels = data.aging_chart?.map(item => item.name) || [];
 
@@ -198,24 +247,36 @@ export default function AccountsPayable({ user }) {
   return (
     <div className="flex flex-col gap-2 pb-2">
       
-      {/* 
-        [PENGATURAN PORTAL ACTION]
-        Render tombol sync dan filter ke PageHeader
-      */}
       {ReactDOM.createPortal(
-        canSync && (
-          <button 
-            onClick={handleManualSync} 
-            disabled={isSyncing}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
+        <div className="flex items-center gap-2">
+          <Link
+            to="/finance-admin/finance/accurate-guide"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded shadow-sm transition-colors"
           >
-            <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            <BookOpen size={14} />
+            Panduan API
+          </Link>
+          <button
+            onClick={fetchDashboardData}
+            title="Muat ulang data langsung dari Accurate API"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded shadow-sm transition-colors"
+          >
+            <RefreshCw size={14} />
+            Refresh
           </button>
-        ),
+        </div>,
         document.getElementById('page-header-actions') || document.body
       )}
-      <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
+      <DateRangeFilter 
+        dateRange={dateRange} 
+        onChange={(range) => { setDateRange(range); setCurrentPage(1); }} 
+      />
+      {dateRange.startDate && dateRange.endDate && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <Info size={13} />
+          <span>Filter tanggal diterapkan pada <strong>Tgl Faktur</strong>. Invoice lama (Saldo Utang dari periode sebelumnya) tidak ditampilkan. <button className="underline font-semibold ml-1" onClick={() => setDateRange({ startDate: '', endDate: '' })}>Hapus filter</button> untuk melihat semua outstanding.</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
@@ -271,7 +332,7 @@ export default function AccountsPayable({ user }) {
                   <Chart
                     options={{
                       labels: agingLabels,
-                      colors: ['#10B981', '#F59E0B', '#F97316', '#EF4444', '#B91C1C', '#7F1D1D'],
+                      colors: ['#10B981', '#84CC16', '#F59E0B', '#F97316', '#EF4444', '#991B1B'],
                       plotOptions: {
                         pie: { donut: { size: '65%' } }
                       },
@@ -557,8 +618,12 @@ export default function AccountsPayable({ user }) {
                     <td className="px-4 py-2">{inv.invoice_date}</td>
                     <td className="px-4 py-2">{inv.due_date}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${inv.age_days > 0 ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
-                        {inv.age_days}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
+                        parseInt(inv.age_days || 0) > 0 
+                          ? 'bg-danger/10 text-danger' 
+                          : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {parseInt(inv.age_days || 0) > 0 ? `${parseInt(inv.age_days)} hari` : 'Belum Tempo'}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right font-bold text-primary">

@@ -33,6 +33,8 @@ import ExportImport from './divisions/general-affairs/ExportImport';
 
 import Finance from './divisions/finance-admin/Finance';
 import AccountsPayable from './divisions/finance-admin/AccountsPayable';
+import AccountsPayableApi from './divisions/finance-admin/AccountsPayableApi';
+import AccurateApiGuide from './divisions/finance-admin/AccurateApiGuide';
 import AccountsReceivable from './divisions/finance-admin/AccountsReceivable';
 import Tax from './divisions/finance-admin/Tax';
 import HRD from './divisions/finance-admin/HRD';
@@ -483,6 +485,16 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/finance-admin/finance/ap" element={
               <ErrorBoundary>
                 <AccountsPayable user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/ap-api" element={
+              <ErrorBoundary>
+                <AccountsPayableApi user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/accurate-guide" element={
+              <ErrorBoundary>
+                <AccurateApiGuide user={user} />
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/finance/ar" element={
