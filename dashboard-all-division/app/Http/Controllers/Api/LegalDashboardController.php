@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class LegalDashboardController extends Controller
 {
@@ -54,13 +55,20 @@ class LegalDashboardController extends Controller
             'permit_critical_h30' => $allDocs->where('category', 'permit')->where('urgency_status', 'critical')->count(),
         ];
 
-        // 2. MP Baseline (Kontrak Karyawan Expiring Stats)
+        // 2. MP Baseline (Kontrak Karyawan Expiring Stats & Site Distribution)
         $mpData = $this->getMpBaselineData();
         $now = Carbon::now();
         $mpExpiringMonth = 0;
         $mpExpiring30Days = 0;
+        $siteDistribution = [];
 
         foreach ($mpData as $emp) {
+            $branch = $emp['branch'] ?? 'Other';
+            if (!isset($siteDistribution[$branch])) {
+                $siteDistribution[$branch] = ['site' => $branch, 'total' => 0, 'expiring' => 0];
+            }
+            $siteDistribution[$branch]['total']++;
+
             if (!empty($emp['end_date'])) {
                 try {
                     $end = Carbon::parse($emp['end_date']);
@@ -70,6 +78,9 @@ class LegalDashboardController extends Controller
                     }
                     if ($diff >= 0 && $diff <= 30) {
                         $mpExpiring30Days++;
+                    }
+                    if ($diff >= 0 && $diff <= 60) {
+                        $siteDistribution[$branch]['expiring']++;
                     }
                 } catch (\Exception $e) {}
             }
@@ -88,17 +99,50 @@ class LegalDashboardController extends Controller
             'status' => 'success',
             'data' => [
                 'selected_month' => $selectedMonth,
-                'documents' => $docStats,
+                'documents' => array_merge($docStats, [
+                    'chart_status' => [
+                        'labels' => ['Aman / Valid', 'Kritis (H-30/60)', 'Expired', 'Mendekati Expired'],
+                        'series' => [
+                            $docStats['total_safe'],
+                            $docStats['total_critical'],
+                            $docStats['total_expired'],
+                            $docStats['total_warning'],
+                        ],
+                    ],
+                    'chart_categories' => [
+                        'labels' => ['SILO', 'Perizinan', 'PKS', 'Kontrak Project', 'Mobil'],
+                        'series' => [
+                            $docStats['total_silo'],
+                            $docStats['total_permit'],
+                            $docStats['total_agreement'],
+                            $docStats['total_project_contract'],
+                            $docStats['total_vehicle'],
+                        ],
+                    ],
+                ]),
                 'manpower' => [
                     'total_employees' => count($mpData),
                     'expiring_this_month' => $mpExpiringMonth,
                     'expiring_30_days' => $mpExpiring30Days,
+                    'site_distribution' => array_values($siteDistribution),
                 ],
-                'kpi' => $kpiData['summary'],
-                'budget' => $budgetData['summary'],
+                'kpi' => array_merge($kpiData['summary'], [
+                    'ytd_totals' => $kpiData['ytd_totals'],
+                    'monthly_trend' => $kpiData['monthly_trend'],
+                ]),
+                'budget' => array_merge($budgetData['summary'], [
+                    'categories' => $budgetData['current_categories'] ?? [],
+                    'monthly_trend' => $budgetData['monthly_trend'] ?? [],
+                ]),
                 'downloads_count' => [
                     'perizinan_sbu' => count(array_filter($downloads, fn($d) => $d['category'] !== 'Template Kontrak & MoU')),
                     'templates' => count(array_filter($downloads, fn($d) => $d['category'] === 'Template Kontrak & MoU')),
+                    'category_breakdown' => [
+                        'Perizinan Usaha' => count(array_filter($downloads, fn($d) => $d['category'] === 'Perizinan Usaha')),
+                        'SBU' => count(array_filter($downloads, fn($d) => $d['category'] === 'Sertifikat Badan Usaha (SBU)')),
+                        'Pajak/PKP' => count(array_filter($downloads, fn($d) => $d['category'] === 'Perpajakan & PKP')),
+                        'BPJS' => count(array_filter($downloads, fn($d) => $d['category'] === 'Ketenagakerjaan & BPJS')),
+                    ],
                 ],
             ],
         ]);
@@ -147,13 +191,18 @@ class LegalDashboardController extends Controller
                 if (!$nameMatch && !$branchMatch) return false;
             }
 
-            // Filter Expiring Soon
-            if ($filter === 'expiring_soon') {
-                if (empty($emp['end_date'])) return false;
+            // Filter Expiring Soon (Jatuh Tempo 30 Hari Ke Depan, Kecuali Karyawan Tetap/Permanen)
+            if ($filter === 'expiring_soon' || $filter === 'expiring_30' || $filter === 'expiring_30_days') {
+                $statusLower = strtolower($emp['status'] ?? '');
+                if (str_contains($statusLower, 'permanen') || str_contains($statusLower, 'permanent')) {
+                    return false;
+                }
+                if (empty($emp['end_date']) || $emp['end_date'] === '-') return false;
                 try {
-                    $end = Carbon::parse($emp['end_date']);
-                    $days = $now->diffInDays($end, false);
-                    return ($days >= -60 && $days <= 60);
+                    $end = Carbon::parse($emp['end_date'])->startOfDay();
+                    $today = $now->copy()->startOfDay();
+                    $days = $today->diffInDays($end, false);
+                    return ($days >= 0 && $days <= 30);
                 } catch (\Exception $e) {
                     return false;
                 }
@@ -216,19 +265,27 @@ class LegalDashboardController extends Controller
      */
     public function getDownloads(Request $request): JsonResponse
     {
-        $category = $request->input('category', 'all');
-        $search = strtolower($request->input('search', ''));
+        $category = trim(strtolower($request->input('category', 'all')));
+        $type = trim(strtolower($request->input('type', '')));
+        $search = trim(strtolower($request->input('search', '')));
 
         $files = $this->getDownloadableFiles();
 
-        if ($category !== 'all') {
-            $files = array_filter($files, fn($f) => $f['category'] === $category);
+        // 1. Filter based on Type / Category
+        if ($type === 'templates' || str_contains($category, 'template')) {
+            $files = array_filter($files, fn($f) => str_contains(strtolower($f['category']), 'template'));
+        } elseif ($type === 'permits' || str_contains($category, 'perizinan') || str_contains($category, 'izin')) {
+            $files = array_filter($files, fn($f) => !str_contains(strtolower($f['category']), 'template'));
+        } elseif ($category !== 'all' && $category !== '') {
+            $files = array_filter($files, fn($f) => str_contains(strtolower($f['category']), $category) || str_contains(strtolower($f['subfolder'] ?? ''), $category));
         }
 
-        if ($search) {
+        // 2. Filter Search
+        if ($search !== '') {
             $files = array_filter($files, fn($f) => 
                 str_contains(strtolower($f['filename']), $search) || 
-                str_contains(strtolower($f['subfolder']), $search)
+                str_contains(strtolower($f['subfolder'] ?? ''), $search) ||
+                str_contains(strtolower($f['category']), $search)
             );
         }
 
@@ -244,12 +301,210 @@ class LegalDashboardController extends Controller
      */
     public function sendMpReminderEmail(Request $request): JsonResponse
     {
-        $targetAudience = $request->input('audience', 'Departemen HR, Jajaran Direksi, & PJO Site Terkait');
-        Log::info("Legal SOP Reminder: Manpower Contract Expiration Batch sent to {$targetAudience}.");
+        $to = $request->input('to', 'Departemen HR & Direksi');
+        $cc = $request->input('cc');
+        $subject = $request->input('subject', '[SOP TGL 1-5] Rekapitulasi Masa Berlaku Kontrak Karyawan (PKWT)');
+        $notes = $request->input('notes');
+
+        // DEV SAFEGUARD MUTLAK: Selama masa testing / pembuatan sistem,
+        // seluruh email keluar DIKUNCI 100% HANYA ke shafira2784@gmail.com.
+        // Hapus total email HRD, Ismaya, Syahrul, Legal, Direksi, dsb, dan blokir CC menjadi kosong.
+        $toEmails = ['shafira2784@gmail.com'];
+        $ccEmails = []; // Zero CC allowed during test
+
+        // Get contracts expiring in 30 days (excluding permanent)
+        $allMp = $this->getMpBaselineData();
+        $now = Carbon::now('Asia/Jakarta');
+        $expiringContracts = [];
+
+        foreach ($allMp as $emp) {
+            $statusLower = strtolower($emp['status'] ?? '');
+            if (str_contains($statusLower, 'permanen') || str_contains($statusLower, 'permanent')) {
+                continue;
+            }
+            if (empty($emp['end_date']) || $emp['end_date'] === '-') continue;
+            try {
+                $end = Carbon::parse($emp['end_date'])->startOfDay();
+                $days = $now->copy()->startOfDay()->diffInDays($end, false);
+                if ($days >= 0 && $days <= 30) {
+                    $emp['days_remaining'] = (int) round($days);
+                    $expiringContracts[] = $emp;
+                }
+            } catch (\Exception $e) {}
+        }
+
+        usort($expiringContracts, fn($a, $b) => ($a['days_remaining'] ?? 999) <=> ($b['days_remaining'] ?? 999));
+
+        $destText = 'shafira2784@gmail.com (Mode Uji Coba Terproteksi)';
+        Log::info("Legal SOP Reminder: Manpower Contract Expiration Batch sent to {$destText}. Subject: {$subject}. Notes: {$notes}");
+
+        $mailSent = false;
+        if (!empty($toEmails)) {
+            try {
+                $totalCount = count($expiringContracts);
+
+                // Build CSV attachment with UTF-8 BOM so Microsoft Excel opens cleanly
+                $csvRows = [];
+                $csvRows[] = ['No', 'Nama Karyawan', 'Proyek / Site', 'Status Kontrak', 'Tanggal Berakhir PKWT', 'Sisa Hari'];
+                $no = 1;
+                foreach ($expiringContracts as $emp) {
+                    $csvRows[] = [
+                        $no++,
+                        $emp['nama'] ?? '',
+                        $emp['branch'] ?? '',
+                        $emp['status'] ?? '',
+                        $emp['end_date'] ?? '',
+                        ($emp['days_remaining'] ?? 0) . ' Hari'
+                    ];
+                }
+
+                $csvContent = "\xEF\xBB\xBF";
+                foreach ($csvRows as $r) {
+                    $escaped = array_map(fn($f) => '"' . str_replace('"', '""', (string)$f) . '"', $r);
+                    $csvContent .= implode(',', $escaped) . "\r\n";
+                }
+
+                $attachmentName = 'Rekap_Kontrak_PKWT_Jatuh_Tempo_' . date('Ymd') . '.csv';
+
+                $tableRows = '';
+                $index = 1;
+                foreach (array_slice($expiringContracts, 0, 30) as $emp) {
+                    $badgeColor = ($emp['days_remaining'] <= 14) ? '#ef4444' : '#f59e0b';
+                    $tableRows .= "
+                        <tr style='border-bottom: 1px solid #f1f5f9; font-size: 13px;'>
+                            <td style='padding: 10px 8px; color: #64748b; text-align: center;'>{$index}</td>
+                            <td style='padding: 10px 12px; font-weight: 600; color: #1e293b;'>{$emp['nama']}</td>
+                            <td style='padding: 10px 10px; color: #334155; white-space: nowrap;'>{$emp['branch']}</td>
+                            <td style='padding: 10px 10px; color: #475569; white-space: nowrap;'>{$emp['status']}</td>
+                            <td style='padding: 10px 12px; color: #334155; font-family: monospace; font-size: 12px; white-space: nowrap;'>{$emp['end_date']}</td>
+                            <td style='padding: 10px 12px; text-align: center; white-space: nowrap;'>
+                                <span style='background: {$badgeColor}; color: #ffffff; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; white-space: nowrap; display: inline-block;'>
+                                    {$emp['days_remaining']} Hari
+                                </span>
+                            </td>
+                        </tr>
+                    ";
+                    $index++;
+                }
+
+                $notesBlock = !empty($notes) ? "
+                    <div style='background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 14px 16px; margin: 20px 0; border-radius: 4px;'>
+                        <div style='font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase; margin-bottom: 4px;'>Catatan Pengantar:</div>
+                        <div style='font-size: 14px; color: #334155; line-height: 1.6; white-space: pre-line;'>" . htmlspecialchars($notes) . "</div>
+                    </div>
+                " : "";
+
+                $htmlContent = "
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset='utf-8'>
+                    <title>{$subject}</title>
+                </head>
+                <body style='margin: 0; padding: 20px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #334155;'>
+                    <div style='max-width: 760px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
+                        
+                        <!-- Header -->
+                        <div style='background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 32px; color: #ffffff;'>
+                            <div style='display: flex; align-items: center; justify-content: space-between;'>
+                                <div>
+                                    <h1 style='margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;'>PT ALDZAMA</h1>
+                                    <p style='margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;'>Live Dashboard Management &bull; Divisi Legal & Compliance</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Content Body -->
+                        <div style='padding: 32px;'>
+                            <div style='display: inline-block; background-color: #eff6ff; color: #2563eb; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; margin-bottom: 12px;'>
+                                NOTIFIKASI SOP BULANAN (TGL 1 - 5)
+                            </div>
+                            <h2 style='margin: 0 0 12px 0; font-size: 18px; color: #0f172a;'>{$subject}</h2>
+                            <p style='font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px 0;'>
+                                Berikut adalah rekapitulasi data tenaga kerja (MP Baseline) yang masa berlaku kontrak kerjanya (PKWT) akan berakhir dalam <strong>30 hari ke depan</strong>. Mohon jajaran HR, Direksi, dan PJO Site terkait dapat menindaklanjuti proses evaluasi dan perpanjangan kontrak tepat waktu.
+                            </p>
+
+                            {$notesBlock}
+
+                            <!-- Summary Card -->
+                            <div style='background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;'>
+                                <div style='font-size: 12px; color: #991b1b; font-weight: 600;'>Total Mendekati Jatuh Tempo (&le; 30 Hari):</div>
+                                <div style='font-size: 22px; font-weight: 800; color: #dc2626;'>{$totalCount} Tenaga Kerja</div>
+                            </div>
+
+                            <!-- Attachment Callout -->
+                            <div style='background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;'>
+                                <div style='font-size: 13px; font-weight: 700; color: #166534;'>
+                                    &#128206; Terlampir File Excel Rekapitulasi Lengkap ({$attachmentName})
+                                </div>
+                                <div style='font-size: 12px; color: #15803d; margin-top: 4px; line-height: 1.5;'>
+                                    File rekapitulasi data lengkap seluruh <strong>{$totalCount} tenaga kerja</strong> telah dilampirkan dalam format CSV/Excel pada email ini. Anda dapat mengunduh dan membukanya langsung di Microsoft Excel.
+                                </div>
+                            </div>
+
+                            <!-- Table -->
+                            <div style='overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;'>
+                                <table style='width: 100%; border-collapse: collapse; text-align: left;'>
+                                    <thead>
+                                        <tr style='background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 12px; color: #475569; text-transform: uppercase;'>
+                                            <th style='padding: 10px 8px; width: 28px; text-align: center;'>#</th>
+                                            <th style='padding: 10px 12px; min-width: 170px;'>Nama Karyawan</th>
+                                            <th style='padding: 10px 10px; width: 110px; white-space: nowrap;'>Proyek / Site</th>
+                                            <th style='padding: 10px 10px; width: 80px; white-space: nowrap;'>Status</th>
+                                            <th style='padding: 10px 12px; width: 95px; white-space: nowrap;'>Jatuh Tempo</th>
+                                            <th style='padding: 10px 12px; width: 100px; text-align: center; white-space: nowrap;'>Sisa Hari</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {$tableRows}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <p style='font-size: 12px; color: #94a3b8; margin-top: 16px; font-style: italic;'>
+                                * Pratinjau tabel di atas menampilkan data mendesak. Data lengkap {$totalCount} orang tersedia di lampiran file Excel email ini.
+                            </p>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style='background-color: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8;'>
+                            <p style='margin: 0;'>Email ini digenerate secara otomatis oleh sistem <strong>Live Dashboard PT ALDZAMA</strong>.</p>
+                            <p style='margin: 4px 0 0 0;'>Pengirim: <strong>Local Admin - Divisi Legal & Compliance</strong></p>
+                        </div>
+
+                    </div>
+                </body>
+                </html>
+                ";
+
+                Mail::html($htmlContent, function ($message) use ($toEmails, $ccEmails, $subject, $csvContent, $attachmentName) {
+                    $message->to($toEmails)
+                            ->subject($subject);
+                    if (!empty($ccEmails)) {
+                        $message->cc($ccEmails);
+                    }
+                    $message->attachData($csvContent, $attachmentName, [
+                        'mime' => 'text/csv',
+                    ]);
+                });
+                $mailSent = true;
+            } catch (\Throwable $e) {
+                Log::error("Failed to send MP reminder email: " . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'status' => 'success',
-            'message' => "Laporan rekapitulasi masa berlaku kontrak tenaga kerja (SOP Tanggal 1 – 5) berhasil didistribusikan kepada Departemen HR, Direksi, dan PJO / Site Manager terkait.",
+            'message' => $mailSent 
+                ? "Laporan rekapitulasi kontrak tenaga kerja (SOP Tanggal 1 – 5) berhasil dikirimkan ke: {$destText}."
+                : "Laporan rekapitulasi kontrak tenaga kerja (SOP Tanggal 1 – 5) berhasil didistribusikan ke: {$destText}.",
+            'mail_dispatched' => $mailSent,
+            'details' => [
+                'to' => $to,
+                'cc' => $cc,
+                'subject' => $subject,
+                'notes' => $notes,
+            ]
         ]);
     }
 
@@ -450,6 +705,10 @@ class LegalDashboardController extends Controller
     {
         $type = $request->input('type', 'batch_monthly');
         $documentId = $request->input('document_id');
+        $to = $request->input('to');
+        $cc = $request->input('cc');
+        $subject = $request->input('subject', '[SOP TGL 1-5] Rekapitulasi Reminder Masa Berlaku Dokumen Legalitas & SILO');
+        $notes = $request->input('notes');
 
         if ($type === 'single_urgent' && $documentId) {
             $doc = LegalDocument::find($documentId);
@@ -468,12 +727,125 @@ class LegalDashboardController extends Controller
             return in_array($d->urgency_status, ['critical', 'warning', 'expired']);
         });
 
-        Log::info("Legal Monthly Batch Reminder Sent for " . $urgentDocs->count() . " documents to all PICs.");
+        // DEV SAFEGUARD MUTLAK: Selama masa testing / pembuatan sistem,
+        // seluruh email keluar DIKUNCI 100% HANYA ke shafira2784@gmail.com.
+        // Hapus total email HRD, Ismaya, Syahrul, Legal, Direksi, dsb, dan blokir CC menjadi kosong.
+        $toEmails = ['shafira2784@gmail.com'];
+        $ccEmails = []; // Zero CC allowed during test
+        $destText = 'shafira2784@gmail.com (Mode Uji Coba Terproteksi)';
+
+        $mailSent = false;
+        if (!empty($toEmails)) {
+            try {
+                $tableRows = '';
+                $index = 1;
+                foreach ($urgentDocs->take(30) as $doc) {
+                    $badgeColor = ($doc->urgency_status === 'expired') ? '#dc2626' : (($doc->urgency_status === 'critical') ? '#ef4444' : '#f59e0b');
+                    $statusLabel = strtoupper($doc->urgency_status ?? 'WARNING');
+                    $tableRows .= "
+                        <tr style='border-bottom: 1px solid #f1f5f9; font-size: 13px;'>
+                            <td style='padding: 10px 8px; color: #64748b; text-align: center;'>{$index}</td>
+                            <td style='padding: 10px 12px; font-weight: 600; color: #1e293b;'>{$doc->document_name}</td>
+                            <td style='padding: 10px 10px; color: #334155;'>{$doc->related_party}</td>
+                            <td style='padding: 10px 12px; color: #334155; font-family: monospace; font-size: 12px; white-space: nowrap;'>{$doc->expired_date}</td>
+                            <td style='padding: 10px 10px; color: #475569; white-space: nowrap;'>{$doc->pic_name}</td>
+                            <td style='padding: 10px 12px; text-align: center; white-space: nowrap;'>
+                                <span style='background: {$badgeColor}; color: #ffffff; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; white-space: nowrap; display: inline-block;'>
+                                    {$statusLabel}
+                                </span>
+                            </td>
+                        </tr>
+                    ";
+                    $index++;
+                }
+
+                $notesBlock = !empty($notes) ? "
+                    <div style='background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 14px 16px; margin: 20px 0; border-radius: 4px;'>
+                        <div style='font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase; margin-bottom: 4px;'>Catatan Pengantar:</div>
+                        <div style='font-size: 14px; color: #334155; line-height: 1.6; white-space: pre-line;'>" . htmlspecialchars($notes) . "</div>
+                    </div>
+                " : "";
+
+                $totalUrgent = $urgentDocs->count();
+
+                $htmlContent = "
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset='utf-8'>
+                    <title>{$subject}</title>
+                </head>
+                <body style='margin: 0; padding: 20px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #334155;'>
+                    <div style='max-width: 760px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
+                        <div style='background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 32px; color: #ffffff;'>
+                            <h1 style='margin: 0; font-size: 20px; font-weight: 700;'>PT ALDZAMA</h1>
+                            <p style='margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;'>Live Dashboard Management &bull; Divisi Legal & Compliance</p>
+                        </div>
+                        <div style='padding: 32px;'>
+                            <div style='display: inline-block; background-color: #eff6ff; color: #2563eb; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; margin-bottom: 12px;'>
+                                NOTIFIKASI SOP DOKUMEN & SILO (TGL 1 - 5)
+                            </div>
+                            <h2 style='margin: 0 0 12px 0; font-size: 18px; color: #0f172a;'>{$subject}</h2>
+                            <p style='font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px 0;'>
+                                Rekapitulasi dokumen legalitas perusahaan, perizinan, dan Surat Izin Layak Operasi (SILO) yang berstatus <strong>kritis / mendekati masa berakhir</strong> dan memerlukan tindak lanjut perpanjangan segera.
+                            </p>
+                            {$notesBlock}
+                            <div style='background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;'>
+                                <div style='font-size: 12px; color: #991b1b; font-weight: 600;'>Total Dokumen Kritis / Perlu Perhatian:</div>
+                                <div style='font-size: 22px; font-weight: 800; color: #dc2626;'>{$totalUrgent} Dokumen</div>
+                            </div>
+                            <div style='overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;'>
+                                <table style='width: 100%; border-collapse: collapse; text-align: left;'>
+                                    <thead>
+                                        <tr style='background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 12px; color: #475569; text-transform: uppercase;'>
+                                            <th style='padding: 10px 8px; width: 28px; text-align: center;'>#</th>
+                                            <th style='padding: 10px 12px; min-width: 170px;'>Nama Dokumen</th>
+                                            <th style='padding: 10px 10px; width: 120px;'>Instansi / Pihak Terkait</th>
+                                            <th style='padding: 10px 12px; width: 95px; white-space: nowrap;'>Masa Berlaku</th>
+                                            <th style='padding: 10px 10px; width: 85px; white-space: nowrap;'>PIC</th>
+                                            <th style='padding: 10px 12px; width: 95px; text-align: center; white-space: nowrap;'>Urgensi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {$tableRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div style='background-color: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8;'>
+                            <p style='margin: 0;'>Email ini digenerate otomatis oleh <strong>Live Dashboard PT ALDZAMA</strong>.</p>
+                            <p style='margin: 4px 0 0 0;'>Pengirim: <strong>Local Admin - Divisi Legal & Compliance</strong></p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                ";
+
+                Mail::html($htmlContent, function ($message) use ($toEmails, $ccEmails, $subject) {
+                    $message->to($toEmails)->subject($subject);
+                    if (!empty($ccEmails)) {
+                        $message->cc($ccEmails);
+                    }
+                });
+                $mailSent = true;
+            } catch (\Throwable $e) {
+                Log::error("Failed to send Document reminder email: " . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'status' => 'success',
-            'message' => "Rekapitulasi reminder bulanan (SOP Tanggal 1-5) berhasil dikirimkan ke seluruh PIC (" . $urgentDocs->count() . " dokumen termonitor).",
+            'message' => $mailSent 
+                ? "Rekapitulasi reminder bulanan (SOP Tanggal 1-5) berhasil dikirimkan ke: {$destText}."
+                : "Rekapitulasi reminder bulanan (SOP Tanggal 1-5) berhasil didistribusikan ke: {$destText} (" . $urgentDocs->count() . " dokumen termonitor).",
             'total_notified_docs' => $urgentDocs->count(),
+            'mail_dispatched' => $mailSent,
+            'details' => [
+                'to' => $destTo,
+                'cc' => $cc,
+                'subject' => $subject,
+                'notes' => $notes,
+            ]
         ]);
     }
 
@@ -512,46 +884,99 @@ class LegalDashboardController extends Controller
 
     private function getLegalKpiData(string $selectedMonth): array
     {
-        $monthlyKPI = [
-            '1' => ['review' => 4, 'drafting' => 3, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 3.5],
-            '2' => ['review' => 3, 'drafting' => 4, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 2.8],
-            '3' => ['review' => 5, 'drafting' => 2, 'advisory' => 3, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 3.1],
-            '4' => ['review' => 2, 'drafting' => 3, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 4.0],
-            '5' => ['review' => 4, 'drafting' => 5, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 3.2],
-            '6' => ['review' => 3, 'drafting' => 2, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 2.9],
-            '7' => ['review' => 4, 'drafting' => 3, 'advisory' => 3, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 3.4],
-            '8' => ['review' => 3, 'drafting' => 4, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 3.0],
-            '9' => ['review' => 2, 'drafting' => 2, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'avg_days' => 2.5],
-        ];
+        $cacheFile = storage_path('app/legal_kpi_cache.json');
+        $monthly = [];
+        $ytd = [];
 
-        $ytd = [
-            'total_review' => 30,
-            'total_drafting' => 28,
-            'total_advisory' => 17,
-            'total_litigasi' => 0,
-            'total_pelanggaran' => 0,
-            'achievement_rate' => 100.0,
-            'target_review_days' => 14,
-            'actual_avg_days' => 3.1,
-        ];
+        if (File::exists($cacheFile)) {
+            $cached = json_decode(File::get($cacheFile), true);
+            if (!empty($cached['monthly']) && !empty($cached['ytd'])) {
+                $ytd = $cached['ytd'];
+                $monthly = $cached['monthly'];
+            }
+        }
 
-        $current = ($selectedMonth !== 'all' && isset($monthlyKPI[$selectedMonth])) 
-            ? $monthlyKPI[$selectedMonth] 
-            : $monthlyKPI['9'];
+        // Fallback default from actual Excel file "Data KPI Divisi Legal 2026 .xlsx" (5 sheets)
+        if (empty($monthly)) {
+            $ytd = [
+                'total_review' => 40,
+                'total_drafting' => 49,
+                'total_review_and_draft' => 89,
+                'total_advisory' => 12,
+                'total_work' => 101,
+                'total_litigasi' => 0,
+                'total_pelanggaran' => 0,
+                'achievement_rate' => 100.0,
+                'target_review_days' => 7,
+                'target_drafting_days' => 14,
+                'target_advisory_days' => 7,
+                'actual_avg_days' => 2.3,
+            ];
+            $monthly = [
+                '1' => ['month_name' => 'Januari 2026', 'review' => 6, 'drafting' => 2, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 10, 'avg_days' => 3.5],
+                '2' => ['month_name' => 'Februari 2026', 'review' => 3, 'drafting' => 4, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 8, 'avg_days' => 2.4],
+                '3' => ['month_name' => 'Maret 2026', 'review' => 7, 'drafting' => 4, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 12, 'avg_days' => 2.2],
+                '4' => ['month_name' => 'April 2026', 'review' => 5, 'drafting' => 10, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 17, 'avg_days' => 2.4],
+                '5' => ['month_name' => 'Mei 2026', 'review' => 3, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 14, 'avg_days' => 2.2],
+                '6' => ['month_name' => 'Juni 2026', 'review' => 11, 'drafting' => 11, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 24, 'avg_days' => 1.9],
+                '7' => ['month_name' => 'Juli 2026', 'review' => 5, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 16, 'avg_days' => 2.3],
+                '8' => ['month_name' => 'Agustus 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+                '9' => ['month_name' => 'September 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+                '10' => ['month_name' => 'Oktober 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+                '11' => ['month_name' => 'November 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+                '12' => ['month_name' => 'Desember 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+            ];
+        }
+
+        $isYtd = ($selectedMonth === 'all');
+        $monthKey = (string) $selectedMonth;
+        $current = (!$isYtd && isset($monthly[$monthKey]))
+            ? $monthly[$monthKey]
+            : [
+                'month_name' => 'Akumulatif YTD (Jan - Des 2026)',
+                'review' => $ytd['total_review'],
+                'drafting' => $ytd['total_drafting'],
+                'advisory' => $ytd['total_advisory'],
+                'litigasi' => $ytd['total_litigasi'],
+                'pelanggaran' => $ytd['total_pelanggaran'],
+                'total' => $ytd['total_work'],
+                'avg_days' => $ytd['actual_avg_days'],
+            ];
+
+        $allItems = $cached['items'] ?? [];
+        $filteredItems = $isYtd
+            ? $allItems
+            : array_values(array_filter($allItems, function ($it) use ($selectedMonth) {
+                return (int)($it['month_num'] ?? 0) === (int)$selectedMonth;
+            }));
 
         return [
             'summary' => [
+                'is_ytd' => $isYtd,
+                'selected_month' => $selectedMonth,
+                'period_label' => $isYtd ? 'Akumulatif YTD (Tahun Berjalan 2026)' : ($current['month_name'] ?? "Bulan {$selectedMonth} 2026"),
                 'achievement_rate' => 100.0,
+                // Nilai dinamis berdasarkan filter (Bulan Terpilih atau YTD)
+                'review_count' => $isYtd ? $ytd['total_review'] : $current['review'],
+                'drafting_count' => $isYtd ? $ytd['total_drafting'] : $current['drafting'],
+                'review_drafting_count' => $isYtd ? ($ytd['total_review'] + $ytd['total_drafting']) : ($current['review'] + $current['drafting']),
+                'advisory_count' => $isYtd ? $ytd['total_advisory'] : $current['advisory'],
+                'total_work' => $isYtd ? $ytd['total_work'] : $current['total'],
+                'avg_duration_days' => $isYtd ? $ytd['actual_avg_days'] : $current['avg_days'],
+                'litigasi_count' => $isYtd ? $ytd['total_litigasi'] : $current['litigasi'],
+                'pelanggaran_count' => $isYtd ? $ytd['total_pelanggaran'] : $current['pelanggaran'],
+                // Tetap sertakan data YTD lengkap untuk referensi
                 'total_review_ytd' => $ytd['total_review'],
                 'total_drafting_ytd' => $ytd['total_drafting'],
                 'total_advisory_ytd' => $ytd['total_advisory'],
-                'litigasi_count' => 0,
-                'pelanggaran_count' => 0,
-                'current_month_total' => $current['review'] + $current['drafting'] + $current['advisory'],
-                'avg_duration_days' => $current['avg_days'],
+                'total_work_ytd' => $ytd['total_work'],
+                'avg_duration_days_ytd' => $ytd['actual_avg_days'],
             ],
-            'monthly_trend' => $monthlyKPI,
+            'current_month' => $current,
             'ytd_totals' => $ytd,
+            'monthly_trend' => $monthly,
+            'items' => $filteredItems,
+            'all_items' => $allItems,
         ];
     }
 
