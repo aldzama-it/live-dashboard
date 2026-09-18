@@ -172,7 +172,9 @@ class LegalDashboardController extends Controller
         $filtered = array_filter($mpData, function ($emp) use ($filter, $branch, $status, $search, $now) {
             // Filter Branch
             if ($branch !== 'all' && !empty($branch)) {
-                if (strtolower($emp['branch']) !== strtolower($branch)) {
+                $bLower = strtolower(trim($branch));
+                $empBranch = strtolower(trim($emp['branch'] ?? ''));
+                if ($empBranch !== $bLower && !str_starts_with($empBranch, $bLower . ' ') && !str_starts_with($empBranch, $bLower . ' -') && !str_starts_with($empBranch, $bLower . '/')) {
                     return false;
                 }
             }
@@ -920,11 +922,11 @@ class LegalDashboardController extends Controller
                 '5' => ['month_name' => 'Mei 2026', 'review' => 3, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 14, 'avg_days' => 2.2],
                 '6' => ['month_name' => 'Juni 2026', 'review' => 11, 'drafting' => 11, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 24, 'avg_days' => 1.9],
                 '7' => ['month_name' => 'Juli 2026', 'review' => 5, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 16, 'avg_days' => 2.3],
-                '8' => ['month_name' => 'Agustus 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
-                '9' => ['month_name' => 'September 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
-                '10' => ['month_name' => 'Oktober 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
-                '11' => ['month_name' => 'November 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
-                '12' => ['month_name' => 'Desember 2026', 'review' => 0, 'drafting' => 0, 'advisory' => 0, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 0, 'avg_days' => 0.0],
+                '8' => ['month_name' => 'Agustus 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
+                '9' => ['month_name' => 'September 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
+                '10' => ['month_name' => 'Oktober 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
+                '11' => ['month_name' => 'November 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
+                '12' => ['month_name' => 'Desember 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
             ];
         }
 
@@ -982,6 +984,7 @@ class LegalDashboardController extends Controller
 
     private function getOperationalBudgetData(string $selectedMonth): array
     {
+        // Data riil dari Synology NAS (Z:\dashboard-data\legal\Dana Operasional\ 01. Januari s/d 07. Juli 2026)
         $monthlyBudgets = [
             '1' => ['month_name' => 'Januari 2026', 'budget' => 12000000, 'actual' => 11126570, 'categories' => ['OSS Jasa' => 10000000, 'E-Materai' => 23570, 'Konsultasi Hukum' => 497000, 'Data Perseroan' => 300000, 'Lainnya' => 306000]],
             '2' => ['month_name' => 'Februari 2026', 'budget' => 2000000, 'actual' => 578963, 'categories' => ['E-Materai' => 45000, 'Legalisasi Notaris' => 350000, 'Operasional' => 183963]],
@@ -990,28 +993,47 @@ class LegalDashboardController extends Controller
             '5' => ['month_name' => 'Mei 2026', 'budget' => 2000000, 'actual' => 299574, 'categories' => ['E-Materai' => 99574, 'Operasional' => 200000]],
             '6' => ['month_name' => 'Juni 2026', 'budget' => 2000000, 'actual' => 366400, 'categories' => ['Legalisir & Notaris' => 250000, 'Operasional' => 116400]],
             '7' => ['month_name' => 'Juli 2026', 'budget' => 12000000, 'actual' => 1393900, 'categories' => ['Biaya Advokasi / Lawfirm' => 1000000, 'Operasional Rutin' => 393900]],
-            '8' => ['month_name' => 'Agustus 2026', 'budget' => 2000000, 'actual' => 850000, 'categories' => ['Operasional Rutin' => 850000]],
-            '9' => ['month_name' => 'September 2026', 'budget' => 2000000, 'actual' => 420000, 'categories' => ['Operasional Rutin' => 420000]],
         ];
 
         $ytdBudget = array_sum(array_column($monthlyBudgets, 'budget'));
         $ytdActual = array_sum(array_column($monthlyBudgets, 'actual'));
 
-        $curr = ($selectedMonth !== 'all' && isset($monthlyBudgets[$selectedMonth]))
-            ? $monthlyBudgets[$selectedMonth]
-            : $monthlyBudgets['9'];
+        $monthNames = [
+            '1' => 'Januari 2026', '2' => 'Februari 2026', '3' => 'Maret 2026',
+            '4' => 'April 2026', '5' => 'Mei 2026', '6' => 'Juni 2026',
+            '7' => 'Juli 2026', '8' => 'Agustus 2026', '9' => 'September 2026',
+            '10' => 'Oktober 2026', '11' => 'November 2026', '12' => 'Desember 2026',
+        ];
+
+        if ($selectedMonth !== 'all' && isset($monthlyBudgets[$selectedMonth])) {
+            $curr = $monthlyBudgets[$selectedMonth];
+        } elseif ($selectedMonth !== 'all') {
+            // Bulan belum ada berkas di Synology NAS
+            $curr = [
+                'month_name' => $monthNames[$selectedMonth] ?? "Bulan {$selectedMonth} 2026",
+                'budget' => 0,
+                'actual' => 0,
+                'categories' => [],
+            ];
+        } else {
+            // Default YTD (ambil bulan aktif terakhir: Juli)
+            $curr = $monthlyBudgets['7'];
+        }
+
+        $currBudget = $curr['budget'] ?? 0;
+        $currActual = $curr['actual'] ?? 0;
 
         return [
             'summary' => [
                 'ytd_budget' => $ytdBudget,
                 'ytd_actual' => $ytdActual,
                 'ytd_utilization_rate' => round(($ytdActual / max(1, $ytdBudget)) * 100, 1),
-                'current_month_budget' => $curr['budget'],
-                'current_month_actual' => $curr['actual'],
-                'current_month_utilization' => round(($curr['actual'] / max(1, $curr['budget'])) * 100, 1),
+                'current_month_budget' => $currBudget,
+                'current_month_actual' => $currActual,
+                'current_month_utilization' => $currBudget > 0 ? round(($currActual / $currBudget) * 100, 1) : 0,
             ],
             'monthly_trend' => $monthlyBudgets,
-            'current_categories' => $curr['categories'],
+            'current_categories' => $curr['categories'] ?? [],
         ];
     }
 

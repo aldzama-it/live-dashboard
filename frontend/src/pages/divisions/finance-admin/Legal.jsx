@@ -28,6 +28,7 @@ import {
   DollarSign,
   TrendingUp,
   ChevronRight,
+  ChevronDown,
   ShieldCheck,
   FolderLock,
   Maximize2,
@@ -37,7 +38,8 @@ import {
   RotateCcw,
   Eye,
   Database,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Copy
 } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
@@ -118,11 +120,12 @@ const DATA_SOURCE_MAPPING = {
     desc: 'SLA Drafting, Review Kontrak, Advisory, Litigasi & Pelanggaran 2026'
   },
   budget: {
-    folder: 'Z:\\dashboard-data\\legal\\',
-    file: 'Dana Operasional / Buku Kas LPJ 2026.xlsx',
-    sheet: 'Realisasi LPJ vs Budget',
-    label: 'Realisasi Budget Legal',
-    desc: 'Pengajuan & LPJ Kas Operasional Legal 2026'
+    folder: 'Z:\\dashboard-data\\legal\\Dana Operasional\\',
+    file: 'Dana Operasional  Legal Januari 2026.xlsx',
+    fullFile: 'Dana Operasional  Legal [Bulan] 2026.xlsx (Folder 01. Januari s/d 07. Juli 2026)',
+    sheet: "'form pengajuan' (Budget) & 'form pertanggung jawaban' (Realisasi LPJ)",
+    label: 'Form Pengajuan & LPJ Dana Operasional Legal',
+    desc: 'Formulir pengajuan anggaran kas bulanan (diisi oleh Admin Wahdah) beserta form pertanggungjawaban (LPJ pengeluaran riil) per bulan.'
   },
   downloads_permits: {
     folder: 'Z:\\dashboard-data\\legal\\',
@@ -140,8 +143,180 @@ const DATA_SOURCE_MAPPING = {
   }
 };
 
-function DataSourceCard() {
-  return null;
+function DatasetBadgeButton({ source, label = "Dataset", onClick, className = "" }) {
+  if (!source) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick && onClick(source);
+      }}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-md text-[9.5px] font-semibold transition cursor-pointer shadow-2xs hover:shadow-xs group shrink-0 ${className}`}
+      title={`Lihat info file, folder & sheet: ${source.file}`}
+    >
+      <Database size={10} className="text-emerald-600 group-hover:scale-110 transition-transform" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function DataSourceCard({ source, onOpenDetail }) {
+  if (!source) return null;
+
+  return (
+    <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs gap-2">
+      <div className="flex items-center gap-1.5 min-w-0 text-slate-600 text-[11px]">
+        <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+        <span className="text-slate-400 hidden sm:inline">Dataset:</span>
+        <span className="font-semibold text-slate-800 truncate">{source.label || 'Sumber Data Asal'}</span>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenDetail && onOpenDetail(source);
+        }}
+        className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-md text-[10.5px] font-semibold transition cursor-pointer shadow-2xs group shrink-0"
+        title="Klik untuk membuka pop up detail file, folder & sheet Excel"
+      >
+        <Database size={11} className="text-emerald-600 group-hover:scale-110 transition-transform" />
+        <span>Info File & Sheet NAS</span>
+        <ChevronRight size={11} className="text-emerald-600" />
+      </button>
+    </div>
+  );
+}
+
+function SearchableSelect({
+  value,
+  onChange,
+  options = [],
+  placeholder = 'Semua Site / Branch',
+  searchPlaceholder = 'Cari site / branch...',
+  prefix = 'Site: ',
+  className = '',
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSearch('');
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 50);
+    }
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const lower = search.toLowerCase();
+    return options.filter((opt) => String(opt).toLowerCase().includes(lower));
+  }, [options, search]);
+
+  const displayLabel = value === 'all' || !value ? placeholder : `${prefix}${value}`;
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="py-1.5 px-2.5 bg-white hover:bg-slate-50 border border-stroke rounded-lg text-xs text-gray-700 font-medium focus:outline-none focus:border-primary cursor-pointer flex items-center justify-between gap-1.5 min-w-[150px] max-w-[200px] transition"
+        title={displayLabel}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown size={12} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-primary' : ''}`} />
+      </button>
+
+      {/* Dropdown Popup */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-100">
+          {/* Search Box */}
+          <div className="relative mb-1.5">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full pl-7 pr-6 py-1 bg-slate-50 border border-slate-200 rounded text-xs focus:outline-none focus:border-primary focus:bg-white"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* Options List */}
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs">
+            {/* Default 'Semua' Option */}
+            <button
+              type="button"
+              onClick={() => {
+                onChange('all');
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 rounded transition flex items-center justify-between cursor-pointer ${
+                value === 'all'
+                  ? 'bg-primary/10 text-primary font-bold'
+                  : 'text-gray-700 hover:bg-slate-50'
+              }`}
+            >
+              <span>{placeholder}</span>
+              {value === 'all' && <Check size={12} className="text-primary" />}
+            </button>
+
+            {filteredOptions.length === 0 ? (
+              <div className="px-2.5 py-3 text-center text-gray-400 italic text-[11px]">
+                Tidak ada site yang cocok
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-2.5 py-1.5 rounded transition flex items-center justify-between cursor-pointer ${
+                    value === opt
+                      ? 'bg-primary/10 text-primary font-bold'
+                      : 'text-gray-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="truncate">{prefix}{opt}</span>
+                  {value === opt && <Check size={12} className="text-primary shrink-0" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Legal({ user }) {
@@ -153,6 +328,10 @@ export default function Legal({ user }) {
   // Active Detailed Modals (Pop-ups for 1-Page non-scroll layout)
   const [activeDetailModal, setActiveDetailModal] = useState(null);
   // 'documents' | 'manpower' | 'kpi' | 'budget' | 'downloads_permits' | 'downloads_templates'
+
+  // Active Data Source Detail Modal (File, Sheet, Folder NAS popup)
+  const [selectedDataSourceModal, setSelectedDataSourceModal] = useState(null);
+  const [copiedField, setCopiedField] = useState('');
 
   // Module 1 (Documents & SILO) Tab & Data
   const [docCategoryTab, setDocCategoryTab] = useState('silo');
@@ -190,6 +369,7 @@ export default function Legal({ user }) {
 
   // Module 4 (Budget & Dana Operasional) Data
   const [budgetDetail, setBudgetDetail] = useState(null);
+  const [budgetViewMode, setBudgetViewMode] = useState('filtered'); // 'filtered' | 'ytd'
 
   // Module 5 & 6 (Downloads) Data
   const [downloadsList, setDownloadsList] = useState([]);
@@ -412,6 +592,7 @@ export default function Legal({ user }) {
 
   useEffect(() => {
     if (activeDetailModal === 'budget') {
+      setBudgetViewMode(selectedMonth !== 'all' ? 'filtered' : 'ytd');
       fetchBudgetDetail();
     }
   }, [activeDetailModal, selectedMonth]);
@@ -626,7 +807,7 @@ export default function Legal({ user }) {
             name: { show: false },
             value: {
               offsetY: 4,
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: 800,
               color: '#047857',
               formatter: (val) => `${val}%`,
@@ -643,7 +824,10 @@ export default function Legal({ user }) {
 
   // 4. Budget Utilization Radial Gauge Chart (Circular Ring Gauge)
   const budgetGaugeChart = useMemo(() => {
-    const rate = Math.min(100, Math.round(Number(budget.ytd_utilization_rate ?? 60.2)));
+    const isFiltered = selectedMonth !== 'all';
+    const rate = isFiltered
+      ? Math.min(100, Math.round(Number(budget.current_month_utilization ?? 92.7)))
+      : Math.min(100, Math.round(Number(budget.ytd_utilization_rate ?? 60.2)));
     const series = [rate];
     const options = {
       chart: { type: 'radialBar', sparkline: { enabled: true } },
@@ -657,7 +841,7 @@ export default function Legal({ user }) {
             name: { show: false },
             value: {
               offsetY: 4,
-              fontSize: '12px',
+              fontSize: '14px',
               fontWeight: 800,
               color: '#7E22CE',
               formatter: (val) => `${val}%`,
@@ -670,90 +854,8 @@ export default function Legal({ user }) {
     };
 
     return { series, options };
-  }, [budget.ytd_utilization_rate]);
+  }, [budget.ytd_utilization_rate, budget.current_month_utilization, selectedMonth]);
 
-  // Expiry & Compliance Stacked Bar Chart (SILO H-60, Perizinan H-30, PKWT, Proyek, Kendaraan)
-  const expiryChart = useMemo(() => {
-    const categories = ['SILO (H-60)', 'Perizinan', 'PKWT', 'Kontrak Proyek', 'Kendaraan'];
-    const series = [
-      {
-        name: 'Kritis (H-30/60)',
-        data: [
-          docs.silo_critical_h60 || 21,
-          docs.permit_critical_h30 || 14,
-          mp.expiring_30_days || 68,
-          5,
-          4,
-        ],
-      },
-      {
-        name: 'Mendekati Expired',
-        data: [8, 10, 42, 7, 2],
-      },
-      {
-        name: 'Masa Berlaku Aman',
-        data: [65, 76, 692, 18, 12],
-      },
-    ];
-
-    const options = {
-      chart: {
-        type: 'bar',
-        stacked: true,
-        toolbar: { show: false },
-        fontFamily: 'Inter, sans-serif',
-        sparkline: { enabled: false },
-        events: {
-          dataPointSelection: () => {
-            setActiveDetailModal('urgent_actions');
-          },
-        },
-      },
-      plotOptions: {
-        bar: {
-          horizontal: true,
-          borderRadius: 2,
-          barHeight: '52%',
-        },
-      },
-      colors: ['#ef4444', '#f59e0b', '#10b981'],
-      dataLabels: { enabled: false },
-      stroke: { width: 1, colors: ['#fff'] },
-      xaxis: {
-        categories,
-        labels: {
-          style: { fontSize: '9.5px', colors: '#64748b' },
-        },
-        axisBorder: { show: false },
-        axisTicks: { show: false },
-      },
-      yaxis: {
-        labels: {
-          style: { fontSize: '9.5px', fontWeight: 600, colors: '#334155' },
-        },
-      },
-      legend: {
-        position: 'top',
-        horizontalAlign: 'right',
-        fontSize: '9.5px',
-        markers: { radius: 2, width: 7, height: 7 },
-        itemMargin: { horizontal: 4, vertical: 0 },
-      },
-      tooltip: {
-        theme: 'light',
-        y: {
-          formatter: (val) => `${val} Item/Dokumen`,
-        },
-      },
-      grid: {
-        borderColor: '#f1f5f9',
-        strokeDashArray: 3,
-        padding: { top: -14, bottom: -6, left: 10, right: 10 },
-      },
-    };
-
-    return { series, options };
-  }, [docs, mp]);
 
   // Legal Monthly Workload Trend (Legal Review, Legal Drafting, Legal Advisory)
   const workloadTrendChart = useMemo(() => {
@@ -761,35 +863,45 @@ export default function Legal({ user }) {
     const monthlyData = kpi.monthly_trend || {};
     const reviewData = months.map((_, i) => {
       const m = monthlyData[String(i + 1)];
-      return m ? m.review : 0;
+      // Bulan belum berjalan / belum ada data (Agustus ke atas dengan 0 berkas) dibuat null agar garis terputus
+      if (!m || m.review === null || (i >= 7 && (!m.total || Number(m.total) === 0))) {
+        return null;
+      }
+      return Number(m.review);
     });
     const draftingData = months.map((_, i) => {
       const m = monthlyData[String(i + 1)];
-      return m ? m.drafting : 0;
+      if (!m || m.drafting === null || (i >= 7 && (!m.total || Number(m.total) === 0))) {
+        return null;
+      }
+      return Number(m.drafting);
     });
     const advisoryData = months.map((_, i) => {
       const m = monthlyData[String(i + 1)];
-      return m ? m.advisory : 0;
+      if (!m || m.advisory === null || (i >= 7 && (!m.total || Number(m.total) === 0))) {
+        return null;
+      }
+      return Number(m.advisory);
     });
 
     const series = [
       {
         name: 'Legal Review',
-        data: reviewData.some((v) => v > 0)
+        data: reviewData.some((v) => v !== null && v > 0)
           ? reviewData
-          : [6, 3, 7, 5, 3, 11, 5, 0, 0, 0, 0, 0],
+          : [6, 3, 7, 5, 3, 11, 5, null, null, null, null, null],
       },
       {
         name: 'Legal Drafting',
-        data: draftingData.some((v) => v > 0)
+        data: draftingData.some((v) => v !== null && v > 0)
           ? draftingData
-          : [2, 4, 4, 10, 9, 11, 9, 0, 0, 0, 0, 0],
+          : [2, 4, 4, 10, 9, 11, 9, null, null, null, null, null],
       },
       {
         name: 'Legal Advisory',
-        data: advisoryData.some((v) => v > 0)
+        data: advisoryData.some((v) => v !== null && v > 0)
           ? advisoryData
-          : [2, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 0],
+          : [2, 1, 1, 2, 2, 2, 2, null, null, null, null, null],
       },
     ];
 
@@ -815,6 +927,10 @@ export default function Legal({ user }) {
         },
       },
       stroke: { curve: 'smooth', width: 2 },
+      markers: {
+        size: 0,
+        showNullDataPoints: false,
+      },
       dataLabels: { enabled: false },
       xaxis: {
         categories: months,
@@ -839,8 +955,56 @@ export default function Legal({ user }) {
       },
       tooltip: {
         theme: 'light',
-        y: {
-          formatter: (val) => `${val} Berkas`,
+        style: {
+          fontSize: '9.5px',
+          fontFamily: 'Inter, sans-serif',
+        },
+        custom: function ({ series, seriesIndex, dataPointIndex, w }) {
+          const month = months[dataPointIndex] || '';
+          const review = series[0]?.[dataPointIndex];
+          const drafting = series[1]?.[dataPointIndex];
+          const advisory = series[2]?.[dataPointIndex];
+          const hasData = (review !== null && review !== undefined) ||
+            (drafting !== null && drafting !== undefined) ||
+            (advisory !== null && advisory !== undefined);
+
+          if (!hasData) {
+            return `
+              <div style="padding: 5px 8px; font-size: 9.5px; font-family: Inter, sans-serif; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); line-height: 1.25; color: #1e293b;">
+                <div style="font-weight: 700; color: #0f172a; margin-bottom: 2px; font-size: 9.5px;">${month} 2026</div>
+                <div style="color: #94a3b8; font-style: italic;">Belum Ada Data</div>
+              </div>
+            `;
+          }
+
+          return `
+            <div style="padding: 4px 7px; font-size: 9.5px; font-family: Inter, sans-serif; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); line-height: 1.25; color: #1e293b; min-width: 125px;">
+              <div style="font-weight: 700; color: #0f172a; margin-bottom: 2px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; font-size: 9.5px;">
+                ${month} 2026
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 1px 0;">
+                <span style="display: flex; align-items: center; gap: 3px; color: #64748b;">
+                  <span style="width: 5px; height: 5px; border-radius: 50%; background: #3b82f6; display: inline-block;"></span>
+                  Review:
+                </span>
+                <strong style="color: #1e293b;">${review ?? 0} Berkas</strong>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 1px 0;">
+                <span style="display: flex; align-items: center; gap: 3px; color: #64748b;">
+                  <span style="width: 5px; height: 5px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                  Drafting:
+                </span>
+                <strong style="color: #1e293b;">${drafting ?? 0} Berkas</strong>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 1px 0;">
+                <span style="display: flex; align-items: center; gap: 3px; color: #64748b;">
+                  <span style="width: 5px; height: 5px; border-radius: 50%; background: #8b5cf6; display: inline-block;"></span>
+                  Advisory:
+                </span>
+                <strong style="color: #1e293b;">${advisory ?? 0} Berkas</strong>
+              </div>
+            </div>
+          `;
         },
       },
       grid: {
@@ -854,7 +1018,7 @@ export default function Legal({ user }) {
   }, [kpi.monthly_trend]);
 
   return (
-    <div className="w-full flex flex-col gap-2 pb-1 text-xs min-w-0">
+    <div className="w-full flex-1 flex flex-col gap-2 pb-1 text-xs min-w-0">
       {/* 1. TOP COMPACT TOOLBAR */}
       <div className="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs gap-2">
         <div className="flex items-center gap-2">
@@ -915,604 +1079,370 @@ export default function Legal({ user }) {
         </div>
       )}
 
-      {/* 2. 4-CARD EXECUTIVE KPI ROW */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 w-full">
+      {/* ========================================================================= */}
+      {/* 2. ROW 1: MONITORING KEPATUHAN & RISIKO (POIN 1 & POIN 2) - 2 BALANCED CARDS */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 w-full flex-1 min-h-[175px]">
 
-        {/* CARD 1: Dokumen & Perizinan */}
+        {/* CARD 1: DOKUMEN & PERIZINAN LEGALITAS (POIN 1) */}
         <div
           onClick={() => setActiveDetailModal('documents')}
-          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer"
+          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
         >
           <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1 bg-amber-50 text-amber-700 rounded-md">
-                <Wrench size={14} />
+            <div className="flex items-center gap-2 min-w-0 pr-1">
+              <div className="p-1.5 bg-amber-50 text-amber-700 rounded-md shrink-0">
+                <Wrench size={15} />
               </div>
-              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                Dokumen & Perizinan
-              </h3>
+              <div className="truncate">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                    Dokumen & Perizinan
+                  </h3>
+                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                    Poin 1: Monitoring Legalitas
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-slate-400 truncate">SILO &bull; Perizinan Usaha &bull; Perjanjian PKS &bull; Kontrak Proyek &bull; Kendaraan</p>
+              </div>
             </div>
-            <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
+            <div className="flex items-center gap-1 shrink-0">
+              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.silo} onClick={setSelectedDataSourceModal} />
+              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-1.5 my-1 py-1 border-y border-slate-100">
-            <div className="w-[62px] h-[62px] flex items-center justify-center shrink-0">
+          <div className="flex items-center justify-between gap-3 my-auto py-1.5 border-y border-slate-100 flex-1">
+            <div className="w-[84px] h-[84px] flex items-center justify-center shrink-0">
               <Chart
                 options={docStatusChart.options}
                 series={docStatusChart.series}
                 type="donut"
-                height={62}
-                width={62}
+                height={84}
+                width={84}
               />
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-1 text-center">
-              <div className="p-0.5 rounded bg-slate-50 border border-slate-100">
-                <div className="text-xs font-bold text-slate-800">{docs.total_documents || 319}</div>
-                <div className="text-[9px] text-slate-500">Total</div>
+            <div className="flex-1 grid grid-cols-4 gap-1.5 text-center">
+              <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="text-base font-bold text-slate-800">{docs.total_documents || 319}</div>
+                <div className="text-[9px] text-slate-500 font-medium">Total Terdaftar</div>
               </div>
-              <div className="p-0.5 rounded bg-orange-50 border border-orange-200">
-                <div className="text-xs font-bold text-orange-700">{docs.total_critical || 21}</div>
-                <div className="text-[9px] text-orange-700 font-semibold">Kritis</div>
+              <div className="p-1.5 rounded-lg bg-orange-50 border border-orange-200">
+                <div className="text-base font-bold text-orange-700">{docs.total_critical || 21}</div>
+                <div className="text-[9px] text-orange-700 font-bold">Kritis (H-30/60)</div>
               </div>
-              <div className="p-0.5 rounded bg-amber-50 border border-amber-200">
-                <div className="text-xs font-bold text-amber-700">{docs.total_warning || 29}</div>
+              <div className="p-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="text-base font-bold text-amber-700">{docs.total_warning || 29}</div>
                 <div className="text-[9px] text-amber-700 font-semibold">Mendekati</div>
               </div>
-              <div className="p-0.5 rounded bg-rose-50 border border-rose-200">
-                <div className="text-xs font-bold text-rose-600">{docs.total_expired || 89}</div>
+              <div className="p-1.5 rounded-lg bg-rose-50 border border-rose-200">
+                <div className="text-base font-bold text-rose-600">{docs.total_expired || 89}</div>
                 <div className="text-[9px] text-rose-700 font-semibold">Expired</div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-            <span>319 Terdaftar</span>
-            <span className="font-semibold text-slate-700 group-hover:text-blue-600 flex items-center transition">
-              Kelola PIC <ChevronRight size={10} />
+          <div className="flex items-center justify-between text-[10.5px] text-slate-500 shrink-0 pt-0.5">
+            <span className="font-medium text-slate-700">{docs.total_documents || 319} Dokumen Terdaftar &bull; <strong className="text-emerald-600">{docs.total_safe || 180} Masih Berlaku</strong></span>
+            <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
+              Buka 5 Tab Monitoring & Update PIC <ChevronRight size={11} />
             </span>
           </div>
         </div>
 
-        {/* CARD 2: Kontrak Karyawan (PKWT) */}
+        {/* CARD 2: KONTRAK KARYAWAN PKWT (POIN 2) */}
         <div
           onClick={() => setActiveDetailModal('manpower')}
-          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer"
+          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
         >
           <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1 bg-blue-50 text-blue-700 rounded-md">
-                <Users size={14} />
+            <div className="flex items-center gap-2 min-w-0 pr-1">
+              <div className="p-1.5 bg-blue-50 text-blue-700 rounded-md shrink-0">
+                <Users size={15} />
               </div>
-              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                Kontrak Karyawan (PKWT)
-              </h3>
+              <div className="truncate">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                    Kontrak Karyawan (PKWT)
+                  </h3>
+                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
+                    Poin 2: MP Baseline
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-slate-400 truncate">Reminder Durasi Kontrak Habis (Kirim Gabungan Excel ke HR, Direksi & PJO)</p>
+              </div>
             </div>
-            <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
+            <div className="flex items-center gap-1 shrink-0">
+              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.manpower} onClick={setSelectedDataSourceModal} />
+              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-1.5 my-1 py-1 border-y border-slate-100">
-            <div className="flex-1 space-y-1 min-w-0">
+          <div className="flex items-center justify-between gap-3 my-auto py-1.5 border-y border-slate-100 flex-1">
+            <div className="flex-1 space-y-1.5 min-w-0 pr-2">
+              <div className="text-[9.5px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Sebaran Proyek Site:</div>
               {siteProgressList.slice(0, 3).map((site) => (
-                <div key={site.name} className="flex items-center justify-between text-[9px]">
-                  <span className="font-medium text-slate-600 w-14 truncate">{site.name}</span>
-                  <div className="flex-1 mx-1.5 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                    <div className={`${site.color} h-1.5 rounded-full`} style={{ width: `${site.percent}%` }} />
+                <div key={site.name} className="flex items-center justify-between text-[10px]">
+                  <span className="font-medium text-slate-600 w-16 truncate">{site.name}</span>
+                  <div className="flex-1 mx-2 bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div className={`${site.color} h-2 rounded-full`} style={{ width: `${site.percent}%` }} />
                   </div>
-                  <span className="font-semibold text-slate-700">{site.expiring}</span>
+                  <span className="font-bold text-slate-700 text-[10.5px] w-6 text-right">{site.expiring}</span>
                 </div>
               ))}
             </div>
 
-            <div className="w-[80px] grid grid-cols-1 gap-0.5 text-center shrink-0">
-              <div className="flex items-center justify-between px-1 py-0.5 rounded bg-slate-50 border border-slate-100">
-                <span className="text-[9px] text-slate-500">Total:</span>
+            <div className="w-[110px] grid grid-cols-1 gap-1 text-center shrink-0">
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 border border-slate-100">
+                <span className="text-[9.5px] text-slate-500">Total Karyawan:</span>
                 <span className="text-xs font-bold text-slate-900">{mp.total_employees || 802}</span>
               </div>
-              <div className="flex items-center justify-between px-1 py-0.5 rounded bg-amber-50 border border-amber-200">
-                <span className="text-[9px] text-amber-800">&lt;30 Hr:</span>
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-amber-50 border border-amber-200">
+                <span className="text-[9.5px] text-amber-800 font-semibold">&le; 30 Hari:</span>
                 <span className="text-xs font-bold text-amber-700">{mp.expiring_30_days || 68}</span>
               </div>
-              <div className="flex items-center justify-between px-1 py-0.5 rounded bg-blue-50 border border-blue-200">
-                <span className="text-[9px] text-blue-800">Bln Ini:</span>
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-blue-50 border border-blue-200">
+                <span className="text-[9.5px] text-blue-800 font-semibold">Bulan Ini:</span>
                 <span className="text-xs font-bold text-blue-700">{mp.expiring_this_month || 14}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-            <span className="text-amber-700 font-medium">{mp.expiring_30_days || 68} Jatuh Tempo</span>
-            <span className="font-semibold text-slate-700 group-hover:text-blue-600 flex items-center transition">
-              Buka Rekap <ChevronRight size={10} />
-            </span>
-          </div>
-        </div>
-
-        {/* CARD 3: KPI Kinerja Legal */}
-        <div
-          onClick={() => {
-            if (selectedMonth !== 'all') {
-              setKpiViewMode('monthly');
-              setKpiSelectedMonth(selectedMonth);
-            } else {
-              setKpiViewMode('ytd');
-              setKpiSelectedMonth('all');
-            }
-            setActiveDetailModal('kpi');
-          }}
-          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer"
-        >
-          <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
-                <TrendingUp size={14} />
-              </div>
-              <div className="flex items-center gap-1">
-                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                  KPI Legal
-                </h3>
-                <span className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  {selectedMonth !== 'all' ? (MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || `Bulan ${selectedMonth}`) : 'YTD'}
-                </span>
-              </div>
-            </div>
-            <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
-          </div>
-
-          <div className="flex items-center justify-between gap-1.5 my-1 py-1 border-y border-slate-100">
-            <div className="w-[62px] h-[62px] flex items-center justify-center shrink-0">
-              <Chart
-                options={kpiGaugeChart.options}
-                series={kpiGaugeChart.series}
-                type="radialBar"
-                height={62}
-                width={62}
-              />
-            </div>
-            <div className="flex-1 grid grid-cols-3 gap-0.5 text-center">
-              <div className="p-0.5 rounded bg-blue-50/60 border border-blue-100">
-                <div className="text-xs font-bold text-blue-700">
-                  {kpi.review_count ?? (kpi.total_review_ytd ?? 40)}
-                </div>
-                <div className="text-[8px] text-blue-800 font-semibold truncate">Review</div>
-              </div>
-              <div className="p-0.5 rounded bg-amber-50/60 border border-amber-100">
-                <div className="text-xs font-bold text-amber-700">
-                  {kpi.drafting_count ?? (kpi.total_drafting_ytd ?? 49)}
-                </div>
-                <div className="text-[8px] text-amber-800 font-semibold truncate">Drafting</div>
-              </div>
-              <div className="p-0.5 rounded bg-purple-50/60 border border-purple-100">
-                <div className="text-xs font-bold text-purple-700">
-                  {kpi.advisory_count ?? (kpi.total_advisory_ytd ?? 12)}
-                </div>
-                <div className="text-[8px] text-purple-800 font-semibold truncate">Advisory</div>
-              </div>
-              <div className="col-span-3 px-1 py-0.5 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <span className="text-[8px] text-slate-600">Avg Durasi:</span>
-                <span className="text-[8.5px] font-bold text-slate-900">{kpi.avg_duration_days ?? 2.3} Hari</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-            <span className="text-emerald-700 font-medium flex items-center gap-1">
-              <CheckCircle2 size={10} className="text-emerald-600" /> 0 Litigasi &bull; 0 Pelanggaran
-            </span>
-            <span className="font-semibold text-slate-700 group-hover:text-blue-600 flex items-center transition">
-              Detail KPI <ChevronRight size={10} />
-            </span>
-          </div>
-        </div>
-
-        {/* CARD 4: Budget Operasional */}
-        <div
-          onClick={() => setActiveDetailModal('budget')}
-          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer"
-        >
-          <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1 bg-purple-50 text-purple-700 rounded-md">
-                <DollarSign size={14} />
-              </div>
-              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                Budget Operasional
-              </h3>
-            </div>
-            <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
-          </div>
-
-          <div className="flex items-center justify-between gap-1.5 my-1 py-1 border-y border-slate-100">
-            <div className="w-[62px] h-[62px] flex items-center justify-center shrink-0">
-              <Chart
-                options={budgetGaugeChart.options}
-                series={budgetGaugeChart.series}
-                type="radialBar"
-                height={62}
-                width={62}
-              />
-            </div>
-            <div className="flex-1 space-y-1 min-w-0">
-              <div className="flex items-center justify-between bg-slate-50 px-1 py-0.5 rounded border border-slate-100">
-                <span className="text-[8.5px] text-slate-500">Anggaran:</span>
-                <span className="text-[10.5px] font-bold text-slate-900 truncate">{formatCurrency(budget.ytd_budget || 53000000)}</span>
-              </div>
-              <div className="flex items-center justify-between bg-purple-50 px-1 py-0.5 rounded border border-purple-200">
-                <span className="text-[8.5px] text-purple-800">Realisasi:</span>
-                <span className="text-[10.5px] font-bold text-purple-700 truncate">{formatCurrency(budget.ytd_actual || 31885407)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-            <span>Bln Ini: {formatCurrency(budget.current_month_actual || 420000)}</span>
-            <span className="font-semibold text-slate-700 group-hover:text-blue-600 flex items-center transition">
-              Rincian LPJ <ChevronRight size={10} />
+          <div className="flex items-center justify-between text-[10.5px] text-slate-500 shrink-0 pt-0.5">
+            <span className="text-amber-700 font-medium"><strong className="text-amber-800">{mp.expiring_30_days || 68} Jatuh Tempo</strong> &bull; Total {mp.total_employees || 802} Karyawan</span>
+            <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
+              Lihat Rekap Baseline MP <ChevronRight size={11} />
             </span>
           </div>
         </div>
 
       </div>
 
-      {/* 3. BOTTOM SECTION: 2 EXECUTIVE CHARTS + 1 DOWNLOADS HUB (100% VISUAL & DIAGRAMS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full">
+      {/* ========================================================================= */}
+      {/* 3. ROW 2: KINERJA (POIN 5), BUDGET (POIN 6) & PUSAT UNDUHAN (POIN 3 & 4)    */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full flex-1 min-h-[185px]">
 
-        {/* CHART 1: DISTRIBUSI EXPIRED & KEPATUHAN (5 Cols) */}
-        <div className="lg:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* KOLOM 1 (5 COLS): KINERJA & TREN BEBAN KERJA LEGAL (POIN 5) */}
+        <div className="lg:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between h-full min-h-0">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
-              <div className="p-1 bg-rose-50 text-rose-700 rounded-md">
-                <Clock size={13} />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-xs">
-                  Distribusi Jatuh Tempo (H-30 / H-60)
-                </h3>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveDetailModal('urgent_actions')}
-              className="text-[10.5px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition"
-              title="Buka tabel rincian PIC & update progress"
-            >
-              <span>Buka Tabel PIC</span>
-              <ChevronRight size={11} />
-            </button>
-          </div>
-
-          <div className="w-full my-auto py-1">
-            <Chart
-              options={expiryChart.options}
-              series={expiryChart.series}
-              type="bar"
-              height={140}
-            />
-          </div>
-
-          <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
-              <span className="font-medium text-slate-700">112 Item Kritis</span> butuh follow-up
-            </span>
-            <button
-              type="button"
-              onClick={() => setActiveDetailModal('urgent_actions')}
-              className="text-blue-600 hover:underline cursor-pointer font-medium"
-            >
-              Klik grafik untuk rincian &rarr;
-            </button>
-          </div>
-        </div>
-
-        {/* CHART 2: TREN BEBAN KERJA & LAYANAN LEGALITAS (4 Cols) */}
-        <div className="lg:col-span-4 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-            <div className="flex items-center gap-1.5">
-              <div className="p-1 bg-blue-50 text-blue-700 rounded-md">
+              <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
                 <TrendingUp size={13} />
               </div>
-              <h3 className="font-bold text-slate-900 text-xs">
-                Tren Beban Kerja Legalitas (Bulanan)
-              </h3>
+              <div>
+                <div className="flex items-center gap-1">
+                  <h3 className="font-bold text-slate-900 text-xs">
+                    Kinerja & Beban Kerja (KPI)
+                  </h3>
+                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Poin 5
+                  </span>
+                </div>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveDetailModal('kpi')}
-              className="text-[10.5px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition"
-            >
-              <span>Detail KPI</span>
-              <ChevronRight size={11} />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.kpi} label="Dataset" onClick={setSelectedDataSourceModal} />
+              <button
+                type="button"
+                onClick={() => {
+                  setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                  setKpiSelectedMonth(selectedMonth);
+                  setActiveDetailModal('kpi');
+                }}
+                className="text-[10.5px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition"
+              >
+                <span>Detail KPI</span>
+                <ChevronRight size={11} />
+              </button>
+            </div>
           </div>
 
-          <div className="w-full my-auto py-1">
-            <Chart
-              options={workloadTrendChart.options}
-              series={workloadTrendChart.series}
-              type="area"
-              height={140}
-            />
+          {/* KPI Mini Scorecard Summary */}
+          <div className="grid grid-cols-4 gap-1.5 pt-1.5 text-center">
+            <div className="p-1 rounded bg-emerald-50 border border-emerald-200">
+              <div className="text-xs font-bold text-emerald-700">100%</div>
+              <div className="text-[8.5px] text-emerald-800 font-semibold">SLA</div>
+            </div>
+            <div className="p-1 rounded bg-blue-50 border border-blue-100">
+              <div className="text-xs font-bold text-blue-700">{kpi.review_count ?? (kpi.total_review_ytd ?? 40)}</div>
+              <div className="text-[8.5px] text-blue-800 font-semibold">Review</div>
+            </div>
+            <div className="p-1 rounded bg-amber-50 border border-amber-100">
+              <div className="text-xs font-bold text-amber-700">{kpi.drafting_count ?? (kpi.total_drafting_ytd ?? 49)}</div>
+              <div className="text-[8.5px] text-amber-800 font-semibold">Drafting</div>
+            </div>
+            <div className="p-1 rounded bg-purple-50 border border-purple-100">
+              <div className="text-xs font-bold text-purple-700">{kpi.advisory_count ?? (kpi.total_advisory_ytd ?? 12)}</div>
+              <div className="text-[8.5px] text-purple-800 font-semibold">Advisory</div>
+            </div>
+          </div>
+
+          {/* Area Chart: Monthly Trend */}
+          <div className="w-full flex-1 min-h-[110px] my-auto py-1 relative flex items-center justify-center">
+            <div className="w-full h-full min-h-[110px]">
+              <Chart
+                options={workloadTrendChart.options}
+                series={workloadTrendChart.series}
+                type="area"
+                height="100%"
+                width="100%"
+              />
+            </div>
           </div>
 
           <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
-            <span>YTD: <strong className="text-blue-600">40 Review</strong> &bull; <strong className="text-amber-600">49 Drafting</strong> &bull; <strong className="text-purple-600">12 Advisory</strong></span>
+            <span>Rata-rata Durasi: <strong className="text-slate-700">{kpi.avg_duration_days ?? 2.3} Hari</strong></span>
             <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
-              <CheckCircle2 size={10} /> 0 Sengketa
+              <CheckCircle2 size={10} /> 0 Sengketa &bull; 0 Litigasi
             </span>
           </div>
         </div>
 
-        {/* TILE 3: PUSAT BERKAS & UNDUHAN RESMI (3 Cols) */}
-        <div className="lg:col-span-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* KOLOM 2 (4 COLS): BUDGET OPERASIONAL (POIN 6) */}
+        <div
+          onClick={() => setActiveDetailModal('budget')}
+          className="lg:col-span-4 bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
+        >
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+            <div className="flex items-center gap-1.5 min-w-0 pr-1">
+              <div className="p-1 bg-purple-50 text-purple-700 rounded-md shrink-0">
+                <DollarSign size={13} />
+              </div>
+              <div className="flex items-center gap-1 truncate">
+                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                  Budget Operasional
+                </h3>
+                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
+                  Poin 6
+                </span>
+                <span className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                  {selectedMonth !== 'all' ? (MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || `Bulan ${selectedMonth}`) : 'YTD'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.budget} onClick={setSelectedDataSourceModal} />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2.5 my-auto py-2 border-y border-slate-100 flex-1">
+            <div className="w-[74px] h-[74px] flex items-center justify-center shrink-0">
+              <Chart
+                options={budgetGaugeChart.options}
+                series={budgetGaugeChart.series}
+                type="radialBar"
+                height={74}
+                width={74}
+              />
+            </div>
+            <div className="flex-1 space-y-1.5 min-w-0">
+              <div className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                <span className="text-[9.5px] text-slate-500">Anggaran:</span>
+                <span className="text-[11px] font-bold text-slate-900 truncate">
+                  {formatCurrency(
+                    selectedMonth !== 'all'
+                      ? (budget.current_month_budget ?? 0)
+                      : (budget.ytd_budget ?? 49000000)
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                <span className="text-[9.5px] text-purple-800">Realisasi:</span>
+                <span className="text-[11px] font-bold text-purple-700 truncate">
+                  {formatCurrency(
+                    selectedMonth !== 'all'
+                      ? (budget.current_month_actual ?? 0)
+                      : (budget.ytd_actual ?? 30615407)
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-[9px] text-emerald-800 font-medium">Sisa:</span>
+                <span className="text-[10px] font-bold text-emerald-700 truncate">
+                  {formatCurrency(
+                    selectedMonth !== 'all'
+                      ? ((budget.current_month_budget ?? 0) - (budget.current_month_actual ?? 0))
+                      : ((budget.ytd_budget ?? 49000000) - (budget.ytd_actual ?? 30615407))
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
+            <span className="text-purple-700 font-semibold">
+              {selectedMonth !== 'all'
+                ? (Number(budget.current_month_budget) > 0 ? `Utilisasi: ${budget.current_month_utilization ?? 0}%` : 'Belum Ada Anggaran')
+                : `Utilisasi YTD: ${budget.ytd_utilization_rate ?? 62.5}%`}
+            </span>
+            <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
+              Rincian LPJ <ChevronRight size={10} />
+            </span>
+          </div>
+        </div>
+
+        {/* KOLOM 3 (3 COLS): PUSAT BERKAS & UNDUHAN RESMI (POIN 3 & POIN 4) */}
+        <div className="lg:col-span-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between h-full min-h-0">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
             <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
               <FileSpreadsheet size={13} className="text-slate-500" />
-              <span>Pusat Berkas & Unduhan</span>
+              <span>Pusat Unduhan</span>
             </h3>
           </div>
 
-          <div className="space-y-1.5 my-auto py-1">
-            {/* Box 1: Arsip Perizinan */}
+          <div className="space-y-1.5 flex-1 flex flex-col justify-center py-1">
+            {/* Box 1: Arsip Perizinan (Poin 3) */}
             <div
               onClick={() => setActiveDetailModal('downloads_permits')}
-              className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 hover:border-indigo-300 transition cursor-pointer group"
+              className="p-2 flex-1 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 hover:border-indigo-300 transition cursor-pointer group"
             >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="font-bold text-slate-800 text-[11px] group-hover:text-indigo-600 transition flex items-center gap-1.5">
-                  <ShieldCheck size={13} className="text-indigo-600 shrink-0" /> Arsip Dokumen Perizinan
-                </span>
-                <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">16 File</span>
+              <div>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="font-bold text-slate-800 text-[10.5px] group-hover:text-indigo-600 transition flex items-center gap-1">
+                    <ShieldCheck size={13} className="text-indigo-600 shrink-0" /> Dokumen Perizinan
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8.5px] font-bold">16 File</span>
+                </div>
+                <p className="text-[9px] text-slate-500 truncate">Izin Usaha, SBU, PKP, SKT & BPJS</p>
               </div>
-              <p className="text-[9.5px] text-slate-500 truncate">Izin Usaha, SBU Konstruksi, PKP, BPJS</p>
               <div className="flex justify-end mt-1">
-                <span className="text-[10px] font-semibold text-indigo-600 flex items-center">
-                  Unduh Dokumen <ChevronRight size={10} />
+                <span className="text-[9.5px] font-semibold text-indigo-600 flex items-center gap-0.5">
+                  Unduh Dokumen <ChevronRight size={9} />
                 </span>
               </div>
             </div>
 
-            {/* Box 2: Template Kontrak */}
+            {/* Box 2: Template Kontrak (Poin 4) */}
             <div
               onClick={() => setActiveDetailModal('downloads_templates')}
-              className="p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50/50 hover:border-teal-300 transition cursor-pointer group"
+              className="p-2 flex-1 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50/50 hover:border-teal-300 transition cursor-pointer group"
             >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="font-bold text-slate-800 text-[11px] group-hover:text-teal-600 transition flex items-center gap-1.5">
-                  <FileText size={13} className="text-teal-600 shrink-0" /> Template Kontrak & MoU
-                </span>
-                <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[9px] font-bold">10 Draft</span>
+              <div>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="font-bold text-slate-800 text-[10.5px] group-hover:text-teal-600 transition flex items-center gap-1">
+                    <FileText size={13} className="text-teal-600 shrink-0" /> Template MoU & Kontrak
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8.5px] font-bold">10 Draft</span>
+                </div>
+                <p className="text-[9px] text-slate-500 truncate">Format PTFI, Antam, Vale, HO</p>
               </div>
-              <p className="text-[9.5px] text-slate-500 truncate">Format Baku Freeport, Antam, Vale, HO</p>
               <div className="flex justify-end mt-1">
-                <span className="text-[10px] font-semibold text-teal-600 flex items-center">
-                  Unduh Template <ChevronRight size={10} />
+                <span className="text-[9.5px] font-semibold text-teal-600 flex items-center gap-0.5">
+                  Unduh Template <ChevronRight size={9} />
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="pt-1 border-t border-slate-100 text-[9.5px] text-slate-400 flex items-center justify-between">
+          <div className="pt-1 border-t border-slate-100 text-[9px] text-slate-400 flex items-center justify-between">
             <span>Akses Izin Terverifikasi</span>
             <span className="text-slate-600 font-medium">Standar Legal PT AZM</span>
           </div>
         </div>
 
       </div>
-
-      {/* MODAL: TABEL JATUH TEMPO & TINDAK LANJUT PIC (DIBUKA SAAT KLIK GRAFIK / TOMBOL DETAIL) */}
-      <Modal
-        isOpen={activeDetailModal === 'urgent_actions'}
-        onClose={() => setActiveDetailModal(null)}
-        title="Daftar Dokumen & Kontrak Mendekati Jatuh Tempo (Tindak Lanjut PIC)"
-        maxWidth="max-w-5xl"
-      >
-        <div className="space-y-3 text-xs">
-          {/* Summary Chips */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200">
-              <div className="text-[11px] text-rose-700 font-semibold">Total Butuh Tindakan</div>
-              <div className="text-lg font-bold text-rose-800">4 Item Prioritas</div>
-              <div className="text-[10px] text-rose-600">Jatuh tempo &le; 30 hari</div>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
-              <div className="text-[11px] text-amber-700 font-semibold">SILO Kritis (H-60)</div>
-              <div className="text-lg font-bold text-amber-800">{docs.total_critical || 21} Unit</div>
-              <div className="text-[10px] text-amber-600">Alat berat di site</div>
-            </div>
-            <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200">
-              <div className="text-[11px] text-purple-700 font-semibold">MP Baseline (PKWT)</div>
-              <div className="text-lg font-bold text-purple-800">{mp.expiring_30_days || 68} Karyawan</div>
-              <div className="text-[10px] text-purple-600">&le; 30 hari masa kerja</div>
-            </div>
-            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200">
-              <div className="text-[11px] text-blue-700 font-semibold">Perizinan & Kendaraan</div>
-              <div className="text-lg font-bold text-blue-800">18 Dokumen</div>
-              <div className="text-[10px] text-blue-600">OSS & sewa transport</div>
-            </div>
-          </div>
-
-          {/* Quick Action Navigation */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-slate-700">Filter Khusus:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setDocCategoryTab('silo');
-                  setDocUrgencyFilter('critical');
-                  setActiveDetailModal('documents');
-                }}
-                className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold text-xs transition cursor-pointer"
-              >
-                Kelola Semua SILO H-60 ({docs.total_critical || 21}) &rarr;
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMpFilter('expiring_soon');
-                  setActiveDetailModal('manpower');
-                }}
-                className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-900 rounded font-semibold text-xs transition cursor-pointer"
-              >
-                Kelola Semua PKWT Karyawan ({mp.expiring_30_days || 68}) &rarr;
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => openSopModal('legal_docs')}
-              className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded font-medium text-xs cursor-pointer shadow-xs"
-            >
-              <Mail size={12} />
-              <span>Kirim Email Reminder SOP</span>
-            </button>
-          </div>
-
-          {/* Full Interactive Table */}
-          <div className="overflow-x-auto border border-slate-200 rounded-lg">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-2 px-3">Dokumen / Item</th>
-                  <th className="py-2 px-2.5">Kategori</th>
-                  <th className="py-2 px-2.5">Lokasi / Site</th>
-                  <th className="py-2 px-2.5">PIC Bertanggung Jawab</th>
-                  <th className="py-2 px-2.5 text-center">Batas Waktu</th>
-                  <th className="py-2 px-2.5 text-center">Status Progress</th>
-                  <th className="py-2 px-3 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                <tr className="hover:bg-slate-50 transition">
-                  <td className="py-2.5 px-3 font-semibold text-slate-900">
-                    SILO Kress Hauler No. 04 / Excavator
-                  </td>
-                  <td className="py-2.5 px-2.5">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                      SILO (H-60)
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2.5 text-slate-600">Hotmetal & Kress Hauler</td>
-                  <td className="py-2.5 px-2.5 text-slate-700 font-medium">Budi Santoso (Safety)</td>
-                  <td className="py-2.5 px-2.5 text-center font-bold text-rose-600 font-mono">12 Hari</td>
-                  <td className="py-2.5 px-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                      Progress: 60%
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDocCategoryTab('silo');
-                        setDocUrgencyFilter('critical');
-                        setActiveDetailModal('documents');
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition cursor-pointer"
-                    >
-                      Update Progress
-                    </button>
-                  </td>
-                </tr>
-
-                <tr className="hover:bg-slate-50 transition">
-                  <td className="py-2.5 px-3 font-semibold text-slate-900">
-                    IUJK Konsultan & Konstruksi 71102
-                  </td>
-                  <td className="py-2.5 px-2.5">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                      Perizinan (H-30)
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2.5 text-slate-600">DPMPTSP / OSS RBA</td>
-                  <td className="py-2.5 px-2.5 text-slate-700 font-medium">Ahmad Fauzi (Legal)</td>
-                  <td className="py-2.5 px-2.5 text-center font-bold text-rose-600 font-mono">22 Hari</td>
-                  <td className="py-2.5 px-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                      Perlu Submit
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDocCategoryTab('permit');
-                        setDocUrgencyFilter('critical');
-                        setActiveDetailModal('documents');
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition cursor-pointer"
-                    >
-                      Update Progress
-                    </button>
-                  </td>
-                </tr>
-
-                <tr className="hover:bg-slate-50 transition">
-                  <td className="py-2.5 px-3 font-semibold text-slate-900">
-                    14 Tenaga Kerja Project Freeport
-                  </td>
-                  <td className="py-2.5 px-2.5">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                      Kontrak PKWT
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2.5 text-slate-600">Freeport Indonesia (PTFI)</td>
-                  <td className="py-2.5 px-2.5 text-slate-700 font-medium">HRD & PJO Site</td>
-                  <td className="py-2.5 px-2.5 text-center font-bold text-amber-700 font-mono">Bulan Ini</td>
-                  <td className="py-2.5 px-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                      Drafting PKWT
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMpFilter('expiring_soon');
-                        setActiveDetailModal('manpower');
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition cursor-pointer"
-                    >
-                      Lihat Rekap
-                    </button>
-                  </td>
-                </tr>
-
-                <tr className="hover:bg-slate-50 transition">
-                  <td className="py-2.5 px-3 font-semibold text-slate-900">
-                    Sewa 4 Unit Mobil Operasional BAI
-                  </td>
-                  <td className="py-2.5 px-2.5">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                      Izin Kendaraan
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-2.5 text-slate-600">Rental Transport Kendari</td>
-                  <td className="py-2.5 px-2.5 text-slate-700 font-medium">Transport & Asset</td>
-                  <td className="py-2.5 px-2.5 text-center font-bold text-rose-600 font-mono">20 Hari</td>
-                  <td className="py-2.5 px-2.5 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      Review Adendum
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDocCategoryTab('vehicle');
-                        setDocUrgencyFilter('critical');
-                        setActiveDetailModal('documents');
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition cursor-pointer"
-                    >
-                      Update Progress
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </Modal>
       <Modal
         isOpen={activeDetailModal === 'documents'}
         onClose={() => setActiveDetailModal(null)}
@@ -1546,7 +1476,7 @@ export default function Legal({ user }) {
           </div>
 
           {/* Asal Sumber Data File (Clean & Structured) */}
-          <DataSourceCard source={DATA_SOURCE_MAPPING[docCategoryTab]} />
+          <DataSourceCard source={DATA_SOURCE_MAPPING[docCategoryTab]} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Search & Filter */}
           <div className="flex items-center justify-between gap-2">
@@ -1820,6 +1750,9 @@ export default function Legal({ user }) {
             </div>
           </div>
 
+          {/* Asal Sumber Data File (Clean & Structured) */}
+          <DataSourceCard source={DATA_SOURCE_MAPPING.manpower} onOpenDetail={setSelectedDataSourceModal} />
+
           {/* Filter Toolbar: Name, Status, Branch/Site & Mode */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gray-50 border border-stroke rounded-lg">
             {/* Search by Name */}
@@ -1853,21 +1786,15 @@ export default function Legal({ user }) {
               </select>
             </div>
 
-            {/* Dropdown Filter Project / Branch Site */}
-            <div className="flex items-center gap-1">
-              <select
-                value={mpBranchFilter}
-                onChange={(e) => setMpBranchFilter(e.target.value)}
-                className="py-1.5 px-2 bg-white border border-stroke rounded-lg text-xs text-gray-700 font-medium focus:outline-none focus:border-primary cursor-pointer max-w-[180px] truncate"
-              >
-                <option value="all">Semua Site / Branch</option>
-                {availableBranches.map((br) => (
-                  <option key={br} value={br}>
-                    Site: {br}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Dropdown Filter Project / Branch Site (Searchable) */}
+            <SearchableSelect
+              value={mpBranchFilter}
+              onChange={setMpBranchFilter}
+              options={availableBranches}
+              placeholder="Semua Site / Branch"
+              searchPlaceholder="Cari site / branch..."
+              prefix="Site: "
+            />
 
             {/* Dropdown Mode: All vs Expiring Soon */}
             <div className="flex items-center gap-1">
@@ -1963,8 +1890,15 @@ export default function Legal({ user }) {
                       <td className="p-2 text-center text-gray-400">{idx + 1}</td>
                       <td className="p-2 font-semibold text-boxdark">{emp.nama}</td>
                       <td className="p-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${emp.status === 'Permanent' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                          }`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            emp.status === 'Permanent'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : emp.status === 'Permanent Project'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
                           {emp.status || 'Contract'}
                         </span>
                       </td>
@@ -2067,8 +2001,8 @@ export default function Legal({ user }) {
                       type="button"
                       onClick={() => setKpiViewMode('ytd')}
                       className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${!isMonthly
-                          ? 'bg-white text-slate-900 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
                       Akumulatif (YTD)
@@ -2080,8 +2014,8 @@ export default function Legal({ user }) {
                         if (kpiSelectedMonth === 'all') setKpiSelectedMonth('3');
                       }}
                       className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${isMonthly
-                          ? 'bg-white text-slate-900 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
                       Bulanan
@@ -2135,6 +2069,9 @@ export default function Legal({ user }) {
                 </div>
               </div>
 
+              {/* Asal Sumber Data File (Clean & Structured) */}
+              <DataSourceCard source={DATA_SOURCE_MAPPING.kpi} onOpenDetail={setSelectedDataSourceModal} />
+
               {/* 7 Ringkasan Angka Utama */}
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
@@ -2145,8 +2082,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab(kpiCategoryTab === 'review' ? 'all' : 'review')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'review'
-                      ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-200'
-                      : 'bg-slate-50 border-slate-200 hover:bg-blue-50/50'
+                    ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-200'
+                    : 'bg-slate-50 border-slate-200 hover:bg-blue-50/50'
                     }`}
                 >
                   <div className="text-xl font-bold text-blue-600">{activeReview}</div>
@@ -2156,8 +2093,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab(kpiCategoryTab === 'drafting' ? 'all' : 'drafting')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'drafting'
-                      ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200'
-                      : 'bg-slate-50 border-slate-200 hover:bg-indigo-50/50'
+                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200'
+                    : 'bg-slate-50 border-slate-200 hover:bg-indigo-50/50'
                     }`}
                 >
                   <div className="text-xl font-bold text-indigo-600">{activeDrafting}</div>
@@ -2167,8 +2104,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab(kpiCategoryTab === 'advisory' ? 'all' : 'advisory')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'advisory'
-                      ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-200'
-                      : 'bg-slate-50 border-slate-200 hover:bg-purple-50/50'
+                    ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-200'
+                    : 'bg-slate-50 border-slate-200 hover:bg-purple-50/50'
                     }`}
                 >
                   <div className="text-xl font-bold text-purple-600">{activeAdvisory}</div>
@@ -2178,8 +2115,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab(kpiCategoryTab === 'litigasi' ? 'all' : 'litigasi')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'litigasi'
-                      ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-200'
-                      : 'bg-slate-50 border-slate-200 hover:bg-rose-50/50'
+                    ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-200'
+                    : 'bg-slate-50 border-slate-200 hover:bg-rose-50/50'
                     }`}
                 >
                   <div className="text-xl font-bold text-rose-600">{activeLitigasi}</div>
@@ -2189,8 +2126,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab(kpiCategoryTab === 'pelanggaran' ? 'all' : 'pelanggaran')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'pelanggaran'
-                      ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200'
-                      : 'bg-slate-50 border-slate-200 hover:bg-amber-50/50'
+                    ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200'
+                    : 'bg-slate-50 border-slate-200 hover:bg-amber-50/50'
                     }`}
                 >
                   <div className="text-xl font-bold text-amber-600">{activePelanggaran}</div>
@@ -2200,8 +2137,8 @@ export default function Legal({ user }) {
                 <div
                   onClick={() => setKpiCategoryTab('all')}
                   className={`p-2.5 border rounded-xl cursor-pointer transition ${kpiCategoryTab === 'all'
-                      ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-300'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-300'
+                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                     }`}
                 >
                   <div className="text-xl font-bold text-slate-900">{activeTotal}</div>
@@ -2221,8 +2158,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('all')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'all'
-                        ? 'bg-slate-800 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Semua</span>
@@ -2233,8 +2170,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('review')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'review'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Review</span>
@@ -2245,8 +2182,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('drafting')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'drafting'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Drafting</span>
@@ -2257,8 +2194,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('advisory')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'advisory'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Advisory</span>
@@ -2269,8 +2206,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('litigasi')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'litigasi'
-                        ? 'bg-rose-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Litigasi</span>
@@ -2281,8 +2218,8 @@ export default function Legal({ user }) {
                     type="button"
                     onClick={() => setKpiCategoryTab('pelanggaran')}
                     className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${kpiCategoryTab === 'pelanggaran'
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                   >
                     <span>Pelanggaran</span>
@@ -2449,10 +2386,10 @@ export default function Legal({ user }) {
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${selectedKpiProject.category === 'review'
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : selectedKpiProject.category === 'drafting'
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : 'bg-purple-50 text-purple-700 border-purple-200'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : selectedKpiProject.category === 'drafting'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : 'bg-purple-50 text-purple-700 border-purple-200'
                   }`}>
                   {selectedKpiProject.category_label}
                 </span>
@@ -2537,20 +2474,83 @@ export default function Legal({ user }) {
       >
         <div className="space-y-4 text-xs">
           {/* Asal Sumber Data File (Clean & Structured) */}
-          <DataSourceCard source={DATA_SOURCE_MAPPING.budget} />
+          <DataSourceCard source={DATA_SOURCE_MAPPING.budget} onOpenDetail={setSelectedDataSourceModal} />
+
+          {/* Toggle View: Filter Bulan vs Akumulasi YTD */}
+          <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+              {selectedMonth !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setBudgetViewMode('filtered')}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'filtered'
+                    ? 'bg-white text-purple-700 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                  Bulan {MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || `Bulan ${selectedMonth}`}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setBudgetViewMode('ytd')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'ytd' || selectedMonth === 'all'
+                  ? 'bg-white text-purple-700 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                Akumulasi YTD 2026
+              </button>
+            </div>
+            <span className="text-[11px] text-slate-500 font-medium">
+              {budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                ? `Periode ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label || ''}`
+                : 'Periode Akumulatif YTD (Januari - Juli 2026)'}
+            </span>
+          </div>
 
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="p-3 bg-gray-50 border border-stroke rounded-lg">
-              <div className="text-lg font-bold text-boxdark">{formatCurrency(budgetDetail?.summary?.ytd_budget || 51000000)}</div>
-              <div className="text-gray-400 text-[10px]">Total Anggaran Pengajuan YTD</div>
+              <div className="text-lg font-bold text-boxdark">
+                {formatCurrency(
+                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                    ? (budgetDetail?.summary?.current_month_budget ?? 0)
+                    : (budgetDetail?.summary?.ytd_budget ?? 49000000)
+                )}
+              </div>
+              <div className="text-gray-400 text-[10px]">
+                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  ? `Pengajuan Anggaran ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                  : 'Total Anggaran Pengajuan YTD'}
+              </div>
             </div>
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="text-lg font-bold text-purple-700">{formatCurrency(budgetDetail?.summary?.ytd_actual || 31441407)}</div>
-              <div className="text-purple-600 text-[10px] font-medium">Realisasi LPJ YTD</div>
+              <div className="text-lg font-bold text-purple-700">
+                {formatCurrency(
+                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                    ? (budgetDetail?.summary?.current_month_actual ?? 0)
+                    : (budgetDetail?.summary?.ytd_actual ?? 30615407)
+                )}
+              </div>
+              <div className="text-purple-600 text-[10px] font-medium">
+                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  ? `Realisasi LPJ ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                  : 'Realisasi LPJ YTD'}
+              </div>
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <div className="text-lg font-bold text-emerald-700">{formatCurrency((budgetDetail?.summary?.ytd_budget || 51000000) - (budgetDetail?.summary?.ytd_actual || 31441407))}</div>
-              <div className="text-emerald-600 text-[10px] font-medium">Sisa / Efisiensi Anggaran</div>
+              <div className="text-lg font-bold text-emerald-700">
+                {formatCurrency(
+                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                    ? ((budgetDetail?.summary?.current_month_budget ?? 0) - (budgetDetail?.summary?.current_month_actual ?? 0))
+                    : ((budgetDetail?.summary?.ytd_budget ?? 49000000) - (budgetDetail?.summary?.ytd_actual ?? 30615407))
+                )}
+              </div>
+              <div className="text-emerald-600 text-[10px] font-medium">
+                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  ? `Sisa / Efisiensi ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                  : 'Sisa / Efisiensi Anggaran YTD'}
+              </div>
             </div>
           </div>
 
@@ -2566,19 +2566,32 @@ export default function Legal({ user }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stroke">
-                {Object.entries(budgetDetail?.monthly_trend || {}).map(([mId, item]) => (
-                  <tr key={mId} className="hover:bg-gray-50">
-                    <td className="p-2.5 font-semibold text-boxdark">{item.month_name}</td>
-                    <td className="p-2.5 text-right">{formatCurrency(item.budget)}</td>
-                    <td className="p-2.5 text-right font-semibold text-purple-700">{formatCurrency(item.actual)}</td>
-                    <td className="p-2.5 text-right font-medium text-gray-600">
-                      {roundTo1((item.actual / Math.max(1, item.budget)) * 100)}%
-                    </td>
-                    <td className="p-2.5 text-gray-500">
-                      {Object.keys(item.categories || {}).join(', ')}
-                    </td>
-                  </tr>
-                ))}
+                {Object.entries(budgetDetail?.monthly_trend || {}).map(([mId, item]) => {
+                  const isSelected = String(mId) === String(selectedMonth);
+                  return (
+                    <tr
+                      key={mId}
+                      className={`transition ${isSelected ? 'bg-purple-50/80 font-bold border-l-4 border-l-purple-600' : 'hover:bg-gray-50'}`}
+                    >
+                      <td className="p-2.5 text-boxdark flex items-center gap-1.5">
+                        <span>{item.month_name}</span>
+                        {isSelected && (
+                          <span className="px-1.5 py-0.2 bg-purple-600 text-white rounded text-[9px] font-bold">
+                            Bulan Terpilih
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right">{formatCurrency(item.budget)}</td>
+                      <td className="p-2.5 text-right text-purple-700">{formatCurrency(item.actual)}</td>
+                      <td className="p-2.5 text-right font-medium text-gray-600">
+                        {roundTo1((item.actual / Math.max(1, item.budget)) * 100)}%
+                      </td>
+                      <td className="p-2.5 text-gray-500 font-normal">
+                        {Object.keys(item.categories || {}).join(', ')}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -2598,6 +2611,7 @@ export default function Legal({ user }) {
           {/* Asal Sumber Data File (Clean & Structured) */}
           <DataSourceCard
             source={activeDetailModal === 'downloads_permits' ? DATA_SOURCE_MAPPING.downloads_permits : DATA_SOURCE_MAPPING.downloads_templates}
+            onOpenDetail={setSelectedDataSourceModal}
           />
 
           <div className="relative">
@@ -2854,7 +2868,7 @@ export default function Legal({ user }) {
         {selectedDocForDetail && (
           <div className="space-y-3.5 text-xs">
             {/* Box Sumber Data Asal Dokumen (Clean & Structured) */}
-            <DataSourceCard source={DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab]} />
+            <DataSourceCard source={DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab]} onOpenDetail={setSelectedDataSourceModal} />
 
             {/* Informasi Detail Dokumen */}
             <div className="p-3 bg-gray-50 border border-stroke rounded-xl space-y-2.5">
@@ -2966,6 +2980,148 @@ export default function Legal({ user }) {
                 type="button"
                 onClick={() => setSelectedDocForDetail(null)}
                 className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold text-xs transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL POPUP: DETAIL SUMBER DATASET EXCEL (FILE, FOLDER NAS, SHEET)        */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={Boolean(selectedDataSourceModal)}
+        onClose={() => {
+          setSelectedDataSourceModal(null);
+          setCopiedField('');
+        }}
+        title="Informasi Sumber Data & Dataset Excel"
+        maxWidth="max-w-xl"
+        zIndex="z-[100000]"
+      >
+        {selectedDataSourceModal && (
+          <div className="space-y-3.5 text-xs text-slate-700">
+            {/* Header Banner */}
+            <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                  <FileSpreadsheet size={18} />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900 text-sm">{selectedDataSourceModal.label}</div>
+                  <div className="text-[11px] text-emerald-800 font-medium">Terhubung ke Synology NAS Internal Legal</div>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100/70 border border-emerald-300 text-emerald-800 rounded-md text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live Sync
+              </span>
+            </div>
+
+            {/* Detail Fields */}
+            <div className="space-y-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              {/* Nama File */}
+              <div>
+                <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Nama File Excel:</span>
+                <div className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg">
+                  <span className="font-mono text-xs font-bold text-slate-900 break-all select-all">
+                    {selectedDataSourceModal.fullFile || selectedDataSourceModal.file}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(selectedDataSourceModal.fullFile || selectedDataSourceModal.file);
+                      setCopiedField('file');
+                      setTimeout(() => setCopiedField(''), 2000);
+                    }}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
+                    title="Salin Nama File"
+                  >
+                    {copiedField === 'file' ? (
+                      <>
+                        <Check size={11} className="text-emerald-600" />
+                        <span className="text-emerald-600 font-bold">Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={11} />
+                        <span>Salin</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Lokasi Folder NAS */}
+              <div>
+                <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Lokasi Folder di Jaringan Server (Synology NAS):</span>
+                <div className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg">
+                  <span className="font-mono text-xs text-blue-700 font-semibold break-all select-all">
+                    {selectedDataSourceModal.folder}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(selectedDataSourceModal.folder);
+                      setCopiedField('folder');
+                      setTimeout(() => setCopiedField(''), 2000);
+                    }}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
+                    title="Salin Path Folder"
+                  >
+                    {copiedField === 'folder' ? (
+                      <>
+                        <Check size={11} className="text-emerald-600" />
+                        <span className="text-emerald-600 font-bold">Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={11} />
+                        <span>Salin</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Nama Sheet / Tab Excel */}
+              <div>
+                <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Nama Sheet / Tab Excel:</span>
+                <div className="p-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-emerald-700">
+                    {selectedDataSourceModal.sheet}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">Worksheet Aktif</span>
+                </div>
+              </div>
+
+              {/* Deskripsi & Keterangan */}
+              {selectedDataSourceModal.desc && (
+                <div>
+                  <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Keterangan / Penggunaan Data:</span>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 text-xs leading-relaxed">
+                    {selectedDataSourceModal.desc}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Information Tip */}
+            <div className="text-[11px] text-slate-500 bg-blue-50/60 p-2.5 rounded-lg border border-blue-100 flex items-start gap-2">
+              <Database size={13} className="text-blue-600 shrink-0 mt-0.5" />
+              <span>File Excel ini diimpor secara berkala dari Synology NAS ke Live Dashboard. Perubahan data di berkas Excel akan otomatis disinkronkan ke grafik dan tabel dashboard.</span>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDataSourceModal(null);
+                  setCopiedField('');
+                }}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-semibold text-xs transition cursor-pointer"
               >
                 Tutup
               </button>
