@@ -378,10 +378,9 @@ class FinanceDashboardController extends Controller
 
                 // Hitung umur faktur berdasarkan transDate agar cocok 100% dengan widget Accurate Online
                 $tDate = null;
-                $ageDays = 0;
                 if (!empty($inv['transDate'])) {
                     try { 
-                        $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'])->startOfDay();
+                        $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'], 'Asia/Jakarta')->startOfDay();
                         if ($tDate >= $today) {
                             $agingValues['Belum Jatuh Tempo'] += $outstanding;
                         } else {
@@ -403,8 +402,14 @@ class FinanceDashboardController extends Controller
 
                 $dueDate = null;
                 if (!empty($inv['dueDate'])) {
-                    try { $dueDate = Carbon::createFromFormat('d/m/Y', $inv['dueDate'])->startOfDay(); }
+                    try { $dueDate = Carbon::createFromFormat('d/m/Y', $inv['dueDate'], 'Asia/Jakarta')->startOfDay(); }
                     catch (\Exception $e) {}
+                }
+
+                $refDate = $dueDate ?? $tDate;
+                $ageDays = 0;
+                if ($refDate && $today > $refDate) {
+                    $ageDays = (int)$refDate->diffInDays($today);
                 }
 
                 // Cek filter tanggal untuk tabel
@@ -474,6 +479,7 @@ class FinanceDashboardController extends Controller
             $pembayaranBulanIni = 0;
             $paymentTrendMap    = [];
             $currentMonthStr    = $today->format('m/Y');
+            $recentApiPayments  = [];
 
             $pmtPage = 1;
             $maxPmtPage = 20;
@@ -496,6 +502,18 @@ class FinanceDashboardController extends Controller
 
                     try {
                         $pDate = Carbon::createFromFormat('d/m/Y', $pDateStr)->startOfDay();
+
+                        if ($pmtPage === 1 && count($recentApiPayments) < 6) {
+                            $vendorName = is_array($pmt['vendor'] ?? null) ? ($pmt['vendor']['name'] ?? 'Vendor') : ($pmt['vendor'] ?? 'Vendor');
+                            $pmtNo = $pmt['number'] ?? '';
+                            $recentApiPayments[] = [
+                                'date'        => $pDate->format('Y-m-d'),
+                                'description' => "Pembayaran " . ($pmtNo ? "{$pmtNo} " : "") . "ke {$vendorName}",
+                                'amount'      => $amount,
+                                'type'        => 'Completed',
+                                'color'       => 'success'
+                            ];
+                        }
 
                         if ($startDate && $endDate) {
                             $sd = Carbon::parse($startDate)->startOfDay();
@@ -530,6 +548,24 @@ class FinanceDashboardController extends Controller
             ksort($paymentTrendMap);
             $paymentTrend = array_values(array_slice($paymentTrendMap, -6));
 
+            $recentInvoicesColl = collect(array_slice($invoicesFormatted, 0, 5))->map(function($inv) {
+                return [
+                    'date'        => $inv['invoice_date'],
+                    'description' => "Invoice {$inv['invoice_no']} diterbitkan dari {$inv['vendor']}",
+                    'amount'      => (float)$inv['total_amount'],
+                    'type'        => 'Pending Approval',
+                    'color'       => 'warning'
+                ];
+            });
+
+            $recentPaymentsColl = collect($recentApiPayments);
+
+            $aktivitasTerbaru = $recentInvoicesColl->concat($recentPaymentsColl)
+                ->sortByDesc('date')
+                ->take(6)
+                ->values()
+                ->toArray();
+
             return [
                 'kpis' => [
                     'total_outstanding'    => $totalOutstanding,
@@ -545,7 +581,7 @@ class FinanceDashboardController extends Controller
                 'invoices'            => $invoicesFormatted,
                 'ringkasan_mata_uang' => $ringkasanMataUang,
                 'peringatan'          => [],
-                'aktivitas_terbaru'   => [],
+                'aktivitas_terbaru'   => $aktivitasTerbaru,
             ];
         });
 
