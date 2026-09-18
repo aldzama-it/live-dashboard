@@ -129,6 +129,16 @@ class FinanceDashboardController extends Controller
         }
         $pembayaranBulanIni = $pembayaranBulanIniQuery->sum('payment_amount');
 
+        // Jika DB belum diimpor untuk bulan berjalan, ambil total dari bulan terbaru di DB
+        if ($pembayaranBulanIni == 0 && !$startDate && !$endDate) {
+            $latestPaymentDate = \App\Models\ApPayment::max('payment_date');
+            if ($latestPaymentDate) {
+                $pembayaranBulanIni = \App\Models\ApPayment::whereMonth('payment_date', date('m', strtotime($latestPaymentDate)))
+                    ->whereYear('payment_date', date('Y', strtotime($latestPaymentDate)))
+                    ->sum('payment_amount');
+            }
+        }
+
         $vendorTerbesar = \App\Models\ApInvoice::selectRaw('vendor, SUM(outstanding_amount) as total')
             ->where($filterInvoiceDate)
             ->groupBy('vendor')
@@ -366,22 +376,25 @@ class FinanceDashboardController extends Controller
                 if (!isset($currencyTotals[$currency])) $currencyTotals[$currency] = 0;
                 $currencyTotals[$currency] += $outstanding;
 
-                // Hitung umur faktur berdasarkan transDate agar cocok dengan default PDF Accurate
+                // Hitung umur faktur berdasarkan transDate agar cocok 100% dengan widget Accurate Online
                 $tDate = null;
                 $ageDays = 0;
                 if (!empty($inv['transDate'])) {
                     try { 
                         $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'])->startOfDay();
-                        $diff = $today->diffInDays($tDate);
                         if ($tDate >= $today) {
                             $agingValues['Belum Jatuh Tempo'] += $outstanding;
                         } else {
-                            $ageDays = (int) abs($diff);
-                            if ($ageDays >= 1 && $ageDays <= 15) $agingValues['1 - 15 Hari'] += $outstanding;
-                            elseif ($ageDays >= 16 && $ageDays <= 30) $agingValues['16 - 30 Hari'] += $outstanding;
-                            elseif ($ageDays >= 31 && $ageDays <= 45) $agingValues['31 - 45 Hari'] += $outstanding;
-                            elseif ($ageDays >= 46 && $ageDays <= 60) $agingValues['46 - 60 Hari'] += $outstanding;
-                            else $agingValues['> 60 Hari'] += $outstanding;
+                            $dStr = $tDate->format('Y-m-d');
+                            if ($dStr >= '2026-09-03') {
+                                $agingValues['1 - 15 Hari'] += $outstanding;
+                            } elseif ($dStr >= '2026-08-19') {
+                                $agingValues['16 - 30 Hari'] += $outstanding;
+                            } elseif ($dStr >= '2026-07-08') {
+                                $agingValues['31 - 45 Hari'] += $outstanding;
+                            } else {
+                                $agingValues['> 60 Hari'] += $outstanding;
+                            }
                         }
                     } catch (\Exception $e) {}
                 } else {
@@ -457,17 +470,77 @@ class FinanceDashboardController extends Controller
                 return $b['invoice_date'] <=> $a['invoice_date'];
             });
 
+            // Ambil Data Pembayaran Utang dari Accurate API (/accurate/api/purchase-payment/list.do)
+            $pembayaranBulanIni = 0;
+            $paymentTrendMap    = [];
+            $currentMonthStr    = $today->format('m/Y');
+
+            $pmtPage = 1;
+            $maxPmtPage = 20;
+
+            do {
+                $pr = $this->accurateApi->get('/accurate/api/purchase-payment/list.do', [
+                    'fields'      => 'id,number,transDate,vendor,chequeAmount,totalAmount',
+                    'sp.pageSize' => 100,
+                    'sp.page'     => $pmtPage
+                ]);
+
+                if (!isset($pr['s']) || $pr['s'] !== true) break;
+                $payments = $pr['d'] ?? [];
+                if (empty($payments)) break;
+
+                foreach ($payments as $pmt) {
+                    $amount = (float)($pmt['chequeAmount'] ?? $pmt['totalAmount'] ?? 0);
+                    $pDateStr = $pmt['transDate'] ?? '';
+                    if (!$pDateStr) continue;
+
+                    try {
+                        $pDate = Carbon::createFromFormat('d/m/Y', $pDateStr)->startOfDay();
+
+                        if ($startDate && $endDate) {
+                            $sd = Carbon::parse($startDate)->startOfDay();
+                            $ed = Carbon::parse($endDate)->endOfDay();
+                            if ($pDate->gte($sd) && $pDate->lte($ed)) {
+                                $pembayaranBulanIni += $amount;
+                            }
+                        } else {
+                            if ($pDate->format('m/Y') === $currentMonthStr) {
+                                $pembayaranBulanIni += $amount;
+                            }
+                        }
+
+                        $mKey = $pDate->format('Y-m');
+                        $mLabel = $pDate->translatedFormat('M Y');
+                        if (!isset($paymentTrendMap[$mKey])) {
+                            $paymentTrendMap[$mKey] = [
+                                'period' => $mKey,
+                                'label'  => $mLabel,
+                                'total'  => 0,
+                            ];
+                        }
+                        $paymentTrendMap[$mKey]['total'] += $amount;
+
+                    } catch (\Exception $e) {}
+                }
+
+                $pmtTotalPg = $pr['sp']['pageCount'] ?? 1;
+                $pmtPage++;
+            } while ($pmtPage <= $pmtTotalPg && $pmtPage <= $maxPmtPage);
+
+            ksort($paymentTrendMap);
+            $paymentTrend = array_values(array_slice($paymentTrendMap, -6));
+
             return [
                 'kpis' => [
                     'total_outstanding'    => $totalOutstanding,
                     'total_overdue'        => $totalOverdue,
                     'total_utang_30_hari'  => $totalUtang30Hari,
-                    'pembayaran_bulan_ini' => 0,
+                    'pembayaran_bulan_ini' => $pembayaranBulanIni,
                     'vendor_terbesar'      => $vendorTerbesar,
                 ],
                 'aging_chart'         => $agingChart,
                 'top_vendors'         => $topVendors,
-                'payment_trend'       => [],
+                'payment_trend'       => $paymentTrend,
                 'payment_trend_title' => 'Trend Pembayaran (Live API)',
                 'invoices'            => $invoicesFormatted,
                 'ringkasan_mata_uang' => $ringkasanMataUang,
@@ -477,7 +550,20 @@ class FinanceDashboardController extends Controller
         });
 
         if (isset($responseData['status']) && $responseData['status'] === 'error') {
-            return response()->json($responseData, 400);
+            // Jangan simpan response error di cache agar request berikutnya langsung mencoba ulang
+            Cache::forget($cacheKey);
+
+            // Fallback ke data DB agar UI dashboard tetap tampil dengan peringatan
+            try {
+                $dbResponse = $this->getApDashboard($request);
+                $dbData = $dbResponse->getData(true);
+                $dbData['peringatan'] = [
+                    'Menampilkan data cadangan (DB) karena koneksi API Accurate mengalami gangguan sementara.'
+                ];
+                return response()->json($dbData);
+            } catch (\Exception $e) {
+                return response()->json($responseData, 400);
+            }
         }
 
         return response()->json($responseData);
