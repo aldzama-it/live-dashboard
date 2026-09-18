@@ -8,6 +8,19 @@ import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
+const getCurrencyCode = (currency) => {
+  if (!currency) return 'OTHER';
+  const c = currency.toLowerCase();
+  if (c.includes('idr') || c.includes('rupiah')) return 'IDR';
+  if (c.includes('usd') || c.includes('dollar')) return 'USD';
+  if (c.includes('cny') || c.includes('yuan') || c.includes('rmb') || c.includes('renminbi')) return 'CNY';
+  if (c.includes('eur') || c.includes('euro')) return 'EUR';
+  if (c.includes('jpy') || c.includes('yen')) return 'JPY';
+  if (c.includes('sgd')) return 'SGD';
+  if (c.includes('gbp') || c.includes('pound')) return 'GBP';
+  return currency.toUpperCase();
+};
+
 const getCurrencyFlag = (currency) => {
   if (!currency) return <span className="text-base leading-none">🏳️</span>;
   const c = currency.toLowerCase();
@@ -22,7 +35,19 @@ const getCurrencyFlag = (currency) => {
   
   if (!code) return <span className="text-base leading-none">🏳️</span>;
   
-  return <img src={`https://flagcdn.com/w20/${code}.png`} width="20" alt={code} className="rounded-sm" />;
+  return (
+    <img 
+      src={`https://flagcdn.com/w40/${code}.png`} 
+      alt={code} 
+      className="w-5 h-3.5 object-cover rounded-[2px] border border-gray-300 shadow-xs shrink-0 inline-block align-middle" 
+    />
+  );
+};
+
+const formatFullMoney = (amount) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
+  const num = Number(amount);
+  return `Rp ${num.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
 
 const formatSimpleMoney = (amount) => {
@@ -285,7 +310,7 @@ export default function AccountsReceivable({ user }) {
                         y: { formatter: (val) => {
                           const total = agingSeries.reduce((a,b)=>a+b, 0);
                           const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                          return `${formatSimpleMoney(val)} (${pct}%)`;
+                          return `${formatFullMoney(val)} (${pct}%)`;
                         } }
                       }
                     }}
@@ -314,7 +339,7 @@ export default function AccountsReceivable({ user }) {
                     yaxis: { 
                       labels: { 
                         style: { fontSize: '9px' },
-                        formatter: (val) => 'Rp ' + (val/1_000_000).toFixed(0) + 'M' 
+                        formatter: (val) => formatSimpleMoney(val)
                       } 
                     },
                     dataLabels: { enabled: false },
@@ -440,19 +465,21 @@ export default function AccountsReceivable({ user }) {
                 <tbody>
                   {data.ringkasan_mata_uang?.map((row, idx) => (
                     <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="px-2 py-2 font-medium text-boxdark flex items-center gap-2">
-                        <span className="text-base leading-none">{getCurrencyFlag(row.currency)}</span>
-                        <span>{row.currency}</span>
+                      <td className="px-2 py-2 font-medium text-boxdark whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {getCurrencyFlag(row.currency)}
+                          <span>{getCurrencyCode(row.currency)}</span>
+                        </div>
                       </td>
-                      <td className="px-2 py-2 text-right">Rp {parseFloat(row.total).toLocaleString('id-ID')}</td>
-                      <td className="px-2 py-2 text-right">{row.percentage}%</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">Rp {parseFloat(row.total).toLocaleString('id-ID')}</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">{row.percentage}%</td>
                     </tr>
                   ))}
                   {/* Total row */}
                   <tr className="bg-gray-50 font-bold text-boxdark">
-                    <td className="px-2 py-2">Total</td>
-                    <td className="px-2 py-2 text-right">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
-                    <td className="px-2 py-2 text-right">100%</td>
+                    <td className="px-2 py-2 whitespace-nowrap">Total</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap">100%</td>
                   </tr>
                 </tbody>
               </table>
@@ -460,8 +487,8 @@ export default function AccountsReceivable({ user }) {
           </Card>
 
           {/* Aktivitas AR Terbaru */}
-          <Card title="Aktivitas AR Terbaru" className="flex flex-col shrink-0">
-            <div className="flex flex-col px-4 py-2 overflow-y-auto max-h-[350px]">
+          <Card title="Aktivitas AR Terbaru" className="h-[280px] flex flex-col shrink-0">
+            <div className="flex-1 flex flex-col px-4 py-2 overflow-y-auto min-h-0">
               {data.aktivitas_terbaru?.length > 0 ? data.aktivitas_terbaru.map((act, i) => (
                 <div key={i} className="flex flex-col border-b border-stroke py-3 last:border-0">
                   <div className="flex justify-between items-start mb-1">
