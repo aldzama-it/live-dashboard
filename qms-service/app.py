@@ -31,6 +31,7 @@ from followup_parser import CachedFollowUpRepository, FollowUpWorkbookParser
 from corrective_parser import (
     CachedCorrectiveActionRepository,
     CorrectiveActionWorkbookParser,
+    normalize_department,
 )
 from kaizen_parser import CachedKaizenRepository, KaizenWorkbookParser
 
@@ -49,6 +50,16 @@ def env_path(name: str, default: str = "") -> Path | None:
         path = BASE_DIR / path
 
     return path.resolve()
+
+
+def is_existing_file(path: Path | None) -> bool:
+    """Memeriksa keberadaan file dengan aman tanpa melempar OSError [WinError 3]."""
+    if path is None:
+        return False
+    try:
+        return path.is_file()
+    except (OSError, ValueError):
+        return False
 
 
 CONFIGURED_EXCEL_PATH = env_path("KPI_EXCEL_PATH")
@@ -142,6 +153,7 @@ DIVISION_DASHBOARDS = {
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 manual_kpi_lock = RLock()
 manual_module_lock = RLock()
 risk_upload_lock = RLock()
@@ -568,7 +580,13 @@ def merge_manual_records(
     return records
 
 
-def rebuild_corrective_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def rebuild_corrective_payload(
+    payload: dict[str, Any],
+    start_month: int | None = None,
+    end_month: int | None = None,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, Any]:
     records = merge_manual_records(
         list(payload.get("records") or []), "corrective", "id"
     )
@@ -581,7 +599,7 @@ def rebuild_corrective_payload(payload: dict[str, Any]) -> dict[str, Any]:
         row["audit_date_iso"] = iso_date(row.get("audit_date_iso") or row.get("audit_date"))
         row["audit_date"] = date_label(row.get("audit_date_iso") or row.get("audit_date"))
         row["division"] = clean_text(row.get("division"), 160) or "Belum ditentukan"
-        row["department"] = clean_text(row.get("department"), 160) or "-"
+        row["department"] = normalize_department(row.get("department"))
         row["description"] = clean_text(row.get("description"), 4000) or "-"
         row["grade"] = clean_text(row.get("grade"), 100) or "-"
         row["pic"] = clean_text(row.get("pic"), 250) or "-"
@@ -597,6 +615,21 @@ def rebuild_corrective_payload(payload: dict[str, Any]) -> dict[str, Any]:
             and date.fromisoformat(row["target_date_iso"]) < now
         )
         cleaned.append(row)
+
+    if start_month is not None or end_month is not None:
+        low_m = min(start_month, end_month) if (start_month is not None and end_month is not None) else (start_month or 1)
+        high_m = max(start_month, end_month) if (start_month is not None and end_month is not None) else (end_month or 12)
+        filtered_records = []
+        for r in cleaned:
+            d_str = r.get("audit_date_iso") or r.get("target_date_iso")
+            if d_str and len(d_str) >= 7:
+                try:
+                    m = int(d_str.split("-")[1])
+                    if low_m <= m <= high_m:
+                        filtered_records.append(r)
+                except Exception:
+                    pass
+        cleaned = filtered_records
 
     total = len(cleaned)
     status_counts = Counter(item["status"] for item in cleaned)
@@ -753,7 +786,13 @@ def followup_month_label(month_key: str) -> str:
         return month_key or "Periode"
 
 
-def rebuild_followup_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def rebuild_followup_payload(
+    payload: dict[str, Any],
+    start_month: int | None = None,
+    end_month: int | None = None,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, Any]:
     records = merge_manual_records(list(payload.get("records") or []), "followup", "id")
     cleaned: list[dict[str, Any]] = []
     today = date.today()
@@ -781,6 +820,15 @@ def rebuild_followup_payload(payload: dict[str, Any]) -> dict[str, Any]:
         row["notes"] = clean_text(row.get("notes"), 2000) or "-"
         row["overdue"] = bool(row.get("due_date_iso") and row["status"] != "done" and date.fromisoformat(row["due_date_iso"]) < today)
         cleaned.append(row)
+
+    if start_month is not None and end_month is not None:
+        low_m = min(start_month, end_month)
+        high_m = max(start_month, end_month)
+        cleaned = [r for r in cleaned if low_m <= int(r.get("month_number") or 0) <= high_m]
+    elif start_month is not None:
+        cleaned = [r for r in cleaned if int(r.get("month_number") or 0) >= start_month]
+    elif end_month is not None:
+        cleaned = [r for r in cleaned if int(r.get("month_number") or 0) <= end_month]
 
     cleaned.sort(key=lambda item: (item["month"], str(item.get("number") or "")))
     total = len(cleaned)
@@ -1014,12 +1062,21 @@ def recover_active_upload() -> bool:
 
 
 def active_excel_path() -> Path:
-    """Menentukan workbook KPI aktif yang tersimpan permanen pada server."""
+    """Monitoring KPI: Synology menjadi sumber utama."""
+    if is_existing_file(CONFIGURED_EXCEL_PATH):
+        return CONFIGURED_EXCEL_PATH
+
+    if CONFIGURED_EXCEL_PATH is not None:
+        alt = Path(str(CONFIGURED_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_existing_file(alt):
+            return alt
+
     if recover_active_upload():
         return ACTIVE_UPLOAD_PATH
 
-    if CONFIGURED_EXCEL_PATH is not None:
-        return CONFIGURED_EXCEL_PATH
+    local = BASE_DIR / "data" / "1. Monitoring KPI 2026.xlsx"
+    if is_existing_file(local):
+        return local
 
     return NO_WORKBOOK_PATH
 
@@ -1189,11 +1246,22 @@ def recover_active_corrective_upload() -> bool:
 
 
 def active_corrective_excel_path() -> Path:
-    """Menentukan Corrective Action Register yang digunakan dashboard."""
+    """Corrective Action: Synology menjadi sumber utama."""
+    if is_existing_file(CONFIGURED_CORRECTIVE_EXCEL_PATH):
+        return CONFIGURED_CORRECTIVE_EXCEL_PATH
+
+    if CONFIGURED_CORRECTIVE_EXCEL_PATH is not None:
+        alt = Path(str(CONFIGURED_CORRECTIVE_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_existing_file(alt):
+            return alt
+
     if recover_active_corrective_upload():
         return ACTIVE_CORRECTIVE_UPLOAD_PATH
-    if CONFIGURED_CORRECTIVE_EXCEL_PATH is not None:
-        return CONFIGURED_CORRECTIVE_EXCEL_PATH
+
+    local = BASE_DIR / "data" / "2. CORRECTIVE ACTION REGISTER.xlsx"
+    if is_existing_file(local):
+        return local
+
     return NO_CORRECTIVE_WORKBOOK_PATH
 
 
@@ -1251,29 +1319,62 @@ def recover_active_kaizen_upload() -> bool:
 
 
 def active_kaizen_excel_path() -> Path:
-    """Menentukan workbook Kaizen Recap yang digunakan dashboard."""
+    """Kaizen Recap: Synology menjadi sumber utama."""
+    if is_existing_file(CONFIGURED_KAIZEN_EXCEL_PATH):
+        return CONFIGURED_KAIZEN_EXCEL_PATH
+
+    if CONFIGURED_KAIZEN_EXCEL_PATH is not None:
+        alt = Path(str(CONFIGURED_KAIZEN_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_existing_file(alt):
+            return alt
+
     if recover_active_kaizen_upload():
         return ACTIVE_KAIZEN_UPLOAD_PATH
-    if CONFIGURED_KAIZEN_EXCEL_PATH is not None:
-        return CONFIGURED_KAIZEN_EXCEL_PATH
+
+    local = BASE_DIR / "data" / "5. KAIZEN RECAP.xlsx"
+    if is_existing_file(local):
+        return local
+
     return NO_KAIZEN_WORKBOOK_PATH
 
 
 def active_followup_excel_path() -> Path:
-    """Menentukan workbook Follow-up BoD yang digunakan dashboard."""
+    """Follow-up Evaluasi & Strategi BoD: Synology menjadi sumber utama."""
+    if is_existing_file(CONFIGURED_FOLLOWUP_EXCEL_PATH):
+        return CONFIGURED_FOLLOWUP_EXCEL_PATH
+
+    if CONFIGURED_FOLLOWUP_EXCEL_PATH is not None:
+        alt = Path(str(CONFIGURED_FOLLOWUP_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_existing_file(alt):
+            return alt
+
     if recover_active_followup_upload():
         return ACTIVE_FOLLOWUP_UPLOAD_PATH
-    if CONFIGURED_FOLLOWUP_EXCEL_PATH is not None:
-        return CONFIGURED_FOLLOWUP_EXCEL_PATH
+
+    local = BASE_DIR / "data" / "4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx"
+    if is_existing_file(local):
+        return local
+
     return NO_FOLLOWUP_WORKBOOK_PATH
 
 
 def active_risk_excel_path() -> Path:
-    """Menentukan file Risk Assessment aktif tanpa akses backend manual."""
+    """Risk Assessment: Synology menjadi sumber utama."""
+    if is_existing_file(CONFIGURED_RISK_EXCEL_PATH):
+        return CONFIGURED_RISK_EXCEL_PATH
+
+    if CONFIGURED_RISK_EXCEL_PATH is not None:
+        alt = Path(str(CONFIGURED_RISK_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_existing_file(alt):
+            return alt
+
     if recover_active_risk_upload():
         return ACTIVE_RISK_UPLOAD_PATH
-    if CONFIGURED_RISK_EXCEL_PATH is not None:
-        return CONFIGURED_RISK_EXCEL_PATH
+
+    local = BASE_DIR / "data" / "3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx"
+    if is_existing_file(local):
+        return local
+
     return NO_RISK_WORKBOOK_PATH
 
 
@@ -1311,11 +1412,21 @@ def sync_repository_source() -> None:
         repository.set_excel_path(expected_path)
 
 
+ALL_PERIODS_VALUE = "all"
+
+
 def resolve_month(value: Any) -> int:
+    """Mengembalikan nomor bulan (1-12). Lempar ValueError jika tidak valid.
+
+    Nilai khusus ``"all"`` ditangani di pemanggil—jangan dilewatkan ke sini.
+    """
     if value is None or str(value).strip() == "":
         return DEFAULT_MONTH
 
     text = str(value).strip()
+    if text.lower() == ALL_PERIODS_VALUE:
+        return DEFAULT_MONTH  # fallback aman; caller sudah cek all sebelumnya
+
     if text.isdigit():
         month = int(text)
         if month in MONTH_NAMES:
@@ -1326,6 +1437,11 @@ def resolve_month(value: Any) -> int:
         return detected
 
     raise ValueError("Parameter month harus berupa angka 1-12 atau nama bulan.")
+
+
+def is_all_periods(value: Any) -> bool:
+    """Mengembalikan True jika value merupakan permintaan semua periode."""
+    return str(value).strip().lower() == ALL_PERIODS_VALUE if value else False
 
 
 def same_path(left: Path, right: Path) -> bool:
@@ -1447,14 +1563,26 @@ def followup_source_payload(workbook_source: dict[str, Any]) -> dict[str, Any]:
     return source
 
 
-def build_followup_payload(force_refresh: bool = False) -> dict[str, Any]:
+def build_followup_payload(
+    force_refresh: bool = False,
+    start_month: int | None = None,
+    end_month: int | None = None,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, Any]:
     """Membaca register tugas BoD tanpa membuat KPI/Risk ikut gagal."""
     sync_followup_repository_source()
     current_path = followup_repository.parser.excel_path
     try:
         payload = dict(followup_repository.get(force_refresh=force_refresh))
         payload["source"] = followup_source_payload(payload.get("source", {}))
-        return rebuild_followup_payload(payload)
+        return rebuild_followup_payload(
+            payload,
+            start_month=start_month,
+            end_month=end_month,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except FileNotFoundError as exc:
         return {
             "available": False,
@@ -1507,14 +1635,26 @@ def corrective_source_payload(workbook_source: dict[str, Any]) -> dict[str, Any]
     return source
 
 
-def build_corrective_payload(force_refresh: bool = False) -> dict[str, Any]:
+def build_corrective_payload(
+    force_refresh: bool = False,
+    start_month: int | None = None,
+    end_month: int | None = None,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, Any]:
     """Membaca Corrective Action Register tanpa membuat modul lain ikut gagal."""
     sync_corrective_repository_source()
     current_path = corrective_repository.parser.excel_path
     try:
         payload = dict(corrective_repository.get(force_refresh=force_refresh))
         payload["source"] = corrective_source_payload(payload.get("source", {}))
-        return rebuild_corrective_payload(payload)
+        return rebuild_corrective_payload(
+            payload,
+            start_month=start_month,
+            end_month=end_month,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except FileNotFoundError as exc:
         return {
             "available": False,
@@ -1651,12 +1791,276 @@ def build_month_payload(
     if payload is None:
         payload = apply_manual_kpi(workbook_data["months"][str(month)], month)
 
+    # Normalisasi field setiap divisi agar meeting_count, not_meeting_count, dll. langsung tersedia
+    if payload and "divisions" in payload:
+        for div in payload["divisions"]:
+            counts = div.get("counts", {})
+            m_cnt = counts.get("memenuhi", 0)
+            nm_cnt = counts.get("tidak_memenuhi", 0)
+            p_cnt = counts.get("belum_lengkap", 0) + counts.get("belum_ada_laporan", 0)
+            div["meeting_count"] = m_cnt
+            div["not_meeting_count"] = nm_cnt
+            div["report_pending_count"] = p_cnt
+            div["incomplete_count"] = p_cnt
+            div["compliance_percentage"] = float(div.get("achievement_percentage", 0.0))
+            div["total_items"] = len(div.get("items", []))
+
     return {
         **payload,
         "monthly_overview": monthly_overview,
-        "corrective_action": build_corrective_payload(force_refresh=force_refresh),
+        "corrective_action": build_corrective_payload(
+            force_refresh=force_refresh,
+            start_month=month,
+            end_month=month,
+        ),
         "risk_assessment": build_risk_payload(force_refresh=force_refresh),
-        "follow_up_bod": build_followup_payload(force_refresh=force_refresh),
+        "follow_up_bod": build_followup_payload(
+            force_refresh=force_refresh,
+            start_month=month,
+            end_month=month,
+        ),
+        "kaizen_recap": build_kaizen_payload(force_refresh=force_refresh),
+        "source": source_payload(workbook_data["source"]),
+        "diagnostics": workbook_data["diagnostics"],
+    }
+
+
+def build_all_months_payload(
+    *,
+    force_refresh: bool = False,
+    start_month: int | None = None,
+    end_month: int | None = None,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, Any]:
+    """Menggabungkan KPI seluruh bulan yang ada menjadi satu payload ringkasan.
+
+    Payload ini digunakan ketika pengguna memilih opsi 'Semua Periode' atau Rentang Tanggal.
+    Data Risk Assessment, Follow-up BoD, Corrective Action, dan Kaizen
+    tetap ditampilkan penuh (tidak difilter per bulan).
+    """
+    sync_repository_source()
+    workbook_data = repository.get(force_refresh=force_refresh)
+
+    adjusted_months: dict[int, dict[str, Any]] = {}
+    monthly_overview: list[dict[str, Any]] = []
+
+    target_months = sorted(MONTH_NAMES)
+    if start_month is not None and end_month is not None:
+        low = min(start_month, end_month)
+        high = max(start_month, end_month)
+        target_months = [m for m in target_months if low <= m <= high]
+    elif start_month is not None:
+        target_months = [m for m in target_months if m >= start_month]
+    elif end_month is not None:
+        target_months = [m for m in target_months if m <= end_month]
+
+    # Evaluasi tahun berjalan secara real-time:
+    # Bulan-bulan di masa depan yang belum dilalui tidak dihitung sebagai "Belum Lapor",
+    # kecuali jika bulan tersebut sudah memiliki data pelaporan nyata.
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+
+    req_end_year = None
+    for date_str in (end_date, start_date):
+        if date_str and "-" in date_str:
+            try:
+                req_end_year = int(date_str.split("-")[0])
+                break
+            except Exception:
+                pass
+
+    if req_end_year is None or req_end_year >= current_year:
+        def _is_month_applicable(m_val: int) -> bool:
+            if m_val <= current_month:
+                return True
+            # Jika bulan di masa depan tetapi sudah ada data (sudah lapor lebih awal)
+            raw = workbook_data.get("months", {}).get(str(m_val), {})
+            s = raw.get("summary", {})
+            return (int(s.get("meeting_count") or 0) + int(s.get("not_meeting_count") or 0)) > 0
+
+        target_months = [m for m in target_months if _is_month_applicable(m)]
+
+    for month_number_value in target_months:
+        raw_month = workbook_data["months"].get(str(month_number_value))
+        if raw_month is None:
+            continue
+
+        adjusted = apply_manual_kpi(raw_month, month_number_value)
+        adjusted_months[month_number_value] = adjusted
+        summary = adjusted.get("summary", {})
+        monthly_overview.append(
+            {
+                "month": month_number_value,
+                "month_name": adjusted.get(
+                    "month_name",
+                    MONTH_NAMES.get(month_number_value, str(month_number_value)),
+                ),
+                "total_divisions": int(summary.get("total_divisions") or 0),
+                "meeting_count": int(summary.get("meeting_count") or 0),
+                "not_meeting_count": int(summary.get("not_meeting_count") or 0),
+                "report_pending_count": int(
+                    summary.get("report_pending_count")
+                    or summary.get("incomplete_count")
+                    or 0
+                ),
+                "compliance_percentage": float(
+                    summary.get("compliance_percentage") or 0
+                ),
+            }
+        )
+
+    # Hitung agregasi semua bulan yang tersedia
+    available_month_nums = sorted(adjusted_months.keys())
+    total_meeting = sum(m["meeting_count"] for m in monthly_overview)
+    total_not_meeting = sum(m["not_meeting_count"] for m in monthly_overview)
+    total_pending = sum(m["report_pending_count"] for m in monthly_overview)
+    avg_compliance = (
+        sum(m["compliance_percentage"] for m in monthly_overview) / len(monthly_overview)
+        if monthly_overview else 0.0
+    )
+
+    # Rentang bulan keterangan (mis. "Januari - Agustus 2026")
+    if available_month_nums:
+        first_name = MONTH_NAMES.get(available_month_nums[0], str(available_month_nums[0]))
+        last_name = MONTH_NAMES.get(available_month_nums[-1], str(available_month_nums[-1]))
+        period_label = (
+            first_name if first_name == last_name
+            else f"{first_name} \u2013 {last_name}"
+        )
+        period_label = f"{period_label} 2026"
+        period_range_months = [
+            MONTH_NAMES.get(n, str(n)) for n in available_month_nums
+        ]
+    else:
+        period_label = "Semua Periode"
+        period_range_months = []
+
+    # Agregasi divisions dari semua bulan
+    all_divisions: dict[str, dict[str, Any]] = {}
+    for m_num, m_data in adjusted_months.items():
+        for div in m_data.get("divisions", []):
+            key = div.get("division", "").strip().lower()
+            if not key:
+                continue
+            if key not in all_divisions:
+                all_divisions[key] = {
+                    "division": div.get("division", ""),
+                    "meeting_count": 0,
+                    "not_meeting_count": 0,
+                    "report_pending_count": 0,
+                    "incomplete_count": 0,
+                    "total_items": 0,
+                    "compliance_percentage": 0.0,
+                    "_compliance_sum": 0.0,
+                    "_compliance_count": 0,
+                    "monthly_items": {},
+                    "items": [],
+                }
+            entry = all_divisions[key]
+            counts = div.get("counts", {})
+            m_cnt = int(div.get("meeting_count") or counts.get("memenuhi") or 0)
+            nm_cnt = int(div.get("not_meeting_count") or counts.get("tidak_memenuhi") or 0)
+            p_cnt = int(
+                div.get("report_pending_count")
+                or div.get("incomplete_count")
+                or (counts.get("belum_lengkap", 0) + counts.get("belum_ada_laporan", 0))
+                or 0
+            )
+            t_items = int(div.get("total_items") or len(div.get("items", [])) or 0)
+
+            entry["meeting_count"] += m_cnt
+            entry["not_meeting_count"] += nm_cnt
+            entry["report_pending_count"] += p_cnt
+            entry["incomplete_count"] += p_cnt
+            entry["total_items"] += t_items
+
+            div_items = div.get("items", [])
+            month_name = MONTH_NAMES.get(m_num, f"Bulan {m_num}")
+            if div_items:
+                enriched_items = [
+                    {**it, "month": m_num, "month_name": month_name}
+                    for it in div_items
+                ]
+                entry["monthly_items"][str(m_num)] = enriched_items
+                entry["items"].extend(enriched_items)
+
+            if (m_cnt + nm_cnt) > 0:
+                cp = float(div.get("compliance_percentage") or div.get("achievement_percentage") or 0.0)
+                entry["_compliance_sum"] += cp
+                entry["_compliance_count"] += 1
+
+    aggregated_divisions = []
+    for entry in all_divisions.values():
+        count = entry.pop("_compliance_count", 0)
+        csum = entry.pop("_compliance_sum", 0.0)
+        total_eval = entry["meeting_count"] + entry["not_meeting_count"]
+        if total_eval > 0:
+            entry["compliance_percentage"] = round((entry["meeting_count"] / total_eval) * 100, 1)
+        elif count > 0:
+            entry["compliance_percentage"] = round(csum / count, 1)
+        else:
+            entry["compliance_percentage"] = 0.0
+
+        entry["achievement_percentage"] = entry["compliance_percentage"]
+        entry["counts"] = {
+            "memenuhi": entry["meeting_count"],
+            "tidak_memenuhi": entry["not_meeting_count"],
+            "belum_lengkap": entry["report_pending_count"],
+            "belum_ada_laporan": 0,
+            "tidak_dijadwalkan": 0,
+        }
+
+        # Hitung jumlah indikator standar per bulan
+        first_items = next((items for items in entry.get("monthly_items", {}).values() if items), [])
+        entry["indicator_count"] = len(first_items) if first_items else 0
+
+        if entry["compliance_percentage"] >= 80 or (entry["meeting_count"] > 0 and entry["not_meeting_count"] == 0):
+            entry["status"] = "memenuhi"
+            entry["status_label"] = "Memenuhi"
+        elif entry["not_meeting_count"] > 0:
+            entry["status"] = "tidak_memenuhi"
+            entry["status_label"] = "Tidak memenuhi"
+        else:
+            entry["status"] = "belum_lengkap"
+            entry["status_label"] = "Laporan belum lengkap"
+        aggregated_divisions.append(entry)
+
+    all_summary = {
+        "total_divisions": len(all_divisions),
+        "meeting_count": total_meeting,
+        "not_meeting_count": total_not_meeting,
+        "report_pending_count": total_pending,
+        "incomplete_count": total_pending,
+        "compliance_percentage": round(avg_compliance, 2),
+    }
+
+    return {
+        "month": 0,
+        "month_name": "Semua Periode",
+        "is_all_periods": True,
+        "period_label": period_label,
+        "period_range_months": period_range_months,
+        "available_months": available_month_nums,
+        "summary": all_summary,
+        "divisions": aggregated_divisions,
+        "monthly_overview": monthly_overview,
+        "corrective_action": build_corrective_payload(
+            force_refresh=force_refresh,
+            start_month=start_month,
+            end_month=end_month,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        "risk_assessment": build_risk_payload(force_refresh=force_refresh),
+        "follow_up_bod": build_followup_payload(
+            force_refresh=force_refresh,
+            start_month=start_month,
+            end_month=end_month,
+            start_date=start_date,
+            end_date=end_date,
+        ),
         "kaizen_recap": build_kaizen_payload(force_refresh=force_refresh),
         "source": source_payload(workbook_data["source"]),
         "diagnostics": workbook_data["diagnostics"],
@@ -1952,15 +2356,21 @@ def division_dashboard(division_key: str):
 
 @app.get("/live-kpi")
 def live_kpi():
-    try:
-        selected_month = resolve_month(request.args.get("month"))
-    except ValueError:
+    raw_month = request.args.get("month", "")
+    all_periods = is_all_periods(raw_month)
+    if all_periods:
         selected_month = DEFAULT_MONTH
+    else:
+        try:
+            selected_month = resolve_month(raw_month)
+        except ValueError:
+            selected_month = DEFAULT_MONTH
 
     return render_template(
         "live_kpi.html",
         months=MONTH_NAMES,
         selected_month=selected_month,
+        selected_all_periods=all_periods,
         refresh_seconds=int(os.getenv("KPI_REFRESH_SECONDS", "60")),
         max_upload_mb=MAX_UPLOAD_MB,
     )
@@ -1970,6 +2380,40 @@ def live_kpi():
 def api_live_kpi():
     try:
         force_refresh = request.args.get("refresh") == "1"
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
+        month_arg = (request.args.get("month") or "").strip()
+
+        start_month = None
+        end_month = None
+        if start_date:
+            try:
+                start_month = int(start_date.split("-")[1])
+            except Exception:
+                pass
+        if end_date:
+            try:
+                end_month = int(end_date.split("-")[1])
+            except Exception:
+                pass
+
+        if start_month is not None or end_month is not None:
+            if start_month == end_month and start_month is not None:
+                payload = build_month_payload(month_value=start_month, force_refresh=force_refresh)
+            else:
+                payload = build_all_months_payload(
+                    force_refresh=force_refresh,
+                    start_month=start_month,
+                    end_month=end_month,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            payload["start_date"] = start_date
+            payload["end_date"] = end_date
+            return jsonify(payload)
+
+        if is_all_periods(month_arg):
+            return jsonify(build_all_months_payload(force_refresh=force_refresh))
         return jsonify(build_month_payload(force_refresh=force_refresh))
     except FileNotFoundError:
         return jsonify(

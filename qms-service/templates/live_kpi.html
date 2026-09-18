@@ -17413,9 +17413,586 @@ html body.qms-embed-mode #kaizenCard .kaizen-card-button:focus-visible {
         font-size: 8.7px !important;
         font-weight: 900 !important;
     }
+<!-- QMS ZOOM RESPONSIVE AND TEXT ANTI-TRUNCATION OVERRIDE V60 -->
+<style>
+/* ============================================================
+   RESPONSIVE ZOOM (90%, 100%, 110%, 125%) & ANTI-TRUNCATION
+   - Mencegah teks terpotong / ellipsis ("Belum Memenuhi...")
+   - Menyesuaikan proporsi kartu & font secara dinamis menggunakan clamp()
+   - Memastikan seluruh 5 modul pas di layar tanpa kepotong
+   ============================================================ */
+
+/* ============================================================
+   QMS RESPONSIVE ADJUSTMENT & ANTI-CLIPPING OVERRIDE V62
+   - Menyesuaikan proporsi 100% pas layar di semua level zoom (100%, 90%, dll)
+   - Mencegah kartu baris bawah terpotong (Risk, Corrective, Kaizen)
+   - Mencegah baris ke-3 'Outstanding Terbanyak' (angka 3) terpotong
+   - Legenda KPI 2-baris rapi anti-tumpuk
+   ============================================================ */
+
+/* 1. KONTINER UTAMA & PROPORSI PAS LAYAR */
+html,
+body.qms-embed-mode,
+html body.qms-embed-mode .app-shell,
+html body.qms-embed-mode .workspace {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+}
+
+html body.qms-embed-mode .workspace {
+    padding: clamp(2px, 0.4vh, 6px) clamp(4px, 0.6vw, 8px) clamp(2px, 0.4vh, 6px) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+html body.qms-embed-mode .dashboard-grid {
+    flex: 1 1 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    gap: clamp(4px, 0.6vh, 8px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+/* 2. RESPONSIVE DASHBOARD GRID (DESKTOP / LAPTOP) */
+@media (min-width: 1024px) {
+    html body.qms-embed-mode .dashboard-grid {
+        display: grid !important;
+        grid-template-columns: repeat(100, minmax(0, 1fr)) !important;
+        grid-template-rows: minmax(0, 1.22fr) minmax(0, 1fr) !important;
+        align-items: stretch !important;
+    }
+
+    html body.qms-embed-mode .kpi-card {
+        grid-column: 1 / 44 !important;
+        grid-row: 1 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    html body.qms-embed-mode #followUpCard {
+        grid-column: 44 / 101 !important;
+        grid-row: 1 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    html body.qms-embed-mode #riskCard {
+        grid-column: 1 / 38 !important;
+        grid-row: 2 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    html body.qms-embed-mode #correctiveCard {
+        grid-column: 38 / 72 !important;
+        grid-row: 2 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    html body.qms-embed-mode #kaizenCard {
+        grid-column: 72 / 101 !important;
+        grid-row: 2 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+}
+
+/* Layar sedang / sempit / jendela sangat diperkecil (< 1024px) */
+@media (max-width: 1023px) {
+    html,
+    body.qms-embed-mode,
+    html body.qms-embed-mode .app-shell,
+    html body.qms-embed-mode .workspace {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+
+    html body.qms-embed-mode .dashboard-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    html body.qms-embed-mode .kpi-card,
+    html body.qms-embed-mode #followUpCard,
+    html body.qms-embed-mode #riskCard,
+    html body.qms-embed-mode #correctiveCard,
+    html body.qms-embed-mode #kaizenCard {
+        grid-column: auto !important;
+        grid-row: auto !important;
+        width: 100% !important;
+        min-height: auto !important;
+    }
+}
+
+/* 3. CARD COMMON STYLING */
+html body.qms-embed-mode .card {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    padding: clamp(3px, 0.5vh, 7px) clamp(5px, 0.6vw, 9px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+html body.qms-embed-mode .module-head {
+    margin-bottom: clamp(1px, 0.3vh, 3px) !important;
+    padding-bottom: clamp(1px, 0.2vh, 2px) !important;
+    min-height: 0 !important;
+}
+
+html body.qms-embed-mode .module-title {
+    font-size: clamp(10px, 0.8vw, 12.5px) !important;
+}
+
+/* 4. MONITORING KPI: TATA LETAK RESPONSIF & ANTI-NUMPUK */
+html body.qms-embed-mode .kpi-visual-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.4fr) minmax(115px, 0.9fr) !important;
+    gap: clamp(4px, 0.7vw, 8px) !important;
+    align-items: stretch !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+}
+
+html body.qms-embed-mode .kpi-chart-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: clamp(3px, 0.5vh, 6px) clamp(5px, 0.6vw, 8px) 20px !important;
+    min-width: 0 !important;
+    position: relative !important;
+    border-radius: 8px !important;
+}
+
+html body.qms-embed-mode .kpi-chart-title {
+    font-size: clamp(8px, 0.65vw, 10px) !important;
+    font-weight: 800 !important;
+    margin-bottom: 2px !important;
+}
+
+html body.qms-embed-mode .kpi-chart-body {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: clamp(6px, 0.8vw, 12px) !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+html body.qms-embed-mode .kpi-status-donut {
+    width: clamp(78px, 6.8vw, 105px) !important;
+    height: clamp(78px, 6.8vw, 105px) !important;
+    min-width: 72px !important;
+    min-height: 72px !important;
+    flex: 0 0 auto !important;
+}
+
+html body.qms-embed-mode .kpi-status-donut::after {
+    inset: clamp(14px, 1.3vw, 20px) !important;
+}
+
+html body.qms-embed-mode .kpi-status-donut-center strong {
+    font-size: clamp(17px, 1.5vw, 23px) !important;
+    line-height: 1 !important;
+    color: #172640 !important;
+}
+
+html body.qms-embed-mode .kpi-status-donut-center {
+    font-size: clamp(7px, 0.55vw, 9px) !important;
+    line-height: 1.1 !important;
+}
+
+/* TATA LETAK LEGENDA 2-BARIS (ANTI-OVERLAP) */
+html body.qms-embed-mode .kpi-chart-legend {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: clamp(2px, 0.5vh, 6px) !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-item {
+    display: grid !important;
+    grid-template-columns: 7px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 5px !important;
+    row-gap: 1px !important;
+    align-items: center !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 2px 4px !important;
+    border-radius: 5px !important;
+    background: transparent !important;
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-item:hover {
+    background: #f1f5f9 !important;
+}
+
+html body.qms-embed-mode .kpi-chart-dot {
+    grid-column: 1 !important;
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-name {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    font-size: clamp(8px, 0.65vw, 10px) !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+    display: block !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-value {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 3px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-value strong {
+    font-size: clamp(9px, 0.72vw, 11px) !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+}
+
+html body.qms-embed-mode .kpi-chart-legend-value small {
+    font-size: clamp(7px, 0.55vw, 8.5px) !important;
+    color: #64748b !important;
+    font-weight: 600 !important;
+}
+
+/* Kolom status KPI kanan */
+html body.qms-embed-mode .kpi-compact-statuses {
+    display: grid !important;
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+    gap: clamp(3px, 0.5vh, 6px) !important;
+    min-height: 0 !important;
+    height: 100% !important;
+}
+
+html body.qms-embed-mode .kpi-compact-status {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: clamp(3px, 0.4vw, 6px) !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    padding: clamp(2px, 0.35vh, 4px) clamp(5px, 0.5vw, 8px) !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+}
+
+html body.qms-embed-mode .kpi-compact-status span {
+    font-size: clamp(7.5px, 0.6vw, 9px) !important;
+    font-weight: 800 !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    line-height: 1.15 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+
+html body.qms-embed-mode .kpi-compact-status strong {
+    font-size: clamp(14px, 1.1vw, 19px) !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: baseline !important;
+    gap: 2px !important;
+    white-space: nowrap !important;
+}
+
+html body.qms-embed-mode .kpi-compact-status small {
+    font-size: clamp(6px, 0.48vw, 7.5px) !important;
+    color: #64748b !important;
+    font-weight: 700 !important;
+    text-transform: lowercase !important;
+    white-space: nowrap !important;
+}
+
+/* 5. FOLLOW-UP EVALUASI & STRATEGI BOD (ANTI-CLIPPING ROW 3) */
+html body.qms-embed-mode #followUpCard {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    height: 100% !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-exec-grid {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    margin: clamp(1px, 0.3vh, 3px) 0 !important;
+    align-items: stretch !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-exec-panel {
+    padding: clamp(2px, 0.4vh, 5px) clamp(5px, 0.5vw, 8px) !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-exec-panel-head {
+    margin-bottom: 2px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-exec-panel-head strong {
+    font-size: clamp(9px, 0.72vw, 11px) !important;
+}
+
+/* Outstanding Terbanyak & Status: 3 baris fleksibel proporsional */
+html body.qms-embed-mode #followUpCard #followupStatusChart,
+html body.qms-embed-mode #followUpCard #followupOwnerChart {
+    display: grid !important;
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+    gap: clamp(1px, 0.3vh, 3px) !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-content: stretch !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-chart-row,
+html body.qms-embed-mode #followUpCard .followup-status-chart-row {
+    min-height: 0 !important;
+    height: 100% !important;
+    padding: 1px 3px !important;
+    display: grid !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-chart-row {
+    grid-template-columns: 16px minmax(0, 1fr) 20px !important;
+    gap: 4px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-rank {
+    width: 14px !important;
+    height: 14px !important;
+    font-size: 7.5px !important;
+    line-height: 14px !important;
+    border-radius: 50% !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-name {
+    font-size: clamp(8px, 0.65vw, 9.5px) !important;
+    line-height: 1.1 !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-track {
+    height: 4px !important;
+    min-height: 4px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-owner-chart-row strong {
+    font-size: clamp(8.5px, 0.7vw, 10.5px) !important;
+    text-align: right !important;
+    padding-right: 2px !important;
+    white-space: nowrap !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-status-chart-row {
+    grid-template-columns: clamp(70px, 6vw, 95px) minmax(0, 1fr) 22px !important;
+    padding: 1px 3px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-status-chart-label {
+    font-size: clamp(8px, 0.65vw, 10px) !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-status-chart-row strong {
+    font-size: clamp(8.5px, 0.7vw, 10.5px) !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-status-chart-track {
+    height: 4px !important;
+    min-height: 4px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-attention-strip {
+    height: clamp(17px, 2.2vh, 21px) !important;
+    min-height: clamp(17px, 2.2vh, 21px) !important;
+    max-height: clamp(17px, 2.2vh, 21px) !important;
+    gap: 4px !important;
+    margin-top: 2px !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-attention-card {
+    height: 100% !important;
+    padding: 0 clamp(4px, 0.4vw, 6px) !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-attention-card span {
+    font-size: clamp(6.8px, 0.52vw, 8px) !important;
+}
+
+html body.qms-embed-mode #followUpCard .followup-attention-card strong {
+    font-size: clamp(8px, 0.65vw, 10px) !important;
+}
+
+/* 6. RISK ASSESSMENT */
+html body.qms-embed-mode #riskCard .risk-dashboard {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 2px 4px 0 !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-donut-layout {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: clamp(6px, 0.8vw, 10px) !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-donut {
+    width: clamp(68px, 5.5vw, 86px) !important;
+    height: clamp(68px, 5.5vw, 86px) !important;
+    min-width: 62px !important;
+    min-height: 62px !important;
+    flex: 0 0 auto !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-donut::after {
+    inset: clamp(12px, 1.1vw, 16px) !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-donut-center strong {
+    font-size: clamp(15px, 1.2vw, 20px) !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-types-grid {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    gap: 3px !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-type-card {
+    padding: clamp(1.5px, 0.25vh, 3.5px) clamp(4px, 0.4vw, 6px) !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-type-card strong {
+    font-size: clamp(8.5px, 0.68vw, 10.5px) !important;
+}
+
+html body.qms-embed-mode #riskCard .risk-type-card span {
+    font-size: clamp(6.8px, 0.52vw, 8px) !important;
+}
+
+/* 7. CORRECTIVE ACTION */
+html body.qms-embed-mode #correctiveCard .corrective-dashboard {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
+html body.qms-embed-mode #correctiveCard .corrective-bar-legend {
+    gap: clamp(3px, 0.4vw, 6px) !important;
+    margin-bottom: 2px !important;
+}
+
+html body.qms-embed-mode #correctiveCard .corrective-bar-legend-item {
+    min-height: clamp(15px, 2vh, 18px) !important;
+    padding: 0 clamp(3px, 0.3vw, 5px) !important;
+    font-size: clamp(6.5px, 0.5vw, 7.8px) !important;
+}
+
+html body.qms-embed-mode #correctiveCard .corrective-chart-wrap {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+}
+
+/* 8. KAIZEN RECAP */
+html body.qms-embed-mode #kaizenCard .kaizen-dashboard {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
+html body.qms-embed-mode #kaizenCard table th,
+html body.qms-embed-mode #kaizenCard table td {
+    padding: clamp(1.2px, 0.2vh, 2.5px) clamp(2px, 0.25vw, 4px) !important;
+    font-size: clamp(7.2px, 0.56vw, 8.5px) !important;
+    line-height: 1.15 !important;
+}
+
+/* Detail links */
+html body.qms-embed-mode .kpi-all-detail.kpi-detail-under-donut,
+html body.qms-embed-mode #riskCard .risk-detail-link,
+html body.qms-embed-mode #correctiveCard .corrective-detail-link,
+html body.qms-embed-mode #followUpCard .followup-detail-link {
+    font-size: clamp(7px, 0.52vw, 8px) !important;
+    line-height: 1 !important;
+}
+
+/* 9. FALLBACK SCROLL JIKA RESOLUSI SANGAT PENDEK (< 460px) ATAU ZOOM 150%+ */
+@media (max-height: 460px) {
+    html,
+    body.qms-embed-mode,
+    html body.qms-embed-mode .app-shell,
+    html body.qms-embed-mode .workspace {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+    html body.qms-embed-mode .dashboard-grid {
+        min-height: 450px !important;
+        height: auto !important;
+    }
 }
 </style>
-<!-- END QMS ALL CHART HEADER ACTION BUTTONS +1 V59 -->
+<!-- END QMS RESPONSIVE ADJUSTMENT & ANTI-CLIPPING OVERRIDE V62 -->
 </head>
 <!-- JINJA SAFE REPAIR BUILD Ã¢â‚¬â€ 12 AUG 2026 -->
 <body class="{% if request.args.get('embed') == '1' %}qms-embed-mode{% endif %}">
@@ -17485,8 +18062,9 @@ html body.qms-embed-mode #kaizenCard .kaizen-card-button:focus-visible {
                 <div class="global-period-field">
                     <label for="month">Periode Dashboard</label>
                     <select id="month" title="Periode dashboard untuk data bulanan QMS">
+                        <option value="all" {% if selected_all_periods %}selected{% endif %}>Semua Periode</option>
                         {% for number, name in months.items() %}
-                            <option value="{{ number }}" {% if number == selected_month %}selected{% endif %}>{{ name }}</option>
+                            <option value="{{ number }}" {% if number == selected_month and not selected_all_periods %}selected{% endif %}>{{ name }} 2026</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -17499,8 +18077,9 @@ html body.qms-embed-mode #kaizenCard .kaizen-card-button:focus-visible {
         <!-- Runtime-only controls for embedded QMS. Hidden from view, retained because existing JS reads these IDs. -->
         <div class="qms-embed-runtime-controls" hidden aria-hidden="true" style="display:none!important">
             <select id="month" tabindex="-1">
+                <option value="all" {% if selected_all_periods %}selected{% endif %}>Semua Periode</option>
                 {% for number, name in months.items() %}
-                    <option value="{{ number }}" {% if number == selected_month %}selected{% endif %}>{{ name }}</option>
+                    <option value="{{ number }}" {% if number == selected_month and not selected_all_periods %}selected{% endif %}>{{ name }} 2026</option>
                 {% endfor %}
             </select>
             <button id="refresh" type="button" tabindex="-1">Muat ulang</button>
@@ -18915,13 +19494,23 @@ html body.qms-embed-mode #kaizenCard .kaizen-card-button:focus-visible {
     }
 
 
+    function isAllPeriods() {
+        return selectedMonth?.value === "all";
+    }
+
     function selectedMonthNumber() {
+        if (isAllPeriods()) return 0;
         return Number(selectedMonth?.value || currentPayload?.month || 0);
     }
 
     function selectedPeriodLabel() {
+        if (currentPayload?.is_all_periods) {
+            return currentPayload.period_label || "Semua Periode";
+        }
         const monthName = currentPayload?.month_name || selectedMonth?.selectedOptions?.[0]?.textContent || "Periode";
-        return `${String(monthName).trim()} 2026`;
+        const label = String(monthName).trim();
+        // Hindari duplikasi tahun ("April 2026 2026")
+        return label.includes("2026") ? label : `${label} 2026`;
     }
 
     function selectedIsoMonth() {
@@ -20528,7 +21117,12 @@ html body.qms-embed-mode #kaizenCard .kaizen-card-button:focus-visible {
         statusText.textContent = `Periode ${selectedPeriodLabel()} aktif`;
         const globalNote = document.getElementById("globalPeriodNote");
         if (globalNote) {
-            globalNote.textContent = `${selectedPeriodLabel()} diterapkan pada KPI, Corrective Action, dan Follow-up BoD. Risk Assessment serta Kaizen mengikuti workbook konsolidasi yang tidak memiliki kolom periode bulanan.`;
+            if (currentPayload?.is_all_periods) {
+                const rangeMonths = (currentPayload.period_range_months || []).join(", ");
+                globalNote.textContent = `Menampilkan agregasi data dari: ${rangeMonths || selectedPeriodLabel()}. Risk Assessment dan Kaizen tidak difilter per bulan.`;
+            } else {
+                globalNote.textContent = `${selectedPeriodLabel()} diterapkan pada KPI, Corrective Action, dan Follow-up BoD. Risk Assessment serta Kaizen mengikuti workbook konsolidasi yang tidak memiliki kolom periode bulanan.`;
+            }
         }
         setLiveState(true);
         if (kpiManagerDialog.open) {
