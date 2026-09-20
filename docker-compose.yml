@@ -1,0 +1,139 @@
+name: ${COMPOSE_PROJECT_NAME:-azm-live-dashboard}
+
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    container_name: ${MYSQL_CONTAINER_NAME:-azm-dashboard-mysql}
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-dashboard_all_division}
+      MYSQL_USER: ${DB_USER:-azm}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-change-me}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change-root-me}
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      dashboard_net:
+        ipv4_address: ${MYSQL_IPV4_ADDRESS:-172.31.0.10}
+
+  laravel:
+    build:
+      context: ./dashboard-all-division
+      dockerfile: Dockerfile
+    image: ${LARAVEL_IMAGE:-azm-live-dashboard-laravel:local}
+    container_name: ${LARAVEL_CONTAINER_NAME:-azm-dashboard-laravel}
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME:-AZM Live Dashboard}
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_KEY: ${APP_KEY:-}
+      APP_URL: ${APP_URL:-http://127.0.0.1:8001}
+      LOG_CHANNEL: ${LOG_CHANNEL:-stderr}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_NAME:-dashboard_all_division}
+      DB_USERNAME: ${DB_USER:-azm}
+      DB_PASSWORD: ${DB_PASSWORD:-change-me}
+      SESSION_DRIVER: ${SESSION_DRIVER:-database}
+      SESSION_DOMAIN: ${SESSION_DOMAIN:-}
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-127.0.0.1,localhost}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${LARAVEL_HOST_PORT:-8001}:80"
+    volumes:
+      - laravel_storage:/var/www/html/storage
+    networks:
+      dashboard_net:
+        ipv4_address: ${LARAVEL_IPV4_ADDRESS:-172.31.0.11}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_QMS_SERVICE_URL: ${QMS_PUBLIC_URL:-http://127.0.0.1:5002}
+    image: ${FRONTEND_IMAGE:-azm-live-dashboard-frontend:local}
+    container_name: ${FRONTEND_CONTAINER_NAME:-azm-dashboard-frontend}
+    restart: unless-stopped
+    depends_on:
+      - laravel
+      - qms
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    networks:
+      dashboard_net:
+        ipv4_address: ${FRONTEND_IPV4_ADDRESS:-172.31.0.12}
+
+  qms:
+    build:
+      context: ./qms-service
+      dockerfile: Dockerfile
+    image: ${QMS_IMAGE:-azm-live-dashboard-qms:local}
+    container_name: ${QMS_CONTAINER_NAME:-azm-dashboard-qms}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5002
+      ALLOWED_ORIGIN: ${QMS_ALLOWED_ORIGIN:-http://127.0.0.1:5173}
+      KPI_EXCEL_PATH: ${KPI_EXCEL_PATH:-data/1. Monitoring KPI 2026.xlsx}
+      RISK_EXCEL_PATH: ${RISK_EXCEL_PATH:-data/3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx}
+      FOLLOWUP_BOD_EXCEL_PATH: ${FOLLOWUP_BOD_EXCEL_PATH:-data/4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx}
+      CORRECTIVE_ACTION_EXCEL_PATH: ${CORRECTIVE_ACTION_EXCEL_PATH:-data/2. CORRECTIVE ACTION REGISTER.xlsx}
+      KAIZEN_RECAP_EXCEL_PATH: ${KAIZEN_RECAP_EXCEL_PATH:-data/5. KAIZEN RECAP.xlsx}
+    ports:
+      - "${QMS_HOST_PORT:-5002}:5002"
+    volumes:
+      - ${QMS_DATA_PATH:-./qms-service/data}:/app/data:ro
+      - qms_storage:/app/storage
+    networks:
+      dashboard_net:
+        ipv4_address: ${QMS_IPV4_ADDRESS:-172.31.0.13}
+
+  nlp-analyzer:
+    build:
+      context: ./nlp-service
+      dockerfile: Dockerfile
+    image: ${ANALYZER_IMAGE:-azm-live-dashboard-nlp:local}
+    container_name: ${ANALYZER_CONTAINER_NAME:-azm-dashboard-nlp}
+    restart: "no"
+    environment:
+      DB_HOST: ${ANALYZER_DB_HOST:-mysql}
+      DB_PORT: ${ANALYZER_DB_PORT:-3306}
+      DB_USER: ${ANALYZER_DB_USER:-azm}
+      DB_PASS: ${ANALYZER_DB_PASSWORD:-change-me}
+      DB_NAME: ${DB_NAME:-dashboard_all_division}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      dashboard_net:
+        ipv4_address: ${ANALYZER_IPV4_ADDRESS:-172.31.0.14}
+
+networks:
+  dashboard_net:
+    name: ${DASHBOARD_NETWORK_NAME:-azm-live-dashboard-net}
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${DASHBOARD_NETWORK_SUBNET:-172.31.0.0/24}
+          gateway: ${DASHBOARD_NETWORK_GATEWAY:-172.31.0.1}
+
+volumes:
+  mysql_data:
+    name: ${MYSQL_VOLUME_NAME:-azm-dashboard-mysql-data}
+  laravel_storage:
+    name: ${LARAVEL_STORAGE_VOLUME_NAME:-azm-dashboard-laravel-storage}
+  qms_storage:
+    name: ${QMS_STORAGE_VOLUME_NAME:-azm-dashboard-qms-storage}
