@@ -47,6 +47,24 @@ MONTH_ALIASES = {
 PLAN_LABELS = {"plan", "rencana", "target plan"}
 ACTUAL_LABELS = {"actual", "aktual", "realisasi"}
 
+
+def is_plan_label(value: Any) -> bool:
+    norm = normalize_label(value)
+    if not norm:
+        return False
+    if norm in PLAN_LABELS:
+        return True
+    return bool(re.search(r"\b(?:plan|rencana|target plan)\b", norm))
+
+
+def is_actual_label(value: Any) -> bool:
+    norm = normalize_label(value)
+    if not norm:
+        return False
+    if norm in ACTUAL_LABELS:
+        return True
+    return bool(re.search(r"\b(?:actual|aktual|realisasi)\b", norm))
+
 # Penanda bahwa laporan/realisasi belum disampaikan oleh PIC divisi.
 # Nilai ini tidak boleh dianggap gagal KPI karena belum ada data yang bisa dinilai.
 NO_REPORT_LABELS = {
@@ -523,12 +541,10 @@ class KpiWorkbookParser:
             # sheet yang sama tidak mengambil alih deteksi.
             scan_end = min(max_row, start_row + 180)
             for row in range(start_row, scan_end + 1):
-                label = normalize_label(
-                    self._effective_cell_value(worksheet, row, column)
-                )
-                if label in PLAN_LABELS:
+                label = self._effective_cell_value(worksheet, row, column)
+                if is_plan_label(label):
                     plan_count += 1
-                elif label in ACTUAL_LABELS:
+                elif is_actual_label(label):
                     actual_count += 1
             proximity_bonus = max(0, 5 - (first_month_column - column))
             return min(plan_count, actual_count) * 20 + plan_count + actual_count + proximity_bonus
@@ -601,14 +617,10 @@ class KpiWorkbookParser:
                 row += 1
                 continue
 
-            plan_at_header = normalize_label(
-                self._effective_cell_value(worksheet, row, first_month_column)
-            )
-            actual_at_header = normalize_label(
-                self._effective_cell_value(worksheet, actual_row, first_month_column)
-            )
+            plan_at_header = self._effective_cell_value(worksheet, row, first_month_column)
+            actual_at_header = self._effective_cell_value(worksheet, actual_row, first_month_column)
 
-            if plan_at_header in PLAN_LABELS and actual_at_header in ACTUAL_LABELS:
+            if is_plan_label(plan_at_header) and is_actual_label(actual_at_header):
                 shifted_label_pairs += 1
             elif not (is_blank(plan_at_header) and is_blank(actual_at_header)):
                 normal_data_pairs += 1
@@ -626,33 +638,49 @@ class KpiWorkbookParser:
         max_column: int,
     ) -> dict[str, int]:
         fields: dict[str, int] = {}
-        start_row = max(1, month_header_row - 5)
 
-        keyword_map = {
-            "kpi": (
-                "key performance indicator",
-                "indikator kinerja utama",
-            ),
-            "variable": ("variable", "variabel"),
-            "unit": (
-                "unit of measurement",
-                "satuan pengukuran",
-                "unit measurement",
-            ),
-            "target": ("target", "sasaran"),
-        }
-
-        for column in range(1, max_column + 1):
-            combined = " ".join(
-                normalize_text(self._effective_cell_value(worksheet, row, column))
-                for row in range(start_row, month_header_row + 1)
-            )
-
-            for field, keywords in keyword_map.items():
-                if field in fields:
+        # 1. Periksa baris tepat di sekitar header tabel (paling dekat dengan data baris KPI).
+        # Scan dari month_header_row ke atas hingga max 3 baris.
+        for row in range(month_header_row, max(1, month_header_row - 3) - 1, -1):
+            for column in range(1, max_column + 1):
+                val = normalize_text(worksheet.cell(row, column).value)
+                if not val or val in ("no", "no.", "nomor"):
                     continue
-                if any(keyword in combined for keyword in keywords):
-                    fields[field] = column
+                if "key performance indicator" in val or "indikator kinerja utama" in val:
+                    if "kpi" not in fields:
+                        fields["kpi"] = column
+                elif "variable" in val or "variabel" in val:
+                    if "variable" not in fields:
+                        fields["variable"] = column
+                elif "unit of measurement" in val or "satuan pengukuran" in val or "unit measurement" in val:
+                    if "unit" not in fields:
+                        fields["unit"] = column
+                elif "target" in val or "sasaran" in val:
+                    if "target" not in fields:
+                        fields["target"] = column
+
+        # 2. Jika masih ada field yang belum ditemukan, lakukan scan fallback
+        if len(fields) < 4:
+            start_row = max(1, month_header_row - 5)
+            keyword_map = {
+                "kpi": ("key performance indicator", "indikator kinerja utama"),
+                "variable": ("variable", "variabel"),
+                "unit": ("unit of measurement", "satuan pengukuran", "unit measurement"),
+                "target": ("target", "sasaran"),
+            }
+            for column in range(1, max_column + 1):
+                combined = " ".join(
+                    normalize_text(self._effective_cell_value(worksheet, row, column))
+                    for row in range(start_row, month_header_row + 1)
+                )
+                for field, keywords in keyword_map.items():
+                    if field in fields:
+                        continue
+                    if any(keyword in combined for keyword in keywords):
+                        header_val = normalize_text(worksheet.cell(month_header_row - 1, column).value)
+                        if field == "kpi" and header_val in ("no", "no.", "nomor"):
+                            continue
+                        fields[field] = column
 
         return fields
 
@@ -700,13 +728,11 @@ class KpiWorkbookParser:
 
         row = layout.month_header_row + 1
         while row <= max_row:
-            label = normalize_label(
-                self._effective_cell_value(
-                    worksheet, row, layout.plan_actual_column
-                )
+            label = self._effective_cell_value(
+                worksheet, row, layout.plan_actual_column
             )
 
-            if label not in PLAN_LABELS:
+            if not is_plan_label(label):
                 row += 1
                 continue
 
@@ -801,14 +827,12 @@ class KpiWorkbookParser:
         max_row: int,
     ) -> int | None:
         for row in range(plan_row + 1, min(plan_row + 4, max_row) + 1):
-            label = normalize_label(
-                self._effective_cell_value(
-                    worksheet, row, plan_actual_column
-                )
+            label = self._effective_cell_value(
+                worksheet, row, plan_actual_column
             )
-            if label in ACTUAL_LABELS:
+            if is_actual_label(label):
                 return row
-            if label in PLAN_LABELS:
+            if is_plan_label(label):
                 return None
         return None
 
@@ -976,6 +1000,11 @@ class KpiWorkbookParser:
             any(word in text for word in range_words) or has_dash_range
         ):
             return "range"
+
+        # Jika ada kata penanda minimal/minimum (misal: "min. 90%", "minimal 95%"),
+        # maka arah penilaian adalah ">=" meskipun di dalam keterangan terdapat kriteria waktu seperti "≤ 48 Jam"
+        if any(word in text for word in ("minimal", "minimum", "min ", "min.", "sekurang", "setidaknya", "paling sedikit")):
+            return ">="
 
         # Simbol eksplisit selalu lebih kuat daripada kata kunci umum.
         if any(symbol in text for symbol in ("<=", "=<", "≤")):

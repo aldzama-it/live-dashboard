@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\ItDashboardController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\LegalDashboardController;
 use App\Http\Controllers\Api\DivisionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -55,5 +56,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tax-dashboard/summary', [\App\Http\Controllers\Api\TaxController::class, 'index']);
     Route::post('/tax-dashboard/sync', [\App\Http\Controllers\Api\TaxController::class, 'syncSynology']);
 
-
+    // Legal Dashboard Routes
+    Route::get('/legal-dashboard/summary', [LegalDashboardController::class, 'summary']);
+    Route::get('/legal-dashboard/mp-contracts', [LegalDashboardController::class, 'getMpContracts']);
+    Route::get('/legal-dashboard/kpi-performance', [LegalDashboardController::class, 'getKpiPerformance']);
+    Route::get('/legal-dashboard/operational-budget', [LegalDashboardController::class, 'getOperationalBudget']);
+    Route::get('/legal-dashboard/downloads', [LegalDashboardController::class, 'getDownloads']);
+    Route::post('/legal-dashboard/send-mp-reminder-email', [LegalDashboardController::class, 'sendMpReminderEmail']);
+    Route::post('/legal-dashboard/request-download-permission', [LegalDashboardController::class, 'requestDownloadPermission']);
+    Route::get('/legal-documents', [LegalDashboardController::class, 'index']);
+    Route::post('/legal-documents', [LegalDashboardController::class, 'store']);
+    Route::put('/legal-documents/{id}', [LegalDashboardController::class, 'update']);
+    Route::put('/legal-documents/{id}/progress', [LegalDashboardController::class, 'updateProgress']);
+    Route::delete('/legal-documents/{id}', [LegalDashboardController::class, 'destroy']);
+    Route::post('/legal-dashboard/send-reminder-email', [LegalDashboardController::class, 'sendReminderEmail']);
 });
+
+
