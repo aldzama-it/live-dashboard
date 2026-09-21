@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Tax Dashboard Routes
     Route::get('/tax-dashboard/summary', [\App\Http\Controllers\Api\TaxController::class, 'index']);
+    Route::get('/tax-dashboard/api-summary', [\App\Http\Controllers\Api\TaxController::class, 'getTaxDashboardApi']);
     Route::post('/tax-dashboard/sync', [\App\Http\Controllers\Api\TaxController::class, 'syncSynology']);
 
     // Legal Dashboard Routes

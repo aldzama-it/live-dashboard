@@ -38,6 +38,7 @@ import AccurateApiGuide from './divisions/finance-admin/AccurateApiGuide';
 import AccountsReceivable from './divisions/finance-admin/AccountsReceivable';
 import AccountsReceivableApi from './divisions/finance-admin/AccountsReceivableApi';
 import Tax from './divisions/finance-admin/Tax';
+import TaxApi from './divisions/finance-admin/TaxApi';
 import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
@@ -509,6 +510,11 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/finance-admin/finance/tax" element={
               <ErrorBoundary>
                 <Tax user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/tax-api" element={
+              <ErrorBoundary>
+                <TaxApi user={user} />
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
