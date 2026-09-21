@@ -246,7 +246,11 @@ export default function Dashboard({ user, setUser }) {
               <img src="/Symbol.png" alt="PT Aldzama" className="w-12 h-12 object-contain shrink-0" />
               <h2 className="text-base font-bold text-boxdark text-left leading-tight">
                 Dashboard<br />
+<<<<<<< HEAD
                 <span className="text-xs font-normal text-body">PT ALDZAMA</span>
+=======
+                <span className="text-xs font-normal text-body">PT. Aldzama</span>
+>>>>>>> caee8da954c795b2b8eaf29bf5bd292aed129bd8
               </h2>
             </div>
           ) : (
