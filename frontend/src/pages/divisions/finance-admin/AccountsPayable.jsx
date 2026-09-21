@@ -147,6 +147,33 @@ export default function AccountsPayable({ user }) {
     }
   };
 
+  const trendFilteredData = useMemo(() => {
+    const raw = data?.payment_trend || [];
+    if (!raw.length) return [];
+
+    let maxDate = new Date();
+    raw.forEach(item => {
+      const dStr = item.date || item.period;
+      if (dStr) {
+        const d = new Date(dStr);
+        if (!isNaN(d.getTime()) && d > maxDate) {
+          maxDate = d;
+        }
+      }
+    });
+
+    const cutoff = new Date(maxDate);
+    cutoff.setMonth(cutoff.getMonth() - Number(trendRange));
+    const cutoffStr = cutoff.toISOString().substring(0, 10);
+
+    const filtered = raw.filter(item => {
+      const dStr = item.date || item.period;
+      return dStr && dStr >= cutoffStr;
+    });
+
+    return filtered.length > 0 ? filtered : raw;
+  }, [data?.payment_trend, trendRange]);
+
   if (isLoading || !data) {
     return (
       <DashboardLoader 
@@ -167,14 +194,15 @@ export default function AccountsPayable({ user }) {
   }];
   const topVendorsLabels = data.top_vendors?.map(v => v.vendor) || [];
 
-  const slicedTrend = (data.payment_trend || []).slice(-trendRange);
   const paymentTrendSeries = [{
     name: 'Total Pembayaran',
-    data: slicedTrend.map(p => p.total ?? p.actual ?? 0)
+    data: trendFilteredData.map(p => ({
+      x: new Date(p.date || p.period).getTime(),
+      y: Number(p.total ?? p.actual ?? 0)
+    }))
   }];
   
-  const paymentTrendLabels = slicedTrend.map(p => p.label || p.month || p.period || '');
-  const paymentTrendTitle = `Trend Pembayaran (${trendRange} Bulan Terakhir)`;
+  const paymentTrendTitle = trendRange === 1 ? 'Trend Pembayaran (1 Bulan Terakhir)' : `Trend Pembayaran (${trendRange} Bulan Terakhir)`;
 
   // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
   const projectionMap = {};
@@ -365,12 +393,29 @@ export default function AccountsPayable({ user }) {
           <div className="h-full w-full">
             <Chart
               options={{
-                chart: { toolbar: { show: false } },
+                chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false } },
                 colors: ['#3C50E0'],
                 stroke: { curve: 'smooth', width: 2 },
+                fill: {
+                  type: 'gradient',
+                  gradient: {
+                    shadeIntensity: 1,
+                    opacityFrom: 0.35,
+                    opacityTo: 0.05,
+                    stops: [0, 90, 100]
+                  }
+                },
+                markers: {
+                  size: 4,
+                  hover: { size: 6 }
+                },
                 xaxis: { 
-                  categories: paymentTrendLabels,
-                  labels: { style: { fontSize: '9px' } }
+                  type: 'datetime',
+                  labels: { 
+                    style: { fontSize: '9px' },
+                    datetimeUTC: false,
+                    format: trendRange === 1 ? 'dd MMM' : 'MMM yyyy'
+                  }
                 },
                 yaxis: { 
                   labels: { 
@@ -380,7 +425,8 @@ export default function AccountsPayable({ user }) {
                 },
                 dataLabels: { enabled: false },
                 tooltip: {
-                  y: { formatter: (val) => formatSimpleMoney(val) }
+                  x: { format: 'dd MMMM yyyy' },
+                  y: { formatter: (val) => formatFullMoney(val) }
                 },
                 grid: { borderColor: '#E2E8F0', strokeDashArray: 4 }
               }}
