@@ -20,199 +20,6 @@ class ArDashboardController extends Controller
         $this->accurateApi = $accurateApi;
     }
 
-    public function getArDashboard(Request $request)
-    {
-        $asOfDate = $request->query('as_of_date');
-        $startDate = $request->query('start_date');
-        $endDate = $request->query('end_date');
-
-        $filterInvoiceDate = function ($query) use ($asOfDate, $startDate, $endDate) {
-            if ($asOfDate) {
-                $query->where('invoice_date', '<=', $asOfDate);
-            } elseif ($startDate && $endDate) {
-                $query->whereBetween('invoice_date', [$startDate, $endDate]);
-            }
-        };
-
-        $filterReceiptDate = function ($query) use ($startDate, $endDate) {
-            if ($startDate && $endDate) {
-                $query->whereBetween('receipt_date', [$startDate, $endDate]);
-            }
-        };
-
-        // 1. KPI Cards
-        $totalOutstanding = ArInvoice::sum('outstanding_amount');
-        
-        $agings = ArAging::selectRaw('
-            SUM(not_due) as not_due,
-            SUM(days_1_15) as days_1_15,
-            SUM(days_16_30) as days_16_30,
-            SUM(days_31_45) as days_31_45,
-            SUM(days_46_60) as days_46_60,
-            SUM(days_over_60) as days_over_60
-        ')
-        ->first(); // Aging report in accurate doesn't use invoice date filter in the same way, it's a snapshot
-
-        $totalOverdue = ($agings->days_1_15 ?? 0) + ($agings->days_16_30 ?? 0) + ($agings->days_31_45 ?? 0) + ($agings->days_46_60 ?? 0) + ($agings->days_over_60 ?? 0);
-
-        // 2. Aging Chart Data
-        $agingChart = [
-            ['name' => 'Belum Jatuh Tempo', 'value' => (float) ($agings->not_due ?? 0)],
-            ['name' => '1-15 Hari', 'value' => (float) ($agings->days_1_15 ?? 0)],
-            ['name' => '16-30 Hari', 'value' => (float) ($agings->days_16_30 ?? 0)],
-            ['name' => '31-45 Hari', 'value' => (float) ($agings->days_31_45 ?? 0)],
-            ['name' => '46-60 Hari', 'value' => (float) ($agings->days_46_60 ?? 0)],
-            ['name' => '> 60 Hari', 'value' => (float) ($agings->days_over_60 ?? 0)],
-        ];
-
-        // 3. Top Customer Outstanding
-        $topCustomers = ArInvoice::selectRaw('customer as name, SUM(outstanding_amount) as total')
-            ->groupBy('customer')
-            ->orderByDesc('total')
-            ->limit(5)
-            ->get()
-            ->map(function ($item) {
-                $item->total = (float) $item->total;
-                return $item;
-            });
-
-        // 4. Receipt Trend
-        $receiptQuery = ArReceipt::whereNotNull('receipt_date')->where($filterReceiptDate);
-        $minDate = (clone $receiptQuery)->min('receipt_date');
-        $maxDate = (clone $receiptQuery)->max('receipt_date');
-
-        $isSameMonth = false;
-        if ($minDate && $maxDate) {
-            $isSameMonth = date('Y-m', strtotime($minDate)) === date('Y-m', strtotime($maxDate));
-        }
-
-        Carbon::setLocale('id'); 
-        if ($isSameMonth) {
-            $paymentTrend = (clone $receiptQuery)
-                ->selectRaw('DATE_FORMAT(receipt_date, "%Y-%m-%d") as period, SUM(total_amount) as total')
-                ->groupBy('period')
-                ->orderBy('period', 'asc')
-                ->get()
-                ->map(function ($item) {
-                    $item->total = (float) $item->total;
-                    $item->label = Carbon::parse($item->period)->translatedFormat('d M Y');
-                    return $item;
-                });
-            $trendTitle = "Trend Penerimaan (" . Carbon::parse($minDate)->translatedFormat('F Y') . ")";
-        } else {
-            $paymentTrend = (clone $receiptQuery)
-                ->selectRaw('DATE_FORMAT(receipt_date, "%Y-%m") as period, SUM(total_amount) as total')
-                ->groupBy('period')
-                ->orderBy('period', 'desc')
-                ->limit(6)
-                ->get()
-                ->map(function ($item) {
-                    $item->total = (float) $item->total;
-                    $item->label = Carbon::parse($item->period . '-01')->translatedFormat('M Y');
-                    return $item;
-                })
-                ->reverse()
-                ->values();
-            $trendTitle = "Trend Penerimaan (6 Bulan Terakhir)";
-        }
-
-        // 5. Invoice List
-        $invoices = ArInvoice::orderByDesc('invoice_date')->get();
-
-        // Additional KPIs
-        $totalPiutang30Hari = ArInvoice::where('age_days', '>', 30)->sum('outstanding_amount');
-        
-        $penerimaanBulanIniQuery = ArReceipt::whereNotNull('receipt_date');
-        if ($startDate && $endDate) {
-            $penerimaanBulanIniQuery->whereBetween('receipt_date', [$startDate, $endDate]);
-        } else {
-            $penerimaanBulanIniQuery->whereMonth('receipt_date', date('m'))->whereYear('receipt_date', date('Y'));
-        }
-        $penerimaanBulanIni = $penerimaanBulanIniQuery->sum('total_amount');
-
-        $customerTerbesar = ArInvoice::selectRaw('customer, SUM(outstanding_amount) as total')
-            ->groupBy('customer')
-            ->orderByDesc('total')
-            ->first();
-
-        // 7. Peringatan (Alerts)
-        $invoiceJatuhTempo = ArInvoice::where('age_days', '>', 0)->count();
-        
-        $peringatan = [];
-        if ($invoiceJatuhTempo > 0) {
-            $peringatan[] = [
-                'type' => 'danger',
-                'message' => "{$invoiceJatuhTempo} Faktur pelanggan sudah jatuh tempo",
-                'sub_message' => 'Total Rp ' . number_format($totalOverdue, 0, ',', '.')
-            ];
-        }
-
-        // 8. Ringkasan Mata Uang
-        $totalAllCurrency = $totalOutstanding > 0 ? $totalOutstanding : 1;
-        // Accurate AR dump is in IDR based on the sample, but let's hardcode for IDR if no currency column exists, or check the table.
-        // Wait, ArInvoice doesn't have a currency column!
-        $ringkasanMataUang = [
-            [
-                'currency' => 'IDR',
-                'total' => (float)$totalOutstanding,
-                'percentage' => 100
-            ]
-        ];
-
-        // 9. Aktivitas AR Terbaru
-        $recentInvoices = ArInvoice::orderByDesc('invoice_date')
-            ->limit(5)
-            ->get()
-            ->map(function($item) {
-                return [
-                    'date' => $item->invoice_date,
-                    'description' => "Faktur {$item->invoice_no} diterbitkan untuk {$item->customer}",
-                    'amount' => (float)$item->total_amount,
-                    'type' => 'Pending',
-                    'color' => 'warning'
-                ];
-            });
-
-        $recentPayments = ArReceipt::orderByDesc('receipt_date')
-            ->limit(5)
-            ->get()
-            ->map(function($item) {
-                return [
-                    'date' => $item->receipt_date,
-                    'description' => "Penerimaan dari {$item->customer}",
-                    'amount' => (float)$item->total_amount,
-                    'type' => 'Completed',
-                    'color' => 'success'
-                ];
-            });
-        
-        $aktivitasTerbaru = $recentInvoices->concat($recentPayments)->sortByDesc('date')->take(6)->values();
-
-        return response()->json([
-            'kpis' => [
-                'total_outstanding' => $totalOutstanding,
-                'total_overdue' => $totalOverdue,
-                'total_utang_30_hari' => $totalPiutang30Hari,
-                'pembayaran_bulan_ini' => $penerimaanBulanIni,
-                'customer_terbesar' => $customerTerbesar ? [
-                    'name' => $customerTerbesar->customer,
-                    'total' => (float)$customerTerbesar->total
-                ] : null,
-            ],
-            'aging_chart' => $agingChart,
-            'top_customers' => $topCustomers,
-            'payment_trend' => $paymentTrend,
-            'payment_trend_title' => $trendTitle,
-            'invoices' => $invoices,
-            'ringkasan_mata_uang' => $ringkasanMataUang,
-            'peringatan' => $peringatan,
-            'aktivitas_terbaru' => $aktivitasTerbaru,
-        ]);
-    }
-
-    /**
-     * Data Accounts Receivable Live API dari Accurate
-     */
     public function getArDashboardApi(Request $request)
     {
         $asOfDate  = $request->query('as_of_date');
@@ -237,7 +44,7 @@ class ArDashboardController extends Controller
 
             do {
                 $r = $this->accurateApi->get('/accurate/api/sales-invoice/list.do', [
-                    'fields'      => 'id,number,customer,transDate,dueDate,status,currency,totalAmount,primeOwing',
+                    'fields'      => 'id,number,customer,transDate,dueDate,status,currency,totalAmount,primeOwing,rate',
                     'sp.pageSize' => 100,
                     'sp.page'     => $page
                 ]);
@@ -259,12 +66,11 @@ class ArDashboardController extends Controller
             } while ($page <= $totalPg && $page <= $maxPg);
 
             $agingValues = [
-                'Belum Jatuh Tempo' => 0,
-                '1 - 15 Hari'       => 0,
-                '16 - 30 Hari'      => 0,
-                '31 - 45 Hari'      => 0,
-                '46 - 60 Hari'      => 0,
-                '> 60 Hari'         => 0,
+                'Belum Tempo'  => 0,
+                '1 - 15 Hari'  => 0,
+                '16 - 30 Hari' => 0,
+                '31 - 45 Hari' => 0,
+                '> 60 Hari'    => 0,
             ];
 
             $invoicesFormatted = [];
@@ -272,48 +78,53 @@ class ArDashboardController extends Controller
             $currencyTotals    = [];
 
             foreach ($accurateInvoices as $inv) {
-                $outstanding = (float)($inv['primeOwing'] ?? 0);
-                if ($outstanding == 0) continue;
+                $primeOwing = (float)($inv['primeOwing'] ?? 0);
+                if ($primeOwing == 0) continue;
+
+                $idrOwing = $primeOwing;
 
                 $customerName = is_array($inv['customer'] ?? null) ? ($inv['customer']['name'] ?? 'Unknown Customer') : ($inv['customer'] ?? 'Unknown Customer');
                 if (!isset($customerTotals[$customerName])) $customerTotals[$customerName] = 0;
-                $customerTotals[$customerName] += $outstanding;
+                $customerTotals[$customerName] += $idrOwing;
 
-                $currency = is_array($inv['currency'] ?? null) ? ($inv['currency']['name'] ?? 'IDR') : ($inv['currency'] ?? 'IDR');
-                if (!isset($currencyTotals[$currency])) $currencyTotals[$currency] = 0;
-                $currencyTotals[$currency] += $outstanding;
+                $currency = is_array($inv['currency'] ?? null) ? ($inv['currency']['code'] ?? 'IDR') : ($inv['currency'] ?? 'IDR');
+                if (!isset($currencyTotals[$currency])) {
+                    $currencyTotals[$currency] = ['raw' => 0, 'idr' => 0];
+                }
+                $currencyTotals[$currency]['raw'] += $primeOwing;
+                $currencyTotals[$currency]['idr'] += $idrOwing;
 
                 $tDate = null;
                 if (!empty($inv['transDate'])) {
-                    try {
-                        $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'], 'Asia/Jakarta')->startOfDay();
-                        if ($tDate >= $today) {
-                            $agingValues['Belum Jatuh Tempo'] += $outstanding;
-                        } else {
-                            $diffDays = (int)$tDate->diffInDays($today);
-                            if ($diffDays <= 15) {
-                                $agingValues['1 - 15 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 30) {
-                                $agingValues['16 - 30 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 45) {
-                                $agingValues['31 - 45 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 60) {
-                                $agingValues['46 - 60 Hari'] += $outstanding;
-                            } else {
-                                $agingValues['> 60 Hari'] += $outstanding;
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        $agingValues['Belum Jatuh Tempo'] += $outstanding;
-                    }
-                } else {
-                    $agingValues['Belum Jatuh Tempo'] += $outstanding;
+                    try { $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'], 'Asia/Jakarta')->startOfDay(); }
+                    catch (\Exception $e) {}
                 }
 
                 $dueDate = null;
                 if (!empty($inv['dueDate'])) {
                     try { $dueDate = Carbon::createFromFormat('d/m/Y', $inv['dueDate'], 'Asia/Jakarta')->startOfDay(); }
                     catch (\Exception $e) {}
+                }
+
+                // Hitung umur faktur berdasarkan transDate (Tanggal Faktur) sesuai standar Grafik Aging Accurate Online
+                $targetDate = $tDate ?? $dueDate;
+                if ($targetDate) {
+                    if ($targetDate >= $today) {
+                        $agingValues['Belum Tempo'] += $idrOwing;
+                    } else {
+                        $diffDays = (int)$targetDate->diffInDays($today);
+                        if ($diffDays <= 15) {
+                            $agingValues['1 - 15 Hari'] += $idrOwing;
+                        } elseif ($diffDays <= 30) {
+                            $agingValues['16 - 30 Hari'] += $idrOwing;
+                        } elseif ($diffDays <= 45) {
+                            $agingValues['31 - 45 Hari'] += $idrOwing;
+                        } else {
+                            $agingValues['> 60 Hari'] += $idrOwing;
+                        }
+                    }
+                } else {
+                    $agingValues['Belum Tempo'] += $idrOwing;
                 }
 
                 $refDate = $dueDate ?? $tDate;
@@ -339,7 +150,8 @@ class ArDashboardController extends Controller
                         'invoice_date'       => $tDate ? $tDate->format('Y-m-d') : null,
                         'due_date'           => $dueDate ? $dueDate->format('Y-m-d') : null,
                         'total_amount'       => (float)($inv['totalAmount'] ?? 0),
-                        'outstanding_amount' => $outstanding,
+                        'outstanding_amount' => $primeOwing,
+                        'outstanding_idr'    => $idrOwing,
                         'age_days'           => $ageDays,
                         'status'             => $inv['status'] ?? 'OUTSTANDING',
                         'currency'           => $currency,
@@ -354,10 +166,8 @@ class ArDashboardController extends Controller
 
             $totalOutstanding = array_sum($agingValues);
             $totalOverdue     = $agingValues['1 - 15 Hari'] + $agingValues['16 - 30 Hari']
-                              + $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari']
-                              + $agingValues['> 60 Hari'];
-            $totalPiutang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari']
-                              + $agingValues['> 60 Hari'];
+                              + $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
+            $totalPiutang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
 
             arsort($customerTotals);
             $topCustomers = [];
@@ -374,8 +184,9 @@ class ArDashboardController extends Controller
             foreach ($currencyTotals as $k => $v) {
                 $ringkasanMataUang[] = [
                     'currency'   => $k,
-                    'total'      => $v,
-                    'percentage' => $totalOutstanding > 0 ? round(($v / $totalOutstanding) * 100, 2) : 0,
+                    'total'      => $v['raw'],
+                    'total_idr'  => $v['idr'],
+                    'percentage' => $totalOutstanding > 0 ? round(($v['idr'] / $totalOutstanding) * 100, 2) : 0,
                 ];
             }
 
@@ -436,46 +247,46 @@ class ArDashboardController extends Controller
                         }
 
                         $mKey = $pDate->format('Y-m');
-                        $mLabel = $pDate->translatedFormat('M Y');
-                        if (!isset($paymentTrendMap[$mKey])) {
-                            $paymentTrendMap[$mKey] = [
-                                'period' => $mKey,
-                                'label'  => $mLabel,
-                                'total'  => 0,
-                            ];
-                        }
-                        $paymentTrendMap[$mKey]['total'] += $amount;
+                        if (!isset($paymentTrendMap[$mKey])) $paymentTrendMap[$mKey] = 0;
+                        $paymentTrendMap[$mKey] += $amount;
 
                     } catch (\Exception $e) {}
                 }
 
-                $pmtTotalPg = $pr['sp']['pageCount'] ?? 1;
                 $pmtPage++;
-            } while ($pmtPage <= $pmtTotalPg && $pmtPage <= $maxPmtPage);
+            } while ($pmtPage <= $maxPmtPage);
 
-            ksort($paymentTrendMap);
-            $paymentTrend = array_values(array_slice($paymentTrendMap, -6));
-
-            $recentInvoicesFormatted = array_map(function($inv) {
-                return [
-                    'date'        => $inv['invoice_date'],
-                    'description' => "Faktur {$inv['invoice_no']} diterbitkan untuk {$inv['customer']}",
-                    'amount'      => $inv['total_amount'],
-                    'type'        => 'Pending',
-                    'color'       => 'warning'
+            $paymentTrend = [];
+            for ($m = 11; $m >= 0; $m--) {
+                $subM = $today->copy()->subMonths($m);
+                $mKey = $subM->format('Y-m');
+                $val = (float)($paymentTrendMap[$mKey] ?? 0);
+                $paymentTrend[] = [
+                    'period' => $mKey,
+                    'label'  => $subM->translatedFormat('M Y'),
+                    'month'  => $subM->isoFormat('MMM YY'),
+                    'total'  => $val,
+                    'actual' => $val,
                 ];
-            }, array_slice($invoicesFormatted, 0, 5));
+            }
 
-            $aktivitasTerbaru = collect($recentInvoicesFormatted)
-                ->concat($recentApiPayments)
-                ->sortByDesc('date')
-                ->take(6)
-                ->values()
-                ->all();
+            $aktivitasTerbaru = $recentApiPayments;
 
-            $overdueCount = 0;
+            $overdueCount  = 0;
+            $upcomingCount = 0;
+            $sevenDaysFromNow = $today->copy()->addDays(7)->endOfDay();
+
             foreach ($invoicesFormatted as $inv) {
-                if ($inv['age_days'] > 0) $overdueCount++;
+                if ($inv['age_days'] > 0) {
+                    $overdueCount++;
+                } elseif (!empty($inv['due_date'])) {
+                    try {
+                        $dDate = Carbon::parse($inv['due_date'])->startOfDay();
+                        if ($dDate->gte($today) && $dDate->lte($sevenDaysFromNow)) {
+                            $upcomingCount++;
+                        }
+                    } catch (\Exception $e) {}
+                }
             }
 
             $peringatan = [];
@@ -484,6 +295,12 @@ class ArDashboardController extends Controller
                     'type'        => 'danger',
                     'message'     => "{$overdueCount} Faktur pelanggan sudah jatuh tempo",
                     'sub_message' => 'Total Rp ' . number_format($totalOverdue, 0, ',', '.')
+                ];
+            }
+            if ($upcomingCount > 0) {
+                $peringatan[] = [
+                    'type'        => 'warning',
+                    'message'     => "{$upcomingCount} Faktur pelanggan akan jatuh tempo dalam 7 hari"
                 ];
             }
 

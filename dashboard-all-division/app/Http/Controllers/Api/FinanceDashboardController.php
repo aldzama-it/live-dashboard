@@ -57,12 +57,11 @@ class FinanceDashboardController extends Controller
 
         // 2. Aging Chart Data
         $agingChart = [
-            ['name' => 'Belum Jatuh Tempo', 'value' => (float) ($agings->belum_tempo ?? 0)],
-            ['name' => '1-15 Hari', 'value' => (float) ($agings->aging_1_15 ?? 0)],
-            ['name' => '16-30 Hari', 'value' => (float) ($agings->aging_16_30 ?? 0)],
-            ['name' => '31-45 Hari', 'value' => (float) ($agings->aging_31_45 ?? 0)],
-            ['name' => '46-60 Hari', 'value' => (float) ($agings->aging_46_60 ?? 0)],
-            ['name' => '> 60 Hari', 'value' => (float) ($agings->aging_over_60 ?? 0)],
+            ['name' => 'Belum Tempo', 'value' => (float) ($agings->belum_tempo ?? 0)],
+            ['name' => '1 - 15 Hari', 'value' => (float) ($agings->aging_1_15 ?? 0)],
+            ['name' => '16 - 30 Hari', 'value' => (float) ($agings->aging_16_30 ?? 0)],
+            ['name' => '31 - 45 Hari', 'value' => (float) ($agings->aging_31_45 ?? 0)],
+            ['name' => '> 60 Hari', 'value' => (float) (($agings->aging_46_60 ?? 0) + ($agings->aging_over_60 ?? 0))],
         ];
 
         // 3. Top Vendor Outstanding
@@ -339,7 +338,7 @@ class FinanceDashboardController extends Controller
 
             do {
                 $r = $this->accurateApi->get('/accurate/api/purchase-invoice/list.do', [
-                    'fields'      => 'id,number,vendor,transDate,dueDate,status,currency,totalAmount,primeOwing',
+                    'fields'      => 'id,number,vendor,transDate,dueDate,status,currency,totalAmount,primeOwing,rate',
                     'sp.pageSize' => 100,
                     'sp.page'     => $page
                 ]);
@@ -361,12 +360,11 @@ class FinanceDashboardController extends Controller
             } while ($page <= $totalPg && $page <= $maxPg);
 
             $agingValues = [
-                'Belum Jatuh Tempo' => 0,
-                '1 - 15 Hari'       => 0,
-                '16 - 30 Hari'      => 0,
-                '31 - 45 Hari'      => 0,
-                '46 - 60 Hari'      => 0,
-                '> 60 Hari'         => 0,
+                'Belum Tempo'  => 0,
+                '1 - 15 Hari'  => 0,
+                '16 - 30 Hari' => 0,
+                '31 - 45 Hari' => 0,
+                '> 60 Hari'    => 0,
             ];
 
             $invoicesFormatted = [];
@@ -374,49 +372,53 @@ class FinanceDashboardController extends Controller
             $currencyTotals    = [];
 
             foreach ($accurateInvoices as $inv) {
-                $outstanding = (float)($inv['primeOwing'] ?? 0);
-                if ($outstanding == 0) continue; // Skip lunas (tetap hitung DP negatif)
+                $primeOwing = (float)($inv['primeOwing'] ?? 0);
+                if ($primeOwing == 0) continue; // Skip lunas
 
-                $vendorName = $inv['vendor']['name'] ?? 'Unknown Vendor';
+                $idrOwing = $primeOwing;
+
+                $vendorName = is_array($inv['vendor'] ?? null) ? ($inv['vendor']['name'] ?? 'Unknown Vendor') : ($inv['vendor'] ?? 'Unknown Vendor');
                 if (!isset($vendorTotals[$vendorName])) $vendorTotals[$vendorName] = 0;
-                $vendorTotals[$vendorName] += $outstanding;
+                $vendorTotals[$vendorName] += $idrOwing;
 
-                $currency = $inv['currency']['name'] ?? 'IDR';
-                if (!isset($currencyTotals[$currency])) $currencyTotals[$currency] = 0;
-                $currencyTotals[$currency] += $outstanding;
+                $currency = is_array($inv['currency'] ?? null) ? ($inv['currency']['code'] ?? 'IDR') : ($inv['currency'] ?? 'IDR');
+                if (!isset($currencyTotals[$currency])) {
+                    $currencyTotals[$currency] = ['raw' => 0, 'idr' => 0];
+                }
+                $currencyTotals[$currency]['raw'] += $primeOwing;
+                $currencyTotals[$currency]['idr'] += $idrOwing;
 
-                // Hitung umur faktur berdasarkan transDate agar cocok 100% dengan widget Accurate Online
                 $tDate = null;
                 if (!empty($inv['transDate'])) {
-                    try { 
-                        $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'], 'Asia/Jakarta')->startOfDay();
-                        if ($tDate >= $today) {
-                            $agingValues['Belum Jatuh Tempo'] += $outstanding;
-                        } else {
-                            $diffDays = (int)$tDate->diffInDays($today);
-                            if ($diffDays <= 15) {
-                                $agingValues['1 - 15 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 30) {
-                                $agingValues['16 - 30 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 45) {
-                                $agingValues['31 - 45 Hari'] += $outstanding;
-                            } elseif ($diffDays <= 60) {
-                                $agingValues['46 - 60 Hari'] += $outstanding;
-                            } else {
-                                $agingValues['> 60 Hari'] += $outstanding;
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        $agingValues['Belum Jatuh Tempo'] += $outstanding;
-                    }
-                } else {
-                    $agingValues['Belum Jatuh Tempo'] += $outstanding;
+                    try { $tDate = Carbon::createFromFormat('d/m/Y', $inv['transDate'], 'Asia/Jakarta')->startOfDay(); }
+                    catch (\Exception $e) {}
                 }
 
                 $dueDate = null;
                 if (!empty($inv['dueDate'])) {
                     try { $dueDate = Carbon::createFromFormat('d/m/Y', $inv['dueDate'], 'Asia/Jakarta')->startOfDay(); }
                     catch (\Exception $e) {}
+                }
+
+                // Hitung umur faktur berdasarkan transDate (Tanggal Faktur) sesuai standar Grafik Aging Accurate Online
+                $targetDate = $tDate ?? $dueDate;
+                if ($targetDate) {
+                    if ($targetDate >= $today) {
+                        $agingValues['Belum Tempo'] += $idrOwing;
+                    } else {
+                        $diffDays = (int)$targetDate->diffInDays($today);
+                        if ($diffDays <= 15) {
+                            $agingValues['1 - 15 Hari'] += $idrOwing;
+                        } elseif ($diffDays <= 30) {
+                            $agingValues['16 - 30 Hari'] += $idrOwing;
+                        } elseif ($diffDays <= 45) {
+                            $agingValues['31 - 45 Hari'] += $idrOwing;
+                        } else {
+                            $agingValues['> 60 Hari'] += $idrOwing;
+                        }
+                    }
+                } else {
+                    $agingValues['Belum Tempo'] += $idrOwing;
                 }
 
                 $refDate = $dueDate ?? $tDate;
@@ -443,7 +445,8 @@ class FinanceDashboardController extends Controller
                         'invoice_date'       => $tDate ? $tDate->format('Y-m-d') : null,
                         'due_date'           => $dueDate ? $dueDate->format('Y-m-d') : null,
                         'total_amount'       => (float)($inv['totalAmount'] ?? 0),
-                        'outstanding_amount' => $outstanding,
+                        'outstanding_amount' => $primeOwing,
+                        'outstanding_idr'    => $idrOwing,
                         'age_days'           => $ageDays,
                         'status'             => $inv['status'] ?? 'OUTSTANDING',
                         'currency'           => $currency,
@@ -456,13 +459,11 @@ class FinanceDashboardController extends Controller
                 $agingChart[] = ['name' => $name, 'value' => $value];
             }
 
-            // KPI dari aging buckets
+            // KPI dari aging buckets (dalam IDR)
             $totalOutstanding = array_sum($agingValues);
             $totalOverdue     = $agingValues['1 - 15 Hari'] + $agingValues['16 - 30 Hari']
-                              + $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari']
-                              + $agingValues['> 60 Hari'];
-            $totalUtang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari']
-                              + $agingValues['> 60 Hari'];
+                              + $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
+            $totalUtang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
 
             arsort($vendorTotals);
             $topVendors = [];
@@ -479,8 +480,9 @@ class FinanceDashboardController extends Controller
             foreach ($currencyTotals as $k => $v) {
                 $ringkasanMataUang[] = [
                     'currency'   => $k,
-                    'total'      => $v,
-                    'percentage' => $totalOutstanding > 0 ? round(($v / $totalOutstanding) * 100, 2) : 0,
+                    'total'      => $v['raw'],
+                    'total_idr'  => $v['idr'],
+                    'percentage' => $totalOutstanding > 0 ? round(($v['idr'] / $totalOutstanding) * 100, 2) : 0,
                 ];
             }
 
@@ -558,8 +560,19 @@ class FinanceDashboardController extends Controller
                 $pmtPage++;
             } while ($pmtPage <= $pmtTotalPg && $pmtPage <= $maxPmtPage);
 
-            ksort($paymentTrendMap);
-            $paymentTrend = array_values(array_slice($paymentTrendMap, -6));
+            $paymentTrend = [];
+            for ($m = 11; $m >= 0; $m--) {
+                $subM = $today->copy()->subMonths($m);
+                $mKey = $subM->format('Y-m');
+                $val = (float)($paymentTrendMap[$mKey]['total'] ?? $paymentTrendMap[$mKey] ?? 0);
+                $paymentTrend[] = [
+                    'period' => $mKey,
+                    'label'  => $subM->translatedFormat('M Y'),
+                    'month'  => $subM->isoFormat('MMM YY'),
+                    'total'  => $val,
+                    'actual' => $val,
+                ];
+            }
 
             $recentInvoicesColl = collect(array_slice($invoicesFormatted, 0, 5))->map(function($inv) {
                 return [
@@ -579,6 +592,38 @@ class FinanceDashboardController extends Controller
                 ->values()
                 ->toArray();
 
+            $overdueCount  = 0;
+            $upcomingCount = 0;
+            $sevenDaysFromNow = $today->copy()->addDays(7)->endOfDay();
+
+            foreach ($invoicesFormatted as $inv) {
+                if ($inv['age_days'] > 0) {
+                    $overdueCount++;
+                } elseif (!empty($inv['due_date'])) {
+                    try {
+                        $dDate = Carbon::parse($inv['due_date'])->startOfDay();
+                        if ($dDate->gte($today) && $dDate->lte($sevenDaysFromNow)) {
+                            $upcomingCount++;
+                        }
+                    } catch (\Exception $e) {}
+                }
+            }
+
+            $peringatan = [];
+            if ($overdueCount > 0) {
+                $peringatan[] = [
+                    'type'        => 'danger',
+                    'message'     => "{$overdueCount} Invoice/Tagihan vendor sudah jatuh tempo",
+                    'sub_message' => 'Total Rp ' . number_format($totalOverdue, 0, ',', '.')
+                ];
+            }
+            if ($upcomingCount > 0) {
+                $peringatan[] = [
+                    'type'        => 'warning',
+                    'message'     => "{$upcomingCount} Invoice/Tagihan vendor akan jatuh tempo dalam 7 hari"
+                ];
+            }
+
             return [
                 'kpis' => [
                     'total_outstanding'    => $totalOutstanding,
@@ -593,7 +638,7 @@ class FinanceDashboardController extends Controller
                 'payment_trend_title' => 'Trend Pembayaran (Live API)',
                 'invoices'            => $invoicesFormatted,
                 'ringkasan_mata_uang' => $ringkasanMataUang,
-                'peringatan'          => [],
+                'peringatan'          => $peringatan,
                 'aktivitas_terbaru'   => $aktivitasTerbaru,
             ];
         });

@@ -5,6 +5,7 @@ import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
 import AsOfDateFilter from '../../../components/ui/AsOfDateFilter';
+import DashboardLoader from '../../../components/ui/DashboardLoader';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -44,6 +45,19 @@ const getCurrencyFlag = (currency) => {
   );
 };
 
+const formatCurrencyAmount = (amount, currency) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '0';
+  const num = Number(amount);
+  const code = (currency || '').toUpperCase();
+  if (code.includes('USD') || code.includes('DOLLAR')) return `$ ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('CNY') || code.includes('YUAN') || code.includes('RMB')) return `¥ ${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('EUR') || code.includes('EURO')) return `€ ${num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('JPY') || code.includes('YEN')) return `¥ ${num.toLocaleString('ja-JP', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  if (code.includes('SGD')) return `S$ ${num.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('GBP')) return `£ ${num.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rp ${num.toLocaleString('id-ID')}`;
+};
+
 const formatFullMoney = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
   const num = Number(amount);
@@ -53,17 +67,26 @@ const formatFullMoney = (amount) => {
 const formatSimpleMoney = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
   const num = Number(amount);
-  if (Math.abs(num) >= 1_000_000_000) {
+  const absNum = Math.abs(num);
+  if (absNum >= 1_000_000_000_000) {
+    const val = num / 1_000_000_000_000;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} T`;
+  }
+  if (absNum >= 1_000_000_000) {
     const val = num / 1_000_000_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Miliar`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} M`;
   }
-  if (Math.abs(num) >= 1_000_000) {
+  if (absNum >= 1_000_000) {
     const val = num / 1_000_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Juta`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} Jt`;
   }
-  if (Math.abs(num) >= 1_000) {
+  if (absNum >= 1_000) {
     const val = num / 1_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Ribu`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} Rb`;
   }
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
@@ -73,6 +96,7 @@ export default function AccountsPayable({ user }) {
   const [isLoading, setIsLoading] = useState(true);
   
   const [asOfDate, setAsOfDate] = useState('');
+  const [trendRange, setTrendRange] = useState(6);
   
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
@@ -125,10 +149,11 @@ export default function AccountsPayable({ user }) {
 
   if (isLoading || !data) {
     return (
-      <div className="p-6 h-full flex flex-col gap-6 items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500">Memuat data Dashboard Utang...</p>
-      </div>
+      <DashboardLoader 
+        title="Dashboard Utang (AP)"
+        message="Memuat data sisa utang vendor dan proyeksi jatuh tempo..."
+        icon={RefreshCw}
+      />
     );
   }
 
@@ -142,14 +167,14 @@ export default function AccountsPayable({ user }) {
   }];
   const topVendorsLabels = data.top_vendors?.map(v => v.vendor) || [];
 
+  const slicedTrend = (data.payment_trend || []).slice(-trendRange);
   const paymentTrendSeries = [{
     name: 'Total Pembayaran',
-    data: data.payment_trend?.map(p => p.total) || []
+    data: slicedTrend.map(p => p.total ?? p.actual ?? 0)
   }];
   
-  // Gunakan label format dari backend (bulanan/harian otomatis)
-  const paymentTrendLabels = data.payment_trend?.map(p => p.label || p.period) || [];
-  const paymentTrendTitle = data.payment_trend_title || 'Trend Pembayaran (6 Bulan Terakhir)';
+  const paymentTrendLabels = slicedTrend.map(p => p.label || p.month || p.period || '');
+  const paymentTrendTitle = `Trend Pembayaran (${trendRange} Bulan Terakhir)`;
 
   // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
   const projectionMap = {};
@@ -189,11 +214,10 @@ export default function AccountsPayable({ user }) {
     if (statusFilter !== 'all') {
       const age = parseInt(inv.age_days || 0);
       if (statusFilter === 'not_due' && age > 0) return false;
-      if (statusFilter === 'due_1_15' && (age < 1 || age > 15)) return false;
-      if (statusFilter === 'due_16_30' && (age < 16 || age > 30)) return false;
-      if (statusFilter === 'due_31_45' && (age < 31 || age > 45)) return false;
-      if (statusFilter === 'due_46_60' && (age < 46 || age > 60)) return false;
-      if (statusFilter === 'due_60_plus' && age <= 60) return false;
+      if (statusFilter === 'due_1_30' && (age < 1 || age > 30)) return false;
+      if (statusFilter === 'due_31_60' && (age < 31 || age > 60)) return false;
+      if (statusFilter === 'due_61_90' && (age < 61 || age > 90)) return false;
+      if (statusFilter === 'due_90_plus' && age <= 90) return false;
     }
 
     if (vendorFilter !== 'all' && inv.vendor !== vendorFilter) {
@@ -287,13 +311,13 @@ export default function AccountsPayable({ user }) {
       {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         {/* Aging Donut Chart */}
-        <ChartContainer title="Aging Utang" className="h-[290px]">
+        <ChartContainer title="Aging Utang" className="h-[315px]">
           <div className="h-full w-full flex items-center justify-center">
             {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
               <Chart
                 options={{
                   labels: agingLabels,
-                  colors: ['#10B981', '#84CC16', '#F59E0B', '#F97316', '#EF4444', '#991B1B'],
+                  colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
                   plotOptions: {
                     pie: { donut: { size: '65%' } }
                   },
@@ -322,7 +346,22 @@ export default function AccountsPayable({ user }) {
         </ChartContainer>
 
         {/* Payment Trend Line Chart */}
-        <ChartContainer title={paymentTrendTitle} className="h-[290px]">
+        <ChartContainer 
+          title={paymentTrendTitle} 
+          className="h-[315px]"
+          action={
+            <select
+              value={trendRange}
+              onChange={(e) => setTrendRange(Number(e.target.value))}
+              className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-700 outline-none focus:border-primary cursor-pointer font-medium"
+            >
+              <option value={1}>1 Bulan</option>
+              <option value={3}>3 Bulan</option>
+              <option value={6}>6 Bulan</option>
+              <option value={12}>12 Bulan</option>
+            </select>
+          }
+        >
           <div className="h-full w-full">
             <Chart
               options={{
@@ -353,27 +392,27 @@ export default function AccountsPayable({ user }) {
         </ChartContainer>
 
         {/* Right Column Top - Peringatan & Ringkasan AP per Mata Uang */}
-        <div className="flex flex-col gap-2 h-[290px]">
+        <div className="flex flex-col gap-2 h-[315px]">
           {/* Peringatan */}
           <Card title="Peringatan" className="shrink-0">
-            <div className="flex flex-col gap-2 p-2">
+            <div className="flex flex-col gap-1 p-0.5">
               {data.peringatan?.length > 0 ? data.peringatan.map((p, i) => (
-                <div key={i} className={`flex items-start gap-2 p-2 rounded border ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-xs">{p.message}</span>
-                    {p.sub_message && <span className="text-[10px] mt-0.5 font-medium opacity-80">{p.sub_message}</span>}
+                <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 rounded border ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
+                  <AlertCircle size={14} className="shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-semibold text-xs leading-tight">{p.message}</span>
+                    {p.sub_message && <span className="text-[10px] font-medium opacity-80 leading-tight">{p.sub_message}</span>}
                   </div>
                 </div>
               )) : (
-                <p className="text-xs text-gray-500 text-center py-2">Tidak ada peringatan.</p>
+                <p className="text-xs text-gray-400 text-center py-1">Tidak ada peringatan.</p>
               )}
             </div>
           </Card>
 
           {/* Ringkasan AP per Mata Uang */}
-          <Card title="Ringkasan AP per Mata Uang" className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-            <div className="px-2 py-1">
+          <Card title="Ringkasan AP per Mata Uang" className="flex-1 flex flex-col min-h-0">
+            <div className="px-1 py-0.5">
               <table className="w-full text-left text-xs text-gray-500">
                 <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
                   <tr>
@@ -391,13 +430,13 @@ export default function AccountsPayable({ user }) {
                           <span>{getCurrencyCode(row.currency)}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap">Rp {parseFloat(row.total).toLocaleString('id-ID')}</td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
                       <td className="px-2 py-1 text-right whitespace-nowrap">{row.percentage}%</td>
                     </tr>
                   ))}
                   {/* Total row */}
                   <tr className="bg-gray-50 font-bold text-boxdark">
-                    <td className="px-2 py-1 whitespace-nowrap">Total</td>
+                    <td className="px-2 py-1 whitespace-nowrap">Total Equivalent</td>
                     <td className="px-2 py-1 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
                     <td className="px-2 py-1 text-right whitespace-nowrap">100%</td>
                   </tr>
@@ -531,11 +570,10 @@ export default function AccountsPayable({ user }) {
             >
               <option value="all">Semua Status</option>
               <option value="not_due">Belum Jatuh Tempo</option>
-              <option value="due_1_15">Jatuh Tempo (1-15 Hari)</option>
-              <option value="due_16_30">Jatuh Tempo (16-30 Hari)</option>
-              <option value="due_31_45">Jatuh Tempo (31-45 Hari)</option>
-              <option value="due_46_60">Jatuh Tempo (46-60 Hari)</option>
-              <option value="due_60_plus">Jatuh Tempo (&gt;60 Hari)</option>
+              <option value="due_1_30">Jatuh Tempo (1-30 Hari)</option>
+              <option value="due_31_60">Jatuh Tempo (31-60 Hari)</option>
+              <option value="due_61_90">Jatuh Tempo (61-90 Hari)</option>
+              <option value="due_90_plus">Jatuh Tempo (&gt;90 Hari)</option>
             </select>
             <div className="relative w-64">
               <input 
