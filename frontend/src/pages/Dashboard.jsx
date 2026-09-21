@@ -240,7 +240,7 @@ export default function Dashboard({ user, setUser }) {
               <img src="/Symbol.png" alt="PT Aldzama" className="w-15 h-15 object-contain" />
               <h2 className="text-lg font-bold text-boxdark text-left leading-tight">
                 Dashboard<br />
-                <span className="text-sm font-normal text-body">PT. Aldzama</span>
+                <span className="text-sm font-normal text-body">PT ALDZAMA</span>
               </h2>
             </div>
           ) : (
@@ -424,7 +424,7 @@ export default function Dashboard({ user, setUser }) {
         </header>
 
         {/* Main Body */}
-        <main className="flex-1 overflow-auto px-6 pt-2 pb-6 bg-gray-50 min-w-0">
+        <main className="flex-1 overflow-auto px-6 pt-2 pb-6 bg-gray-50 min-w-0 flex flex-col">
           {location.pathname !== '/' && (
             <PageHeader 
               title={(() => {

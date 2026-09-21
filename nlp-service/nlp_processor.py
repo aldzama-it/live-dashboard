@@ -1,20 +1,23 @@
 import pymysql
 import pandas as pd
 import re
+import os
 from datetime import datetime
 from sklearn.feature_extraction.text import TfidfVectorizer
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 
 # DB Config
-DB_HOST = '127.0.0.1'
-DB_USER = 'root'
-DB_PASS = ''
-DB_NAME = 'dashboard_all_division'
+DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+DB_PORT = int(os.getenv('DB_PORT', '3306'))
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASS = os.getenv('DB_PASS', '')
+DB_NAME = os.getenv('DB_NAME', 'dashboard_all_division')
 
 def connect_db():
     return pymysql.connect(
         host=DB_HOST,
+        port=DB_PORT,
         user=DB_USER,
         password=DB_PASS,
         database=DB_NAME,

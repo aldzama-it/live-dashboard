@@ -161,6 +161,47 @@ def plain_value(value: Any) -> str:
     return text or "-"
 
 
+def plain_multiline_value(value: Any) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, bool):
+        return "Ya" if value else "Tidak"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    text = str(value).replace("\u00a0", " ").replace("\r\n", "\n").replace("\r", "\n")
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    result = "\n".join(lines)
+    return result or "-"
+
+
+def normalize_department(value: Any) -> str:
+    text = plain_value(value)
+    if not text or text == "-":
+        return "-"
+    cleaned = text.strip()
+    key = cleaned.casefold().replace("&", "and")
+    key = re.sub(r"\s+", " ", key)
+
+    if key in {"operations", "operation"}:
+        return "Operations"
+    if "asset" in key and "logistic" in key:
+        return "Asset & Logistics"
+    if "general affair" in key:
+        return "General Affairs"
+    if "finance" in key and ("admin" in key or "administration" in key):
+        return "Finance & Administration"
+    if "sales" in key and "engineering" in key:
+        return "Sales and Engineering"
+    if key in {"project", "projects"}:
+        return "Project"
+
+    return cleaned
+
+
 class CorrectiveActionWorkbookParser:
     """Membaca rekap status dan detail dari workbook Corrective Action Register."""
 
@@ -291,24 +332,24 @@ class CorrectiveActionWorkbookParser:
                     "audit_type": plain_value(self._cell(worksheet, row_number, columns, "audit_type")),
                     "clause": plain_value(self._cell(worksheet, row_number, columns, "clause")),
                     "division": plain_value(self._cell(worksheet, row_number, columns, "division")),
-                    "department": plain_value(self._cell(worksheet, row_number, columns, "department")),
-                    "description": plain_value(self._cell(worksheet, row_number, columns, "description")),
+                    "department": normalize_department(self._cell(worksheet, row_number, columns, "department")),
+                    "description": plain_multiline_value(self._cell(worksheet, row_number, columns, "description")),
                     "grade": plain_value(self._cell(worksheet, row_number, columns, "grade")),
                     "pic": plain_value(self._cell(worksheet, row_number, columns, "pic")),
                     "target_date": target_date,
                     "target_date_iso": target_date_iso,
-                    "root_cause": plain_value(self._cell(worksheet, row_number, columns, "root_cause")),
-                    "corrective_action": plain_value(self._cell(worksheet, row_number, columns, "corrective_action")),
-                    "preventive_action": plain_value(self._cell(worksheet, row_number, columns, "preventive_action")),
-                    "evaluation": plain_value(self._cell(worksheet, row_number, columns, "evaluation")),
+                    "root_cause": plain_multiline_value(self._cell(worksheet, row_number, columns, "root_cause")),
+                    "corrective_action": plain_multiline_value(self._cell(worksheet, row_number, columns, "corrective_action")),
+                    "preventive_action": plain_multiline_value(self._cell(worksheet, row_number, columns, "preventive_action")),
+                    "evaluation": plain_multiline_value(self._cell(worksheet, row_number, columns, "evaluation")),
                     "suitability": plain_value(self._cell(worksheet, row_number, columns, "suitability")),
                     "verifier": plain_value(self._cell(worksheet, row_number, columns, "verifier")),
                     "verification_date": verification_date,
                     "verification_date_iso": verification_date_iso,
                     "status": status,
                     "status_label": STATUS_LABELS[status],
-                    "auditor_note": plain_value(self._cell(worksheet, row_number, columns, "auditor_note")),
-                    "qms_note": plain_value(self._cell(worksheet, row_number, columns, "qms_note")),
+                    "auditor_note": plain_multiline_value(self._cell(worksheet, row_number, columns, "auditor_note")),
+                    "qms_note": plain_multiline_value(self._cell(worksheet, row_number, columns, "qms_note")),
                     "overdue": overdue,
                     "source_sheet": worksheet.title,
                     "source_row": row_number,
