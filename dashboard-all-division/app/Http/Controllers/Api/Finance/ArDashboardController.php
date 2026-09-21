@@ -22,11 +22,14 @@ class ArDashboardController extends Controller
 
     public function getArDashboard(Request $request)
     {
+        $asOfDate = $request->query('as_of_date');
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
 
-        $filterInvoiceDate = function ($query) use ($startDate, $endDate) {
-            if ($startDate && $endDate) {
+        $filterInvoiceDate = function ($query) use ($asOfDate, $startDate, $endDate) {
+            if ($asOfDate) {
+                $query->where('invoice_date', '<=', $asOfDate);
+            } elseif ($startDate && $endDate) {
                 $query->whereBetween('invoice_date', [$startDate, $endDate]);
             }
         };
@@ -212,14 +215,20 @@ class ArDashboardController extends Controller
      */
     public function getArDashboardApi(Request $request)
     {
+        $asOfDate  = $request->query('as_of_date');
         $startDate = $request->query('start_date');
         $endDate   = $request->query('end_date');
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
 
-        $cacheKey = 'ar_dashboard_live_api_' . md5(($startDate ?? '') . '_' . ($endDate ?? ''));
+        $cacheKey = 'ar_dashboard_live_api_' . md5(($asOfDate ?? '') . '_' . ($startDate ?? '') . '_' . ($endDate ?? ''));
 
-        $responseData = Cache::remember($cacheKey, 300, function () use ($startDate, $endDate) {
+        if ($isRefresh) {
+            Cache::forget($cacheKey);
+        }
 
-            $today = Carbon::now('Asia/Jakarta')->startOfDay();
+        $responseData = Cache::remember($cacheKey, 300, function () use ($asOfDate, $startDate, $endDate) {
+
+            $today = $asOfDate ? Carbon::parse($asOfDate)->startOfDay() : Carbon::now('Asia/Jakarta')->startOfDay();
 
             // Ambil SEMUA sales invoices dari Accurate API
             $accurateInvoices = [];

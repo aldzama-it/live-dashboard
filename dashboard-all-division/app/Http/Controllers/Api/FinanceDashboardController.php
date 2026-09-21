@@ -20,12 +20,15 @@ class FinanceDashboardController extends Controller
     }
     public function getApDashboard(Request $request)
     {
+        $asOfDate = $request->query('as_of_date');
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
 
         // Helper closures for filtering dates
-        $filterInvoiceDate = function ($query) use ($startDate, $endDate) {
-            if ($startDate && $endDate) {
+        $filterInvoiceDate = function ($query) use ($asOfDate, $startDate, $endDate) {
+            if ($asOfDate) {
+                $query->where('invoice_date', '<=', $asOfDate);
+            } elseif ($startDate && $endDate) {
                 $query->whereBetween('invoice_date', [$startDate, $endDate]);
             }
         };
@@ -311,14 +314,20 @@ class FinanceDashboardController extends Controller
      */
     public function getApDashboardApi(Request $request)
     {
+        $asOfDate  = $request->query('as_of_date');
         $startDate = $request->query('start_date');
         $endDate   = $request->query('end_date');
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
 
-        $cacheKey = 'ap_dashboard_live_api_' . md5(($startDate ?? '') . '_' . ($endDate ?? ''));
+        $cacheKey = 'ap_dashboard_live_api_' . md5(($asOfDate ?? '') . '_' . ($startDate ?? '') . '_' . ($endDate ?? ''));
 
-        $responseData = Cache::remember($cacheKey, 300, function () use ($startDate, $endDate) {
+        if ($isRefresh) {
+            Cache::forget($cacheKey);
+        }
 
-            $today     = Carbon::now('Asia/Jakarta')->startOfDay();
+        $responseData = Cache::remember($cacheKey, 300, function () use ($asOfDate, $startDate, $endDate) {
+
+            $today     = $asOfDate ? Carbon::parse($asOfDate)->startOfDay() : Carbon::now('Asia/Jakarta')->startOfDay();
             $farPast   = '01/01/2000';
             $farFuture = '31/12/2099';
             $fmt       = fn(Carbon $d) => $d->format('d/m/Y');
@@ -384,18 +393,22 @@ class FinanceDashboardController extends Controller
                         if ($tDate >= $today) {
                             $agingValues['Belum Jatuh Tempo'] += $outstanding;
                         } else {
-                            $dStr = $tDate->format('Y-m-d');
-                            if ($dStr >= '2026-09-03') {
+                            $diffDays = (int)$tDate->diffInDays($today);
+                            if ($diffDays <= 15) {
                                 $agingValues['1 - 15 Hari'] += $outstanding;
-                            } elseif ($dStr >= '2026-08-19') {
+                            } elseif ($diffDays <= 30) {
                                 $agingValues['16 - 30 Hari'] += $outstanding;
-                            } elseif ($dStr >= '2026-07-08') {
+                            } elseif ($diffDays <= 45) {
                                 $agingValues['31 - 45 Hari'] += $outstanding;
+                            } elseif ($diffDays <= 60) {
+                                $agingValues['46 - 60 Hari'] += $outstanding;
                             } else {
                                 $agingValues['> 60 Hari'] += $outstanding;
                             }
                         }
-                    } catch (\Exception $e) {}
+                    } catch (\Exception $e) {
+                        $agingValues['Belum Jatuh Tempo'] += $outstanding;
+                    }
                 } else {
                     $agingValues['Belum Jatuh Tempo'] += $outstanding;
                 }
