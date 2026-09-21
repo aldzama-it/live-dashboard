@@ -87,34 +87,17 @@ class FinanceDashboardController extends Controller
         }
 
         Carbon::setLocale('id'); // Ensure Indonesian month names
-        if ($isSameMonth) {
-            $paymentTrend = (clone $paymentQuery)
-                ->selectRaw('DATE_FORMAT(payment_date, "%Y-%m-%d") as period, SUM(payment_amount) as total')
-                ->groupBy('period')
-                ->orderBy('period', 'asc')
-                ->get()
-                ->map(function ($item) {
-                    $item->total = (float) $item->total;
-                    $item->label = Carbon::parse($item->period)->translatedFormat('d M Y');
-                    return $item;
-                });
-            $trendTitle = "Trend Pembayaran (" . Carbon::parse($minDate)->translatedFormat('F Y') . ")";
-        } else {
-            $paymentTrend = (clone $paymentQuery)
-                ->selectRaw('DATE_FORMAT(payment_date, "%Y-%m") as period, SUM(payment_amount) as total')
-                ->groupBy('period')
-                ->orderBy('period', 'desc')
-                ->limit(6)
-                ->get()
-                ->map(function ($item) {
-                    $item->total = (float) $item->total;
-                    $item->label = Carbon::parse($item->period . '-01')->translatedFormat('M Y');
-                    return $item;
-                })
-                ->reverse()
-                ->values();
-            $trendTitle = "Trend Pembayaran (6 Bulan Terakhir)";
-        }
+        $paymentTrend = (clone $paymentQuery)
+            ->selectRaw('DATE_FORMAT(payment_date, "%Y-%m-%d") as date, DATE_FORMAT(payment_date, "%Y-%m-%d") as period, SUM(payment_amount) as total')
+            ->groupBy('date', 'period')
+            ->orderBy('date', 'asc')
+            ->get()
+            ->map(function ($item) {
+                $item->total = (float) $item->total;
+                $item->label = Carbon::parse($item->date)->translatedFormat('d M Y');
+                return $item;
+            });
+        $trendTitle = "Trend Pembayaran Vendor";
 
         // 5. Invoice List
         $invoices = \App\Models\ApInvoice::where($filterInvoiceDate)->orderByDesc('invoice_date')->get();
@@ -542,16 +525,16 @@ class FinanceDashboardController extends Controller
                             }
                         }
 
-                        $mKey = $pDate->format('Y-m');
-                        $mLabel = $pDate->translatedFormat('M Y');
-                        if (!isset($paymentTrendMap[$mKey])) {
-                            $paymentTrendMap[$mKey] = [
-                                'period' => $mKey,
-                                'label'  => $mLabel,
+                        $dKey = $pDate->format('Y-m-d');
+                        if (!isset($paymentTrendMap[$dKey])) {
+                            $paymentTrendMap[$dKey] = [
+                                'date'   => $dKey,
+                                'period' => $dKey,
+                                'label'  => $pDate->translatedFormat('d M Y'),
                                 'total'  => 0,
                             ];
                         }
-                        $paymentTrendMap[$mKey]['total'] += $amount;
+                        $paymentTrendMap[$dKey]['total'] += $amount;
 
                     } catch (\Exception $e) {}
                 }
@@ -560,19 +543,8 @@ class FinanceDashboardController extends Controller
                 $pmtPage++;
             } while ($pmtPage <= $pmtTotalPg && $pmtPage <= $maxPmtPage);
 
-            $paymentTrend = [];
-            for ($m = 11; $m >= 0; $m--) {
-                $subM = $today->copy()->subMonths($m);
-                $mKey = $subM->format('Y-m');
-                $val = (float)($paymentTrendMap[$mKey]['total'] ?? $paymentTrendMap[$mKey] ?? 0);
-                $paymentTrend[] = [
-                    'period' => $mKey,
-                    'label'  => $subM->translatedFormat('M Y'),
-                    'month'  => $subM->isoFormat('MMM YY'),
-                    'total'  => $val,
-                    'actual' => $val,
-                ];
-            }
+            ksort($paymentTrendMap);
+            $paymentTrend = array_values($paymentTrendMap);
 
             $recentInvoicesColl = collect(array_slice($invoicesFormatted, 0, 5))->map(function($inv) {
                 return [

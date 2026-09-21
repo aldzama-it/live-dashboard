@@ -246,9 +246,16 @@ class ArDashboardController extends Controller
                             }
                         }
 
-                        $mKey = $pDate->format('Y-m');
-                        if (!isset($paymentTrendMap[$mKey])) $paymentTrendMap[$mKey] = 0;
-                        $paymentTrendMap[$mKey] += $amount;
+                        $dKey = $pDate->format('Y-m-d');
+                        if (!isset($paymentTrendMap[$dKey])) {
+                            $paymentTrendMap[$dKey] = [
+                                'date'   => $dKey,
+                                'period' => $dKey,
+                                'label'  => $pDate->translatedFormat('d M Y'),
+                                'total'  => 0,
+                            ];
+                        }
+                        $paymentTrendMap[$dKey]['total'] += $amount;
 
                     } catch (\Exception $e) {}
                 }
@@ -256,19 +263,8 @@ class ArDashboardController extends Controller
                 $pmtPage++;
             } while ($pmtPage <= $maxPmtPage);
 
-            $paymentTrend = [];
-            for ($m = 11; $m >= 0; $m--) {
-                $subM = $today->copy()->subMonths($m);
-                $mKey = $subM->format('Y-m');
-                $val = (float)($paymentTrendMap[$mKey] ?? 0);
-                $paymentTrend[] = [
-                    'period' => $mKey,
-                    'label'  => $subM->translatedFormat('M Y'),
-                    'month'  => $subM->isoFormat('MMM YY'),
-                    'total'  => $val,
-                    'actual' => $val,
-                ];
-            }
+            ksort($paymentTrendMap);
+            $paymentTrend = array_values($paymentTrendMap);
 
             $aktivitasTerbaru = $recentApiPayments;
 
