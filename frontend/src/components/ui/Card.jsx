@@ -5,18 +5,23 @@ export default function Card({ title, children, className = '', delay = 'delay-0
     ? 'cursor-pointer hover:border-primary hover:shadow-md transition-all duration-300' 
     : '';
 
+  const hasHeader = Boolean(title || action);
+
   return (
     <div 
-      className={`bg-white p-3 rounded-xl border border-stroke shadow-sm animate-fade-in-up min-w-0 ${delay} ${interactiveClasses} ${className}`}
+      className={`bg-white rounded-xl border border-stroke shadow-sm animate-fade-in-up min-w-0 flex flex-col overflow-hidden ${delay} ${interactiveClasses} ${className}`}
       onClick={onClick}
     >
-      {(title || action) && (
-        <div className="flex justify-between items-center mb-3 gap-2">
+      {hasHeader && (
+        <div className="flex justify-between items-center px-3 pt-3 pb-2 gap-2 shrink-0 bg-white z-10 border-b border-gray-100">
           {title && <h4 className="text-sm font-bold text-boxdark m-0">{title}</h4>}
           {action && <div className="shrink-0">{action}</div>}
         </div>
       )}
-      {children}
+      <div className="flex-1 p-3 min-h-0 flex flex-col overflow-y-auto">
+        {children}
+      </div>
     </div>
   );
 }
+

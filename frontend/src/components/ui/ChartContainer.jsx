@@ -1,3 +1,4 @@
+import React from 'react';
 import Card from './Card';
 
 export default function ChartContainer({ 
@@ -8,17 +9,9 @@ export default function ChartContainer({
   action = null
 }) {
   return (
-    <Card delay={delay} className={`flex flex-col min-h-[260px] ${className}`}>
-      {(title || action) && (
-        <div className="mb-2 flex items-center justify-between">
-          <h4 className="text-sm font-bold text-boxdark">{title}</h4>
-          {action && <div>{action}</div>}
-        </div>
-      )}
-      
-      <div className="flex-1 w-full relative">
-        {/* The wrapper handles sizing for responsive charting libraries like Recharts */}
-        <div className="absolute inset-0">
+    <Card title={title} action={action} delay={delay} className={`flex flex-col min-h-[260px] ${className}`}>
+      <div className="flex-1 w-full relative min-h-[200px]">
+        <div className="absolute inset-0 flex flex-col">
           {children}
         </div>
       </div>
