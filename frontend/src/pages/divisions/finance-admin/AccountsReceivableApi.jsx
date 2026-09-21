@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
-import DateRangeFilter from '../../../components/ui/DateRangeFilter';
+import AsOfDateFilter from '../../../components/ui/AsOfDateFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -72,11 +72,10 @@ const formatSimpleMoney = (amount) => {
 export default function AccountsReceivableApi({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Menyambungkan ke server Accurate...");
   
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
+  const [asOfDate, setAsOfDate] = useState('');
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -90,27 +89,72 @@ export default function AccountsReceivableApi({ user }) {
     return [...new Set(data.invoices.map(inv => inv.customer).filter(Boolean))].sort();
   }, [data?.invoices]);
 
-  const fetchDashboardData = async () => {
+  // Update Loading Message and Progress
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += (90 - progress) * 0.1; 
+      setLoadingProgress(Math.floor(progress));
+    }, 200);
+
+    const messages = [
+      "Menyambungkan ke server Accurate...",
+      "Mendownload faktur piutang terbaru...",
+      "Memproses perhitungan umur piutang...",
+      "Menyiapkan grafik dan tabel..."
+    ];
+    let msgIndex = 0;
+    const messageInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % messages.length;
+      setLoadingMessage(messages[msgIndex]);
+    }, 1500);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, [isLoading]);
+
+  const fetchDashboardData = async (isRefresh = false) => {
     setIsLoading(true);
+    setLoadingProgress(10);
+    setLoadingMessage("Menyambungkan ke server Accurate...");
     try {
-      const res = await api.get(`/api/finance-dashboard/ar-api?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      let url = `/api/finance-dashboard/ar-api` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      if (isRefresh) {
+        url += (url.includes('?') ? '&' : '?') + 'refresh=true';
+      }
+      const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error('Failed to fetch AR Live API data:', err);
     } finally {
-      setIsLoading(false);
+      setLoadingProgress(100);
+      setTimeout(() => setIsLoading(false), 500);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
-  }, [dateRange]);
+  }, [asOfDate]);
 
   if (isLoading || !data) {
     return (
       <div className="p-6 h-full flex flex-col gap-6 items-center justify-center">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500 font-medium text-sm">Menghubungkan & Memuat Data AR Live API Accurate...</p>
+        
+        <div className="flex flex-col items-center gap-2 w-full max-w-md mt-4">
+          <p className="text-gray-600 font-medium animate-pulse">{loadingMessage}</p>
+          
+          <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+            <div 
+              className="bg-primary h-2.5 rounded-full transition-all duration-300 ease-out" 
+              style={{ width: `${loadingProgress}%` }}
+            ></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -133,6 +177,7 @@ export default function AccountsReceivableApi({ user }) {
   const paymentTrendTitle = data.payment_trend_title || "Trend Penerimaan (6 Bulan Terakhir)";
 
   // Projection labels & data
+  const today = new Date();
   const projectionLabels = [];
   const projectionSeriesData = [0, 0, 0, 0, 0, 0];
   const monthsIndo = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -199,45 +244,39 @@ export default function AccountsReceivableApi({ user }) {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-3">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-stroke shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-boxdark">Accounts Receivable Dashboard (AR)</h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Accurate Live API
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">Monitoring piutang usaha, penerimaan pembayaran, dan aging piutang real-time via Accurate Online.</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <DateRangeFilter 
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            onChange={(start, end) => setDateRange({ startDate: start, endDate: end })}
-          />
+    <div className="flex flex-col gap-2 pb-2">
+      {ReactDOM.createPortal(
+        <div className="flex items-center gap-2">
           <Link
             to="/finance-admin/finance/accurate-guide"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-semibold hover:bg-blue-100 transition"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded shadow-sm transition-colors"
           >
             <BookOpen size={14} />
             Panduan API
           </Link>
           <button
-            onClick={fetchDashboardData}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-opacity-90 transition"
+            onClick={() => fetchDashboardData(true)}
+            title="Muat ulang data langsung dari Accurate API"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded shadow-sm transition-colors cursor-pointer"
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             Refresh
           </button>
-        </div>
-      </div>
+        </div>,
+        document.getElementById('page-header-actions') || document.body
+      )}
+      <AsOfDateFilter asOfDate={asOfDate} onChange={setAsOfDate} />
 
-      {/* Row 1 - KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+      {/* Informational banner when asOfDate is active */}
+      {asOfDate && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <Info size={13} />
+          <span>Menampilkan posisi akumulasi sisa piutang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
         <KpiCard
           title="Total Outstanding Piutang"
           value={formatSimpleMoney(data.kpis?.total_outstanding || 0)}

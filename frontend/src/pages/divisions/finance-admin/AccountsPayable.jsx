@@ -4,7 +4,7 @@ import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCa
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
-import DateRangeFilter from '../../../components/ui/DateRangeFilter';
+import AsOfDateFilter from '../../../components/ui/AsOfDateFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -72,10 +72,7 @@ export default function AccountsPayable({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
+  const [asOfDate, setAsOfDate] = useState('');
   
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
@@ -98,8 +95,8 @@ export default function AccountsPayable({ user }) {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Pass date filters if needed for future API updates
-      const res = await api.get(`/api/finance-dashboard/ap?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      const url = `/api/finance-dashboard/ap` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error(err);
@@ -110,7 +107,7 @@ export default function AccountsPayable({ user }) {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [dateRange]);
+  }, [asOfDate]);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
@@ -240,7 +237,13 @@ export default function AccountsPayable({ user }) {
         ),
         document.getElementById('page-header-actions') || document.body
       )}
-      <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
+      <AsOfDateFilter asOfDate={asOfDate} onChange={setAsOfDate} />
+      {asOfDate && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <Info size={13} />
+          <span>Menampilkan posisi akumulasi sisa utang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">

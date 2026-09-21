@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
-import DateRangeFilter from '../../../components/ui/DateRangeFilter';
+import AsOfDateFilter from '../../../components/ui/AsOfDateFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -75,9 +75,7 @@ export default function AccountsPayableApi({ user }) {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Menyambungkan ke server Accurate...");
   
-  // Default: tidak ada filter tanggal, tampilkan SEMUA invoice OUTSTANDING
-  // Jika user set filter tanggal, maka akan filter by transDate (tgl faktur)
-  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+  const [asOfDate, setAsOfDate] = useState('');
   
   // Pagination, Filtering & Sorting state
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,12 +106,11 @@ export default function AccountsPayableApi({ user }) {
       "Memproses perhitungan umur utang...",
       "Menyiapkan grafik dan tabel..."
     ];
-    let messageIndex = 0;
-    
+    let msgIndex = 0;
     const messageInterval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % messages.length;
-      setLoadingMessage(messages[messageIndex]);
-    }, 2000);
+      msgIndex = (msgIndex + 1) % messages.length;
+      setLoadingMessage(messages[msgIndex]);
+    }, 1500);
 
     return () => {
       clearInterval(progressInterval);
@@ -121,14 +118,17 @@ export default function AccountsPayableApi({ user }) {
     };
   }, [isLoading]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     setIsLoading(true);
+    setLoadingProgress(10);
+    setLoadingMessage("Menyambungkan ke server Accurate...");
     try {
-      // Jika ada filter tanggal, kirim sebagai query param (filter by transDate / tgl faktur)
-      // Jika tidak ada, backend akan ambil SEMUA invoice OUTSTANDING (termasuk saldo lama)
       let url = '/api/finance-dashboard/ap-api';
-      if (dateRange.startDate && dateRange.endDate) {
-        url += `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`;
+      if (asOfDate) {
+        url += `?as_of_date=${asOfDate}`;
+      }
+      if (isRefresh) {
+        url += (url.includes('?') ? '&' : '?') + 'refresh=true';
       }
       const res = await api.get(url);
       setData(res.data);
@@ -142,7 +142,7 @@ export default function AccountsPayableApi({ user }) {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [dateRange]);
+  }, [asOfDate]);
 
   if (isLoading) {
     return (
@@ -282,7 +282,7 @@ export default function AccountsPayableApi({ user }) {
             Panduan API
           </Link>
           <button
-            onClick={fetchDashboardData}
+            onClick={() => fetchDashboardData(true)}
             title="Muat ulang data langsung dari Accurate API"
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded shadow-sm transition-colors"
           >
@@ -292,14 +292,14 @@ export default function AccountsPayableApi({ user }) {
         </div>,
         document.getElementById('page-header-actions') || document.body
       )}
-      <DateRangeFilter 
-        dateRange={dateRange} 
-        onChange={(range) => { setDateRange(range); setCurrentPage(1); }} 
+      <AsOfDateFilter 
+        asOfDate={asOfDate} 
+        onChange={(date) => { setAsOfDate(date); setCurrentPage(1); }} 
       />
-      {dateRange.startDate && dateRange.endDate && (
+      {asOfDate && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
           <Info size={13} />
-          <span>Filter tanggal diterapkan pada <strong>Tgl Faktur</strong>. Invoice lama (Saldo Utang dari periode sebelumnya) tidak ditampilkan. <button className="underline font-semibold ml-1" onClick={() => setDateRange({ startDate: '', endDate: '' })}>Hapus filter</button> untuk melihat semua outstanding.</span>
+          <span>Menampilkan posisi akumulasi sisa utang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
         </div>
       )}
 
