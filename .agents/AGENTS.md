@@ -604,5 +604,10 @@ When adding a new division or dashboard that needs to connect to the Synology NA
 3. Always map the new file and importer inside `config/synology.php` under the `divisions` array.
 4. Utilize the existing `App\Services\SynologySyncService` and `synology:sync` command.
 5. Reference the established `synology_sync_guide.md` if further clarification is needed.
- 
- 
+
+# 17. Browser & Scratchpad Rules
+
+* **Jangan Pernah membuka scratchpad** atau membuat file scratchpad yang tidak perlu.
+* **Jangan Pernah membuka browser atau browser subagent lain** secara otomatis kecuali jika diminta secara eksplisit oleh user.
+ 
+ 

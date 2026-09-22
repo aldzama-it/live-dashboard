@@ -39,6 +39,7 @@ import AccountsReceivable from './divisions/finance-admin/AccountsReceivable';
 import AccountsReceivableApi from './divisions/finance-admin/AccountsReceivableApi';
 import Tax from './divisions/finance-admin/Tax';
 import TaxApi from './divisions/finance-admin/TaxApi';
+import FinancialStatement from './divisions/finance-admin/FinancialStatement';
 import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
@@ -481,12 +482,8 @@ export default function Dashboard({ user, setUser }) {
             <Route path="/general-affairs/external-relation/overview" element={<ExternalRelation user={user} />} />
             <Route path="/general-affairs/export-import/overview" element={<ExportImport user={user} />} />
 
-            <Route path="/finance-admin/finance/overview" element={<Finance user={user} />} />
-            <Route path="/finance-admin/finance/ap" element={
-              <ErrorBoundary>
-                <AccountsPayable user={user} />
-              </ErrorBoundary>
-            } />
+            <Route path="/finance-admin/finance/overview" element={<Navigate to="/finance-admin/finance/ap-api" replace />} />
+            <Route path="/finance-admin/finance/ap" element={<Navigate to="/finance-admin/finance/ap-api" replace />} />
             <Route path="/finance-admin/finance/ap-api" element={
               <ErrorBoundary>
                 <AccountsPayableApi user={user} />
@@ -497,24 +494,21 @@ export default function Dashboard({ user, setUser }) {
                 <AccurateApiGuide user={user} />
               </ErrorBoundary>
             } />
-            <Route path="/finance-admin/finance/ar" element={
-              <ErrorBoundary>
-                <AccountsReceivable user={user} />
-              </ErrorBoundary>
-            } />
+            <Route path="/finance-admin/finance/ar" element={<Navigate to="/finance-admin/finance/ar-api" replace />} />
             <Route path="/finance-admin/finance/ar-api" element={
               <ErrorBoundary>
                 <AccountsReceivableApi user={user} />
               </ErrorBoundary>
             } />
-            <Route path="/finance-admin/finance/tax" element={
-              <ErrorBoundary>
-                <Tax user={user} />
-              </ErrorBoundary>
-            } />
+            <Route path="/finance-admin/finance/tax" element={<Navigate to="/finance-admin/finance/tax-api" replace />} />
             <Route path="/finance-admin/finance/tax-api" element={
               <ErrorBoundary>
                 <TaxApi user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/financial-statement" element={
+              <ErrorBoundary>
+                <FinancialStatement user={user} />
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
