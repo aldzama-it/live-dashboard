@@ -4,7 +4,8 @@ import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCa
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
-import DateRangeFilter from '../../../components/ui/DateRangeFilter';
+import AsOfDateFilter from '../../../components/ui/AsOfDateFilter';
+import DashboardLoader from '../../../components/ui/DashboardLoader';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -44,6 +45,19 @@ const getCurrencyFlag = (currency) => {
   );
 };
 
+const formatCurrencyAmount = (amount, currency) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '0';
+  const num = Number(amount);
+  const code = (currency || '').toUpperCase();
+  if (code.includes('USD') || code.includes('DOLLAR')) return `$ ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('CNY') || code.includes('YUAN') || code.includes('RMB')) return `¥ ${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('EUR') || code.includes('EURO')) return `€ ${num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('JPY') || code.includes('YEN')) return `¥ ${num.toLocaleString('ja-JP', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  if (code.includes('SGD')) return `S$ ${num.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (code.includes('GBP')) return `£ ${num.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rp ${num.toLocaleString('id-ID')}`;
+};
+
 const formatFullMoney = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
   const num = Number(amount);
@@ -53,17 +67,26 @@ const formatFullMoney = (amount) => {
 const formatSimpleMoney = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
   const num = Number(amount);
-  if (Math.abs(num) >= 1_000_000_000) {
+  const absNum = Math.abs(num);
+  if (absNum >= 1_000_000_000_000) {
+    const val = num / 1_000_000_000_000;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} T`;
+  }
+  if (absNum >= 1_000_000_000) {
     const val = num / 1_000_000_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Miliar`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} M`;
   }
-  if (Math.abs(num) >= 1_000_000) {
+  if (absNum >= 1_000_000) {
     const val = num / 1_000_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Juta`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} Jt`;
   }
-  if (Math.abs(num) >= 1_000) {
+  if (absNum >= 1_000) {
     const val = num / 1_000;
-    return `Rp ${val % 1 === 0 ? val : val.toFixed(1)} Ribu`;
+    const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+    return `Rp ${formatted} Rb`;
   }
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
@@ -72,10 +95,8 @@ export default function AccountsReceivable({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
+  const [asOfDate, setAsOfDate] = useState('');
+  const [trendRange, setTrendRange] = useState(6);
   
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
@@ -98,8 +119,8 @@ export default function AccountsReceivable({ user }) {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Pass date filters if needed for future ARI updates
-      const res = await api.get(`/api/finance-dashboard/ar?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      const url = `/api/finance-dashboard/ar` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error(err);
@@ -110,7 +131,7 @@ export default function AccountsReceivable({ user }) {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [dateRange]);
+  }, [asOfDate]);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
@@ -126,12 +147,40 @@ export default function AccountsReceivable({ user }) {
     }
   };
 
+  const trendFilteredData = useMemo(() => {
+    const raw = data?.payment_trend || [];
+    if (!raw.length) return [];
+
+    let maxDate = new Date();
+    raw.forEach(item => {
+      const dStr = item.date || item.period;
+      if (dStr) {
+        const d = new Date(dStr);
+        if (!isNaN(d.getTime()) && d > maxDate) {
+          maxDate = d;
+        }
+      }
+    });
+
+    const cutoff = new Date(maxDate);
+    cutoff.setMonth(cutoff.getMonth() - Number(trendRange));
+    const cutoffStr = cutoff.toISOString().substring(0, 10);
+
+    const filtered = raw.filter(item => {
+      const dStr = item.date || item.period;
+      return dStr && dStr >= cutoffStr;
+    });
+
+    return filtered.length > 0 ? filtered : raw;
+  }, [data?.payment_trend, trendRange]);
+
   if (isLoading || !data) {
     return (
-      <div className="p-6 h-full flex flex-col gap-6 items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500">Memuat data Dashboard Piutang...</p>
-      </div>
+      <DashboardLoader 
+        title="Dashboard Piutang (AR)"
+        message="Memuat data sisa piutang dan histori pembayaran..."
+        icon={RefreshCw}
+      />
     );
   }
 
@@ -146,13 +195,14 @@ export default function AccountsReceivable({ user }) {
   const topPelanggansLabels = data.top_customers?.map(v => v.name) || [];
 
   const paymentTrendSeries = [{
-    name: 'Total Pembayaran',
-    data: data.payment_trend?.map(p => p.total) || []
+    name: 'Total Penerimaan',
+    data: trendFilteredData.map(p => ({
+      x: new Date(p.date || p.period).getTime(),
+      y: Number(p.total ?? p.actual ?? 0)
+    }))
   }];
   
-  // Gunakan label format dari backend (bulanan/harian otomatis)
-  const paymentTrendLabels = data.payment_trend?.map(p => p.label || p.period) || [];
-  const paymentTrendTitle = data.payment_trend_title || 'Trend Pembayaran (6 Bulan Terakhir)';
+  const paymentTrendTitle = trendRange === 1 ? 'Trend Penerimaan (1 Bulan Terakhir)' : `Trend Penerimaan (${trendRange} Bulan Terakhir)`;
 
   // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
   const projectionMap = {};
@@ -192,11 +242,10 @@ export default function AccountsReceivable({ user }) {
     if (statusFilter !== 'all') {
       const age = parseInt(inv.age_days || 0);
       if (statusFilter === 'not_due' && age > 0) return false;
-      if (statusFilter === 'due_1_15' && (age < 1 || age > 15)) return false;
-      if (statusFilter === 'due_16_30' && (age < 16 || age > 30)) return false;
-      if (statusFilter === 'due_31_45' && (age < 31 || age > 45)) return false;
-      if (statusFilter === 'due_46_60' && (age < 46 || age > 60)) return false;
-      if (statusFilter === 'due_60_plus' && age <= 60) return false;
+      if (statusFilter === 'due_1_30' && (age < 1 || age > 30)) return false;
+      if (statusFilter === 'due_31_60' && (age < 31 || age > 60)) return false;
+      if (statusFilter === 'due_61_90' && (age < 61 || age > 90)) return false;
+      if (statusFilter === 'due_90_plus' && age <= 90) return false;
     }
 
     if (customerFilter !== 'all' && inv.customer !== customerFilter) {
@@ -240,7 +289,13 @@ export default function AccountsReceivable({ user }) {
         ),
         document.getElementById('page-header-actions') || document.body
       )}
-      <DateRangeFilter dateRange={dateRange} onChange={setDateRange} />
+      <AsOfDateFilter asOfDate={asOfDate} onChange={setAsOfDate} />
+      {asOfDate && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <Info size={13} />
+          <span>Menampilkan posisi akumulasi sisa piutang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
@@ -281,233 +336,261 @@ export default function AccountsReceivable({ user }) {
         />
       </div>
 
-      {/* Charts Section - Combined Row 2 & 3 */}
+      {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
-        
-        {/* Left Columns */}
-        <div className="lg:col-span-2 flex flex-col gap-2">
-          
-          {/* Top Half (Aging & Trend) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {/* Aging Donut Chart */}
-            <ChartContainer title="Aging Piutang" className="h-[300px]">
-              <div className="h-full w-full flex items-center justify-center">
-                {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
-                  <Chart
-                    options={{
-                      labels: agingLabels,
-                      colors: ['#10B981', '#F59E0B', '#F97316', '#EF4444', '#B91C1C', '#7F1D1D'],
-                      plotOptions: {
-                        pie: { donut: { size: '65%' } }
-                      },
-                      dataLabels: { enabled: false },
-                      legend: {
-                        position: 'bottom',
-                        fontSize: '10px',
-                        markers: { radius: 12 }
-                      },
-                      tooltip: {
-                        y: { formatter: (val) => {
-                          const total = agingSeries.reduce((a,b)=>a+b, 0);
-                          const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                          return `${formatFullMoney(val)} (${pct}%)`;
-                        } }
-                      }
-                    }}
-                    series={agingSeries}
-                    type="donut"
-                    height="100%"
-                  />
-                ) : (
-                  <p className="text-gray-400 text-sm">Tidak ada data aging.</p>
-                )}
-              </div>
-            </ChartContainer>
-
-            {/* Payment Trend Line Chart */}
-            <ChartContainer title={paymentTrendTitle} className="h-[300px]">
-              <div className="h-full w-full">
-                <Chart
-                  options={{
-                    chart: { toolbar: { show: false } },
-                    colors: ['#3C50E0'],
-                    stroke: { curve: 'smooth', width: 2 },
-                    xaxis: { 
-                      categories: paymentTrendLabels,
-                      labels: { style: { fontSize: '9px' } }
-                    },
-                    yaxis: { 
-                      labels: { 
-                        style: { fontSize: '9px' },
-                        formatter: (val) => formatSimpleMoney(val)
-                      } 
-                    },
-                    dataLabels: { enabled: false },
-                    tooltip: {
-                      y: { formatter: (val) => formatSimpleMoney(val) }
-                    },
-                    grid: { borderColor: '#E2E8F0', strokeDashArray: 4 }
-                  }}
-                  series={paymentTrendSeries}
-                  type="area"
-                  height="100%"
-                />
-              </div>
-            </ChartContainer>
-          </div>
-          {/* Top Pelanggans Bar Chart */}
-          <ChartContainer title="Top 5 Pelanggan (Sisa Piutang)" className="h-[280px]">
-            <div className="h-full w-full">
-               <Chart
-                  options={{
-                    chart: { toolbar: { show: false } },
-                    colors: ['#3B82F6'], // Standard blue like PDF
-                    plotOptions: {
-                      bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'top' } }
-                    },
-                    dataLabels: { 
-                      enabled: true,
-                      formatter: (val) => formatSimpleMoney(val),
-                      offsetX: 30,
-                      style: { fontSize: '9px', colors: ['#64748B'] }
-                    },
-                    xaxis: { categories: topPelanggansLabels, labels: { show: false } },
-                    yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
-                    grid: { show: false },
-                    tooltip: {
-                      y: { formatter: (val) => formatSimpleMoney(val) }
-                    }
-                  }}
-                  series={topPelanggansSeries}
-                  type="bar"
-                  height="100%"
-                />
-            </div>
-          </ChartContainer>
-
-          {/* Proyeksi Jatuh Tempo Chart */}
-          <ChartContainer title="Proyeksi Jatuh Tempo (6 Bln)" className="h-[280px]">
-            <div className="h-full w-full">
+        {/* Aging Donut Chart */}
+        <ChartContainer title="Aging Piutang" className="h-[315px]">
+          <div className="h-full w-full flex items-center justify-center">
+            {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
               <Chart
                 options={{
-                  chart: { toolbar: { show: false } },
-                  colors: ['#F59E0B'], // Amber
+                  labels: agingLabels,
+                  colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
                   plotOptions: {
-                    bar: { borderRadius: 4, dataLabels: { position: 'top' } }
+                    pie: { donut: { size: '65%' } }
                   },
-                  dataLabels: { 
-                    enabled: true,
-                    formatter: (val) => {
-                      if(val === 0) return '';
-                      if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(1) + 'M';
-                      return (val/1_000_000).toFixed(0) + 'jt';
-                    },
-                    offsetY: -20,
-                    style: { fontSize: '9px', colors: ['#64748B'] }
+                  dataLabels: { enabled: false },
+                  legend: {
+                    position: 'bottom',
+                    fontSize: '10px',
+                    markers: { radius: 12 }
                   },
-                  xaxis: { 
-                    categories: projectionLabels,
-                    labels: { style: { fontSize: '9px' } }
-                  },
-                  yaxis: { 
-                    labels: { 
-                      style: { fontSize: '9px' },
-                      formatter: (val) => {
-                        if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(0) + 'M';
-                        return (val/1_000_000).toFixed(0) + 'jt';
-                      }
-                    } 
-                  },
-                  grid: { borderColor: '#E2E8F0', strokeDashArray: 4 },
                   tooltip: {
-                    y: { formatter: (val) => formatSimpleMoney(val) }
+                    y: { formatter: (val) => {
+                      const total = agingSeries.reduce((a,b)=>a+b, 0);
+                      const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                      return `${formatFullMoney(val)} (${pct}%)`;
+                    } }
                   }
                 }}
-                series={projectionSeries}
-                type="bar"
+                series={agingSeries}
+                type="donut"
                 height="100%"
               />
-            </div>
-          </ChartContainer>
-        </div>
+            ) : (
+              <p className="text-gray-400 text-sm">Tidak ada data aging.</p>
+            )}
+          </div>
+        </ChartContainer>
 
-        {/* Right Column (Alerts & Activities) */}
-        <div className="lg:col-span-1 flex flex-col gap-2">
-          
+        {/* Payment Trend Line Chart */}
+        <ChartContainer 
+          title={paymentTrendTitle} 
+          className="h-[315px]"
+          action={
+            <select
+              value={trendRange}
+              onChange={(e) => setTrendRange(Number(e.target.value))}
+              className="text-[11px] border border-gray-200 rounded px-1.5 py-0.5 bg-white text-gray-700 outline-none focus:border-primary cursor-pointer font-medium"
+            >
+              <option value={1}>1 Bulan</option>
+              <option value={3}>3 Bulan</option>
+              <option value={6}>6 Bulan</option>
+              <option value={12}>12 Bulan</option>
+            </select>
+          }
+        >
+          <div className="h-full w-full">
+            <Chart
+              options={{
+                chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false } },
+                colors: ['#10B981'],
+                stroke: { curve: 'smooth', width: 2 },
+                fill: {
+                  type: 'gradient',
+                  gradient: {
+                    shadeIntensity: 1,
+                    opacityFrom: 0.35,
+                    opacityTo: 0.05,
+                    stops: [0, 90, 100]
+                  }
+                },
+                markers: {
+                  size: 4,
+                  hover: { size: 6 }
+                },
+                xaxis: { 
+                  type: 'datetime',
+                  labels: { 
+                    style: { fontSize: '9px' },
+                    datetimeUTC: false,
+                    format: trendRange === 1 ? 'dd MMM' : 'MMM yyyy'
+                  }
+                },
+                yaxis: { 
+                  labels: { 
+                    style: { fontSize: '9px' },
+                    formatter: (val) => formatSimpleMoney(val)
+                  } 
+                },
+                dataLabels: { enabled: false },
+                tooltip: {
+                  x: { format: 'dd MMMM yyyy' },
+                  y: { formatter: (val) => formatFullMoney(val) }
+                },
+                grid: { borderColor: '#E2E8F0', strokeDashArray: 4 }
+              }}
+              series={paymentTrendSeries}
+              type="area"
+              height="100%"
+            />
+          </div>
+        </ChartContainer>
+
+        {/* Right Column Top - Peringatan & Ringkasan AR per Mata Uang */}
+        <div className="flex flex-col gap-2 h-[315px]">
           {/* Peringatan */}
           <Card title="Peringatan" className="shrink-0">
-            <div className="flex flex-col gap-2 p-4">
+            <div className="flex flex-col gap-1 p-0.5">
               {data.peringatan?.length > 0 ? data.peringatan.map((p, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded border ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
-                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-xs">{p.message}</span>
-                    {p.sub_message && <span className="text-[10px] mt-0.5 font-medium opacity-80">{p.sub_message}</span>}
+                <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 rounded border ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
+                  <AlertCircle size={14} className="shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-semibold text-xs leading-tight">{p.message}</span>
+                    {p.sub_message && <span className="text-[10px] font-medium opacity-80 leading-tight">{p.sub_message}</span>}
                   </div>
                 </div>
               )) : (
-                <p className="text-sm text-gray-500 text-center py-4">Tidak ada peringatan.</p>
+                <p className="text-xs text-gray-400 text-center py-1">Tidak ada peringatan.</p>
               )}
             </div>
           </Card>
 
           {/* Ringkasan AR per Mata Uang */}
-          <Card title="Ringkasan AR per Mata Uang" className="shrink-0">
-            <div className="px-4 py-2">
-              <table className="w-full text-left text-sm text-gray-500">
+          <Card title="Ringkasan AR per Mata Uang" className="flex-1 flex flex-col min-h-0">
+            <div className="px-1 py-0.5">
+              <table className="w-full text-left text-xs text-gray-500">
                 <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
                   <tr>
-                    <th className="px-2 py-2 font-medium">Mata Uang</th>
-                    <th className="px-2 py-2 font-medium text-right">Total Outstanding</th>
-                    <th className="px-2 py-2 font-medium text-right">%</th>
+                    <th className="px-2 py-1 font-medium">Mata Uang</th>
+                    <th className="px-2 py-1 font-medium text-right">Total Outstanding</th>
+                    <th className="px-2 py-1 font-medium text-right">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.ringkasan_mata_uang?.map((row, idx) => (
                     <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="px-2 py-2 font-medium text-boxdark whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <td className="px-2 py-1 font-medium text-boxdark whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
                           {getCurrencyFlag(row.currency)}
                           <span>{getCurrencyCode(row.currency)}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap">Rp {parseFloat(row.total).toLocaleString('id-ID')}</td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap">{row.percentage}%</td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap">{row.percentage}%</td>
                     </tr>
                   ))}
                   {/* Total row */}
                   <tr className="bg-gray-50 font-bold text-boxdark">
-                    <td className="px-2 py-2 whitespace-nowrap">Total</td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap">100%</td>
+                    <td className="px-2 py-1 whitespace-nowrap">Total Equivalent</td>
+                    <td className="px-2 py-1 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
+                    <td className="px-2 py-1 text-right whitespace-nowrap">100%</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </Card>
-
-          {/* Aktivitas AR Terbaru */}
-          <Card title="Aktivitas AR Terbaru" className="h-[280px] flex flex-col shrink-0">
-            <div className="flex-1 flex flex-col px-4 py-2 overflow-y-auto min-h-0">
-              {data.aktivitas_terbaru?.length > 0 ? data.aktivitas_terbaru.map((act, i) => (
-                <div key={i} className="flex flex-col border-b border-stroke py-3 last:border-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] text-gray-400 font-medium">{act.date}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded text-${act.color} bg-${act.color}/10`}>
-                      {act.type}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-end gap-2">
-                    <span className="text-xs font-medium text-boxdark leading-tight line-clamp-2">{act.description}</span>
-                    <span className="text-xs font-bold text-boxdark shrink-0">Rp {parseFloat(act.amount).toLocaleString('id-ID')}</span>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-sm text-gray-500 text-center py-4">Tidak ada aktivitas.</p>
-              )}
-            </div>
-          </Card>
         </div>
+      </div>
+
+      {/* Row 2 - Top 5 Pelanggan, Proyeksi Jatuh Tempo & Aktivitas AR Terbaru */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
+        {/* Top Pelanggans Bar Chart */}
+        <ChartContainer title="Top 5 Pelanggan (Sisa Piutang)" className="h-[290px]">
+          <div className="h-full w-full">
+             <Chart
+                options={{
+                  chart: { toolbar: { show: false } },
+                  colors: ['#3B82F6'], // Standard blue like PDF
+                  plotOptions: {
+                    bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'top' } }
+                  },
+                  dataLabels: { 
+                    enabled: true,
+                    formatter: (val) => formatSimpleMoney(val),
+                    offsetX: 30,
+                    style: { fontSize: '9px', colors: ['#64748B'] }
+                  },
+                  xaxis: { categories: topPelanggansLabels, labels: { show: false } },
+                  yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
+                  grid: { show: false },
+                  tooltip: {
+                    y: { formatter: (val) => formatSimpleMoney(val) }
+                  }
+                }}
+                series={topPelanggansSeries}
+                type="bar"
+                height="100%"
+              />
+          </div>
+        </ChartContainer>
+
+        {/* Proyeksi Jatuh Tempo Chart */}
+        <ChartContainer title="Proyeksi Jatuh Tempo (6 Bln)" className="h-[290px]">
+          <div className="h-full w-full">
+            <Chart
+              options={{
+                chart: { toolbar: { show: false } },
+                colors: ['#F59E0B'], // Amber
+                plotOptions: {
+                  bar: { borderRadius: 4, dataLabels: { position: 'top' } }
+                },
+                dataLabels: { 
+                  enabled: true,
+                  formatter: (val) => {
+                    if(val === 0) return '';
+                    if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(1) + 'M';
+                    return (val/1_000_000).toFixed(0) + 'jt';
+                  },
+                  offsetY: -20,
+                  style: { fontSize: '9px', colors: ['#64748B'] }
+                },
+                xaxis: { 
+                  categories: projectionLabels,
+                  labels: { style: { fontSize: '9px' } }
+                },
+                yaxis: { 
+                  labels: { 
+                    style: { fontSize: '9px' },
+                    formatter: (val) => {
+                      if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(0) + 'M';
+                      return (val/1_000_000).toFixed(0) + 'jt';
+                    }
+                  } 
+                },
+                grid: { borderColor: '#E2E8F0', strokeDashArray: 4 },
+                tooltip: {
+                  y: { formatter: (val) => formatSimpleMoney(val) }
+                }
+              }}
+              series={projectionSeries}
+              type="bar"
+              height="100%"
+            />
+          </div>
+        </ChartContainer>
+
+        {/* Aktivitas AR Terbaru */}
+        <Card title="Aktivitas AR Terbaru" className="h-[290px] flex flex-col">
+          <div className="flex-1 flex flex-col px-4 py-2 overflow-y-auto min-h-0">
+            {data.aktivitas_terbaru?.length > 0 ? data.aktivitas_terbaru.map((act, i) => (
+              <div key={i} className="flex flex-col border-b border-stroke py-3 last:border-0">
+                <div className="flex justify-between items-start mb-1">
+                  <span className="text-[10px] text-gray-400 font-medium">{act.date}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded text-${act.color} bg-${act.color}/10`}>
+                    {act.type}
+                  </span>
+                </div>
+                <div className="flex justify-between items-end gap-2">
+                  <span className="text-xs font-medium text-boxdark leading-tight line-clamp-2">{act.description}</span>
+                  <span className="text-xs font-bold text-boxdark shrink-0">Rp {parseFloat(act.amount).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500 text-center py-4">Tidak ada aktivitas.</p>
+            )}
+          </div>
+        </Card>
       </div>
 
       {/* Row 4 - Table */}
@@ -533,11 +616,10 @@ export default function AccountsReceivable({ user }) {
             >
               <option value="all">Semua Status</option>
               <option value="not_due">Belum Jatuh Tempo</option>
-              <option value="due_1_15">Jatuh Tempo (1-15 Hari)</option>
-              <option value="due_16_30">Jatuh Tempo (16-30 Hari)</option>
-              <option value="due_31_45">Jatuh Tempo (31-45 Hari)</option>
-              <option value="due_46_60">Jatuh Tempo (46-60 Hari)</option>
-              <option value="due_60_plus">Jatuh Tempo (&gt;60 Hari)</option>
+              <option value="due_1_30">Jatuh Tempo (1-30 Hari)</option>
+              <option value="due_31_60">Jatuh Tempo (31-60 Hari)</option>
+              <option value="due_61_90">Jatuh Tempo (61-90 Hari)</option>
+              <option value="due_90_plus">Jatuh Tempo (&gt;90 Hari)</option>
             </select>
             <div className="relative w-64">
               <input 

@@ -36,7 +36,9 @@ import AccountsPayable from './divisions/finance-admin/AccountsPayable';
 import AccountsPayableApi from './divisions/finance-admin/AccountsPayableApi';
 import AccurateApiGuide from './divisions/finance-admin/AccurateApiGuide';
 import AccountsReceivable from './divisions/finance-admin/AccountsReceivable';
+import AccountsReceivableApi from './divisions/finance-admin/AccountsReceivableApi';
 import Tax from './divisions/finance-admin/Tax';
+import TaxApi from './divisions/finance-admin/TaxApi';
 import HRD from './divisions/finance-admin/HRD';
 import QMSAudit from './divisions/finance-admin/QMSAudit';
 import Legal from './divisions/finance-admin/Legal';
@@ -220,31 +222,37 @@ export default function Dashboard({ user, setUser }) {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-      {/* Mobile Overlay */}
+      {/* Backdrop Overlay for expanded sidebar (Mobile & Desktop) */}
       {!isCollapsed && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in-up"
-          style={{ animationDuration: '0.2s', transform: 'none' }}
+          className="fixed inset-0 bg-black/30 z-40 animate-fade-in transition-opacity"
+          style={{ animationDuration: '0.2s' }}
           onClick={() => setIsCollapsed(true)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Mini Sidebar Placeholder for Desktop (keeps Main Content width 100% constant) */}
+      <div className="hidden md:block w-20 h-full shrink-0 bg-white border-r border-stroke" />
+
+      {/* Sidebar (Fixed Overlay Drawer when expanded, Mini on desktop when collapsed) */}
       <aside
-        className={`bg-white border-r border-stroke text-boxdark flex flex-col transition-all duration-300 ease-in-out absolute md:relative z-50 md:z-30 h-full ${isCollapsed ? '-translate-x-full md:translate-x-0 md:w-20' : 'translate-x-0 w-72'
-          }`}
+        className={`bg-white border-r border-stroke text-boxdark flex flex-col transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 h-full ${
+          isCollapsed
+            ? '-translate-x-full md:translate-x-0 md:w-20'
+            : 'translate-x-0 w-72 shadow-2xl'
+        }`}
       >
-        <div className="p-2 text-center border-b border-stroke flex items-center justify-center h-[76px]">
+        <div className="p-2 text-center border-b border-stroke flex items-center justify-between h-[76px] px-3">
           {!isCollapsed ? (
-            <div className="flex items-center gap-3 w-full justify-start pl-2">
-              <img src="/Symbol.png" alt="PT Aldzama" className="w-15 h-15 object-contain" />
-              <h2 className="text-lg font-bold text-boxdark text-left leading-tight">
+            <div className="flex items-center gap-3 w-full justify-start pl-1">
+              <img src="/Symbol.png" alt="PT Aldzama" className="w-12 h-12 object-contain shrink-0" />
+              <h2 className="text-base font-bold text-boxdark text-left leading-tight">
                 Dashboard<br />
-                <span className="text-sm font-normal text-body">PT ALDZAMA</span>
+                <span className="text-xs font-normal text-body">PT. Aldzama</span>
               </h2>
             </div>
           ) : (
-            <img src="/Symbol.png" alt="PT Aldzama" className="w-9 h-9 object-contain" />
+            <img src="/Symbol.png" alt="PT Aldzama" className="w-9 h-9 object-contain mx-auto" />
           )}
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
@@ -254,13 +262,7 @@ export default function Dashboard({ user, setUser }) {
             className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all mb-4 ${location.pathname === '/' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-primary'
               }`}
             title="Main Dashboard"
-            onClick={() => {
-              if (isCollapsed && window.innerWidth >= 768) {
-                setIsCollapsed(false);
-              } else if (window.innerWidth < 768) {
-                setIsCollapsed(true);
-              }
-            }}
+            onClick={() => setIsCollapsed(true)}
           >
             <div className="flex-shrink-0">
               <LayoutDashboard size={20} />
@@ -329,9 +331,7 @@ export default function Dashboard({ user, setUser }) {
                                   <Link
                                     key={pageIndex}
                                     to={pagePath}
-                                    onClick={() => {
-                                      if (window.innerWidth < 768) setIsCollapsed(true);
-                                    }}
+                                    onClick={() => setIsCollapsed(true)}
                                     className={`py-1.5 px-3 rounded-md text-sm transition-all ${isPageActive
                                       ? 'bg-primary text-white font-medium'
                                       : 'text-gray-500 hover:text-primary hover:bg-gray-100'
@@ -502,9 +502,19 @@ export default function Dashboard({ user, setUser }) {
                 <AccountsReceivable user={user} />
               </ErrorBoundary>
             } />
+            <Route path="/finance-admin/finance/ar-api" element={
+              <ErrorBoundary>
+                <AccountsReceivableApi user={user} />
+              </ErrorBoundary>
+            } />
             <Route path="/finance-admin/finance/tax" element={
               <ErrorBoundary>
                 <Tax user={user} />
+              </ErrorBoundary>
+            } />
+            <Route path="/finance-admin/finance/tax-api" element={
+              <ErrorBoundary>
+                <TaxApi user={user} />
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
