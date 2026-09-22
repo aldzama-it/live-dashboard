@@ -299,6 +299,32 @@ export default function TaxApi({ user }) {
   const donutLabels = ['PPN', 'PPh 23', 'PPh 21', 'PPh 4(2)', 'PPh 22'];
   const donutColors = ['#3C50E0', '#10B981', '#F59E0B', '#F97316', '#EF4444'];
 
+  const displayDonutSeries = donutSeries.map((val, idx) => {
+    const label = donutLabels[idx];
+    return hiddenDonutSeries.has(label) ? 0 : val;
+  });
+
+  const donutChartOptions = {
+    chart: { type: 'donut', toolbar: { show: false } },
+    labels: donutLabels,
+    colors: donutColors,
+    stroke: { width: 2, colors: ['#ffffff'] },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '60%',
+          labels: { show: false }
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    tooltip: { 
+      enabled: true,
+      y: { formatter: (val) => formatCurrency(val) } 
+    }
+  };
+
   // Real Stat Counts
   const totalFakturPajak = invoices.length;
   const totalBuktiPotong = pphRecords.length;
@@ -551,28 +577,9 @@ export default function TaxApi({ user }) {
           
           <div className="h-[160px] w-full relative">
             <Chart
-              ref={donutChartRef}
-              options={{
-                chart: { type: 'donut', toolbar: { show: false } },
-                labels: donutLabels,
-                colors: donutColors,
-                stroke: { width: 2, colors: ['#ffffff'] },
-                plotOptions: {
-                  pie: {
-                    donut: {
-                      size: '60%',
-                      labels: { show: false }
-                    }
-                  }
-                },
-                dataLabels: { enabled: false },
-                legend: { show: false },
-                tooltip: { 
-                  enabled: true,
-                  y: { formatter: (val) => formatCurrency(val) } 
-                }
-              }}
-              series={donutSeries}
+              chartRef={donutChartRef}
+              options={donutChartOptions}
+              series={displayDonutSeries}
               type="donut"
               width="100%"
               height={160}
@@ -593,7 +600,6 @@ export default function TaxApi({ user }) {
                         className="flex items-center gap-1 cursor-pointer select-none"
                         style={{ opacity: isHidden ? 0.35 : 1 }}
                         onClick={() => {
-                          donutChartRef.current?.chart?.toggleSeries(label);
                           setHiddenDonutSeries(prev => {
                             const next = new Set(prev);
                             next.has(label) ? next.delete(label) : next.add(label);

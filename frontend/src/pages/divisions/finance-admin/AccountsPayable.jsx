@@ -232,6 +232,38 @@ export default function AccountsPayable({ user }) {
     ? data.aging_chart.map(item => item.name)
     : defaultAgingLabels;
 
+  const displayAgingSeries = agingSeries.map((val, idx) => {
+    const label = agingLabels[idx];
+    return hiddenAgingSeries.has(label) ? 0 : val;
+  });
+
+  const agingChartOptions = {
+    chart: { type: 'donut', toolbar: { show: false } },
+    labels: agingLabels,
+    colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
+    stroke: { width: 2, colors: ['#ffffff'] },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '60%',
+          labels: { show: false }
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    tooltip: {
+      enabled: true,
+      y: {
+        formatter: (val) => {
+          const total = displayAgingSeries.reduce((a, b) => a + b, 0);
+          const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+          return `${formatFullMoney(val)} (${pct}%)`;
+        }
+      }
+    }
+  };
+
   const topVendorsSeries = [{
     name: 'Outstanding',
     data: data.top_vendors?.map(v => v.total) || []
@@ -387,37 +419,11 @@ export default function AccountsPayable({ user }) {
           <div className="h-full w-full flex flex-col justify-between overflow-hidden">
             {agingSeries.reduce((a, b) => a + b, 0) > 0 ? (
               <>
-                <div className="h-[180px] w-full relative">
+                <div className="h-[180px] w-full relative flex items-center justify-center">
                   <Chart
-                    key={`aging-donut-${agingSeries.join('-')}`}
-                    ref={agingChartRef}
-                    options={{
-                      chart: { type: 'donut', toolbar: { show: false }, redrawOnParentResize: true },
-                      labels: agingLabels,
-                      colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
-                      stroke: { width: 2, colors: ['#ffffff'] },
-                      plotOptions: {
-                        pie: {
-                          donut: {
-                            size: '60%',
-                            labels: { show: false }
-                          }
-                        }
-                      },
-                      dataLabels: { enabled: false },
-                      legend: { show: false },
-                      tooltip: {
-                        enabled: true,
-                        y: {
-                          formatter: (val) => {
-                            const total = agingSeries.reduce((a, b) => a + b, 0);
-                            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                            return `${formatFullMoney(val)} (${pct}%)`;
-                          }
-                        }
-                      }
-                    }}
-                    series={agingSeries}
+                    chartRef={agingChartRef}
+                    options={agingChartOptions}
+                    series={displayAgingSeries}
                     type="donut"
                     width="100%"
                     height={180}
@@ -438,7 +444,6 @@ export default function AccountsPayable({ user }) {
                               className="flex items-center gap-1 cursor-pointer select-none"
                               style={{ opacity: isHidden ? 0.35 : 1 }}
                               onClick={() => {
-                                agingChartRef.current?.chart?.toggleSeries(label);
                                 setHiddenAgingSeries(prev => {
                                   const next = new Set(prev);
                                   next.has(label) ? next.delete(label) : next.add(label);
