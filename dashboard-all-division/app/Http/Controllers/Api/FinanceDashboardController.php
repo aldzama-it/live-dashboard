@@ -439,7 +439,7 @@ class FinanceDashboardController extends Controller
 
             $agingChart = [];
             foreach ($agingValues as $name => $value) {
-                $agingChart[] = ['name' => $name, 'value' => $value];
+                $agingChart[] = ['name' => $name, 'value' => (float) $value];
             }
 
             // KPI dari aging buckets (dalam IDR)

@@ -161,7 +161,7 @@ class ArDashboardController extends Controller
 
             $agingChart = [];
             foreach ($agingValues as $name => $value) {
-                $agingChart[] = ['name' => $name, 'value' => $value];
+                $agingChart[] = ['name' => $name, 'value' => (float) $value];
             }
 
             $totalOutstanding = array_sum($agingValues);
