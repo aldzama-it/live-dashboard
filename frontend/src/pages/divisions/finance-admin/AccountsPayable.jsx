@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2 } from 'lucide-react';
 import Card from '../../../components/ui/Card';
@@ -33,14 +33,14 @@ const getCurrencyFlag = (currency) => {
   else if (c.includes('jpy') || c.includes('yen')) code = 'jp';
   else if (c.includes('sgd')) code = 'sg';
   else if (c.includes('gbp') || c.includes('pound')) code = 'gb';
-  
+
   if (!code) return <span className="text-base leading-none">🏳️</span>;
-  
+
   return (
-    <img 
-      src={`https://flagcdn.com/w40/${code}.png`} 
-      alt={code} 
-      className="w-5 h-3.5 object-cover rounded-[2px] border border-gray-300 shadow-xs shrink-0 inline-block align-middle" 
+    <img
+      src={`https://flagcdn.com/w40/${code}.png`}
+      alt={code}
+      className="w-5 h-3.5 object-cover rounded-[2px] border border-gray-300 shadow-xs shrink-0 inline-block align-middle"
     />
   );
 };
@@ -94,10 +94,10 @@ const formatSimpleMoney = (amount) => {
 export default function AccountsPayable({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [asOfDate, setAsOfDate] = useState('');
   const [trendRange, setTrendRange] = useState(6);
-  
+
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
   const canSync = isAdmin || isPIC;
@@ -110,6 +110,9 @@ export default function AccountsPayable({ user }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [vendorFilter, setVendorFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'invoice_date', direction: 'desc' });
+
+  const agingChartRef = useRef(null);
+  const [hiddenAgingSeries, setHiddenAgingSeries] = useState(new Set());
 
   const uniqueVendors = useMemo(() => {
     if (!data?.invoices) return [];
@@ -162,21 +165,57 @@ export default function AccountsPayable({ user }) {
       }
     });
 
-    const cutoff = new Date(maxDate);
-    cutoff.setMonth(cutoff.getMonth() - Number(trendRange));
-    const cutoffStr = cutoff.toISOString().substring(0, 10);
+    const numRange = Number(trendRange);
 
-    const filtered = raw.filter(item => {
-      const dStr = item.date || item.period;
-      return dStr && dStr >= cutoffStr;
-    });
+    if (numRange > 1) {
+      // Filter > 1 bulan: Group per Bulan (Monthly aggregate)
+      const cutoff = new Date(maxDate);
+      cutoff.setMonth(cutoff.getMonth() - numRange);
 
-    return filtered.length > 0 ? filtered : raw;
+      const monthlyMap = {};
+      const curr = new Date(cutoff.getFullYear(), cutoff.getMonth(), 1);
+      const endMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+      while (curr <= endMonth) {
+        const y = curr.getFullYear();
+        const m = String(curr.getMonth() + 1).padStart(2, '0');
+        monthlyMap[`${y}-${m}`] = 0;
+        curr.setMonth(curr.getMonth() + 1);
+      }
+
+      raw.forEach(item => {
+        const dStr = item.date || item.period;
+        if (!dStr) return;
+        const mKey = dStr.substring(0, 7);
+        if (monthlyMap[mKey] !== undefined) {
+          monthlyMap[mKey] += Number(item.total ?? item.actual ?? 0);
+        }
+      });
+
+      const sortedMonths = Object.keys(monthlyMap).sort();
+      return sortedMonths.map(mKey => ({
+        date: `${mKey}-01`,
+        period: `${mKey}-01`,
+        total: monthlyMap[mKey]
+      }));
+    } else {
+      // Filter 1 bulan: Per tanggal (Daily data)
+      const cutoff = new Date(maxDate);
+      cutoff.setMonth(cutoff.getMonth() - 1);
+      const cutoffStr = cutoff.toISOString().substring(0, 10);
+
+      const filtered = raw.filter(item => {
+        const dStr = item.date || item.period;
+        return dStr && dStr >= cutoffStr;
+      });
+
+      return filtered.length > 0 ? filtered : raw;
+    }
   }, [data?.payment_trend, trendRange]);
 
   if (isLoading || !data) {
     return (
-      <DashboardLoader 
+      <DashboardLoader
         title="Dashboard Utang (AP)"
         message="Memuat data sisa utang vendor dan proyeksi jatuh tempo..."
         icon={RefreshCw}
@@ -185,8 +224,45 @@ export default function AccountsPayable({ user }) {
   }
 
   // --- Charts Data Preparation ---
-  const agingSeries = data.aging_chart?.map(item => item.value) || [];
-  const agingLabels = data.aging_chart?.map(item => item.name) || [];
+  const defaultAgingLabels = ['Belum Tempo', '1 - 15 Hari', '16 - 30 Hari', '31 - 45 Hari', '> 60 Hari'];
+  const agingSeries = (data?.aging_chart && data.aging_chart.length > 0)
+    ? data.aging_chart.map(item => Number(item.value) || 0)
+    : [0, 0, 0, 0, 0];
+  const agingLabels = (data?.aging_chart && data.aging_chart.length > 0)
+    ? data.aging_chart.map(item => item.name)
+    : defaultAgingLabels;
+
+  const displayAgingSeries = agingSeries.map((val, idx) => {
+    const label = agingLabels[idx];
+    return hiddenAgingSeries.has(label) ? 0 : val;
+  });
+
+  const agingChartOptions = {
+    chart: { type: 'donut', toolbar: { show: false } },
+    labels: agingLabels,
+    colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
+    stroke: { width: 2, colors: ['#ffffff'] },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '60%',
+          labels: { show: false }
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    tooltip: {
+      enabled: true,
+      y: {
+        formatter: (val) => {
+          const total = displayAgingSeries.reduce((a, b) => a + b, 0);
+          const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+          return `${formatFullMoney(val)} (${pct}%)`;
+        }
+      }
+    }
+  };
 
   const topVendorsSeries = [{
     name: 'Outstanding',
@@ -201,7 +277,7 @@ export default function AccountsPayable({ user }) {
       y: Number(p.total ?? p.actual ?? 0)
     }))
   }];
-  
+
   const paymentTrendTitle = trendRange === 1 ? 'Trend Pembayaran (1 Bulan Terakhir)' : `Trend Pembayaran (${trendRange} Bulan Terakhir)`;
 
   // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
@@ -271,15 +347,15 @@ export default function AccountsPayable({ user }) {
 
   return (
     <div className="flex flex-col gap-2 pb-2">
-      
+
       {/* 
         [PENGATURAN PORTAL ACTION]
         Render tombol sync dan filter ke PageHeader
       */}
       {ReactDOM.createPortal(
         canSync && (
-          <button 
-            onClick={handleManualSync} 
+          <button
+            onClick={handleManualSync}
             disabled={isSyncing}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
           >
@@ -339,43 +415,61 @@ export default function AccountsPayable({ user }) {
       {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         {/* Aging Donut Chart */}
-        <ChartContainer title="Aging Utang" className="h-[315px]">
-          <div className="h-full w-full flex items-center justify-center">
-            {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
-              <Chart
-                options={{
-                  labels: agingLabels,
-                  colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
-                  plotOptions: {
-                    pie: { donut: { size: '65%' } }
-                  },
-                  dataLabels: { enabled: false },
-                  legend: {
-                    position: 'bottom',
-                    fontSize: '10px',
-                    markers: { radius: 12 }
-                  },
-                  tooltip: {
-                    y: { formatter: (val) => {
-                      const total = agingSeries.reduce((a,b)=>a+b, 0);
-                      const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                      return `${formatFullMoney(val)} (${pct}%)`;
-                    } }
-                  }
-                }}
-                series={agingSeries}
-                type="donut"
-                height="100%"
-              />
+        <Card title="Aging Utang" className="h-[315px]">
+          <div className="h-full w-full flex flex-col justify-between overflow-hidden">
+            {agingSeries.reduce((a, b) => a + b, 0) > 0 ? (
+              <>
+                <div className="h-[180px] w-full relative flex items-center justify-center">
+                  <Chart
+                    chartRef={agingChartRef}
+                    options={agingChartOptions}
+                    series={displayAgingSeries}
+                    type="donut"
+                    width="100%"
+                    height={180}
+                  />
+                </div>
+                <div className="flex-shrink-0 mt-2 pb-1 flex flex-col gap-y-1.5">
+                  {(() => {
+                    const agingColors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
+                    const rows = [agingLabels.slice(0, 3), agingLabels.slice(3)];
+                    return rows.map((row, ri) => (
+                      <div key={ri} className="flex justify-center gap-x-4">
+                        {row.map((label, i) => {
+                          const idx = ri === 0 ? i : i + 3;
+                          const isHidden = hiddenAgingSeries.has(label);
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-1 cursor-pointer select-none"
+                              style={{ opacity: isHidden ? 0.35 : 1 }}
+                              onClick={() => {
+                                setHiddenAgingSeries(prev => {
+                                  const next = new Set(prev);
+                                  next.has(label) ? next.delete(label) : next.add(label);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: agingColors[idx] }} />
+                              <span className="text-[10px] text-slate-600 leading-none">{label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
             ) : (
               <p className="text-gray-400 text-sm">Tidak ada data aging.</p>
             )}
           </div>
-        </ChartContainer>
+        </Card>
 
         {/* Payment Trend Line Chart */}
-        <ChartContainer 
-          title={paymentTrendTitle} 
+        <ChartContainer
+          title={paymentTrendTitle}
           className="h-[315px]"
           action={
             <select
@@ -406,26 +500,26 @@ export default function AccountsPayable({ user }) {
                   }
                 },
                 markers: {
-                  size: 4,
+                  size: trendRange === 1 ? 3 : 4,
                   hover: { size: 6 }
                 },
-                xaxis: { 
+                xaxis: {
                   type: 'datetime',
-                  labels: { 
+                  labels: {
                     style: { fontSize: '9px' },
                     datetimeUTC: false,
                     format: trendRange === 1 ? 'dd MMM' : 'MMM yyyy'
                   }
                 },
-                yaxis: { 
-                  labels: { 
+                yaxis: {
+                  labels: {
                     style: { fontSize: '9px' },
                     formatter: (val) => formatSimpleMoney(val)
-                  } 
+                  }
                 },
                 dataLabels: { enabled: false },
                 tooltip: {
-                  x: { format: 'dd MMMM yyyy' },
+                  x: { format: trendRange === 1 ? 'dd MMMM yyyy' : 'MMMM yyyy' },
                   y: { formatter: (val) => formatFullMoney(val) }
                 },
                 grid: { borderColor: '#E2E8F0', strokeDashArray: 4 }
@@ -498,30 +592,30 @@ export default function AccountsPayable({ user }) {
         {/* Top Vendors Bar Chart */}
         <ChartContainer title="Top 5 Vendor (Sisa Utang)" className="h-[290px]">
           <div className="h-full w-full">
-             <Chart
-                options={{
-                  chart: { toolbar: { show: false } },
-                  colors: ['#3B82F6'], // Standard blue like PDF
-                  plotOptions: {
-                    bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'top' } }
-                  },
-                  dataLabels: { 
-                    enabled: true,
-                    formatter: (val) => formatSimpleMoney(val),
-                    offsetX: 30,
-                    style: { fontSize: '9px', colors: ['#64748B'] }
-                  },
-                  xaxis: { categories: topVendorsLabels, labels: { show: false } },
-                  yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
-                  grid: { show: false },
-                  tooltip: {
-                    y: { formatter: (val) => formatSimpleMoney(val) }
-                  }
-                }}
-                series={topVendorsSeries}
-                type="bar"
-                height="100%"
-              />
+            <Chart
+              options={{
+                chart: { toolbar: { show: false } },
+                colors: ['#3B82F6'], // Standard blue like PDF
+                plotOptions: {
+                  bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'top' } }
+                },
+                dataLabels: {
+                  enabled: true,
+                  formatter: (val) => formatSimpleMoney(val),
+                  offsetX: 30,
+                  style: { fontSize: '9px', colors: ['#64748B'] }
+                },
+                xaxis: { categories: topVendorsLabels, labels: { show: false } },
+                yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
+                grid: { show: false },
+                tooltip: {
+                  y: { formatter: (val) => formatSimpleMoney(val) }
+                }
+              }}
+              series={topVendorsSeries}
+              type="bar"
+              height="100%"
+            />
           </div>
         </ChartContainer>
 
@@ -535,28 +629,28 @@ export default function AccountsPayable({ user }) {
                 plotOptions: {
                   bar: { borderRadius: 4, dataLabels: { position: 'top' } }
                 },
-                dataLabels: { 
+                dataLabels: {
                   enabled: true,
                   formatter: (val) => {
-                    if(val === 0) return '';
-                    if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(1) + 'M';
-                    return (val/1_000_000).toFixed(0) + 'jt';
+                    if (val === 0) return '';
+                    if (val >= 1_000_000_000) return (val / 1_000_000_000).toFixed(1) + 'M';
+                    return (val / 1_000_000).toFixed(0) + 'jt';
                   },
                   offsetY: -20,
                   style: { fontSize: '9px', colors: ['#64748B'] }
                 },
-                xaxis: { 
+                xaxis: {
                   categories: projectionLabels,
                   labels: { style: { fontSize: '9px' } }
                 },
-                yaxis: { 
-                  labels: { 
+                yaxis: {
+                  labels: {
                     style: { fontSize: '9px' },
                     formatter: (val) => {
-                      if(val >= 1_000_000_000) return (val/1_000_000_000).toFixed(0) + 'M';
-                      return (val/1_000_000).toFixed(0) + 'jt';
+                      if (val >= 1_000_000_000) return (val / 1_000_000_000).toFixed(0) + 'M';
+                      return (val / 1_000_000).toFixed(0) + 'jt';
                     }
-                  } 
+                  }
                 },
                 grid: { borderColor: '#E2E8F0', strokeDashArray: 4 },
                 tooltip: {
@@ -594,25 +688,25 @@ export default function AccountsPayable({ user }) {
       </div>
 
       {/* Row 4 - Table */}
-      <Card 
-        title="Daftar Faktur Belum Lunas" 
+      <Card
+        title="Daftar Faktur Belum Lunas"
         className="mb-2"
         action={
           <div className="flex gap-2 items-center">
-            <select 
+            <select
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-primary bg-white cursor-pointer text-gray-600 max-w-[150px] truncate"
               value={vendorFilter}
-              onChange={e => {setVendorFilter(e.target.value); setCurrentPage(1);}}
+              onChange={e => { setVendorFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="all">Semua Vendor</option>
               {uniqueVendors.map(v => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
-            <select 
+            <select
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-primary bg-white cursor-pointer text-gray-600"
               value={statusFilter}
-              onChange={e => {setStatusFilter(e.target.value); setCurrentPage(1);}}
+              onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="all">Semua Status</option>
               <option value="not_due">Belum Jatuh Tempo</option>
@@ -622,12 +716,12 @@ export default function AccountsPayable({ user }) {
               <option value="due_90_plus">Jatuh Tempo (&gt;90 Hari)</option>
             </select>
             <div className="relative w-64">
-              <input 
-                type="text" 
-                placeholder="Cari vendor / invoice..." 
-                className="w-full text-xs border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-primary" 
-                value={globalSearch} 
-                onChange={e => {setGlobalSearch(e.target.value); setCurrentPage(1);}} 
+              <input
+                type="text"
+                placeholder="Cari vendor / invoice..."
+                className="w-full text-xs border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-primary"
+                value={globalSearch}
+                onChange={e => { setGlobalSearch(e.target.value); setCurrentPage(1); }}
               />
             </div>
           </div>
@@ -685,40 +779,40 @@ export default function AccountsPayable({ user }) {
             </tbody>
           </table>
         </div>
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-auto">
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs text-gray-700">
-                    Menampilkan <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> hingga <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span> dari <span className="font-medium">{filteredInvoices.length}</span> hasil
-                  </p>
-                </div>
-                <div>
-                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center rounded-l-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="text-xs">Prev</span>
-                    </button>
-                    <span className="relative inline-flex items-center px-3 py-1 text-xs font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center rounded-r-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="text-xs">Next</span>
-                    </button>
-                  </nav>
-                </div>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-auto">
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-gray-700">
+                  Menampilkan <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> hingga <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span> dari <span className="font-medium">{filteredInvoices.length}</span> hasil
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  >
+                    <span className="text-xs">Prev</span>
+                  </button>
+                  <span className="relative inline-flex items-center px-3 py-1 text-xs font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  >
+                    <span className="text-xs">Next</span>
+                  </button>
+                </nav>
               </div>
             </div>
-          )}
-        </Card>
+          </div>
+        )}
+      </Card>
 
 
     </div>

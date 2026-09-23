@@ -70,6 +70,7 @@ class ArDashboardController extends Controller
                 '1 - 15 Hari'  => 0,
                 '16 - 30 Hari' => 0,
                 '31 - 45 Hari' => 0,
+                '46 - 60 Hari' => 0,
                 '> 60 Hari'    => 0,
             ];
 
@@ -119,6 +120,8 @@ class ArDashboardController extends Controller
                             $agingValues['16 - 30 Hari'] += $idrOwing;
                         } elseif ($diffDays <= 45) {
                             $agingValues['31 - 45 Hari'] += $idrOwing;
+                        } elseif ($diffDays <= 60) {
+                            $agingValues['46 - 60 Hari'] += $idrOwing;
                         } else {
                             $agingValues['> 60 Hari'] += $idrOwing;
                         }
@@ -161,13 +164,13 @@ class ArDashboardController extends Controller
 
             $agingChart = [];
             foreach ($agingValues as $name => $value) {
-                $agingChart[] = ['name' => $name, 'value' => $value];
+                $agingChart[] = ['name' => $name, 'value' => (float) $value];
             }
 
             $totalOutstanding = array_sum($agingValues);
             $totalOverdue     = $agingValues['1 - 15 Hari'] + $agingValues['16 - 30 Hari']
-                              + $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
-            $totalPiutang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['> 60 Hari'];
+                              + $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari'] + $agingValues['> 60 Hari'];
+            $totalPiutang30Hari = $agingValues['31 - 45 Hari'] + $agingValues['46 - 60 Hari'] + $agingValues['> 60 Hari'];
 
             arsort($customerTotals);
             $topCustomers = [];
