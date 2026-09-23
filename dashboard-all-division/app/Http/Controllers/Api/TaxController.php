@@ -309,8 +309,15 @@ class TaxController extends Controller
             ];
         });
 
-        // Load SPT Reports list from DB
-        $sptReports = $this->ensureAndGetSptReports();
+        // Load SPT Reports list from DB (synced with real Accurate data)
+        $chartData = $responseData['data']['chart_data'] ?? [];
+        $monthlyMap = [];
+        foreach ($chartData as $cItem) {
+            if (isset($cItem['month'])) {
+                $monthlyMap[$cItem['month']] = $cItem;
+            }
+        }
+        $sptReports = $this->ensureAndGetSptReports($monthlyMap);
         $responseData['data']['spt_reports'] = $sptReports;
 
         return response()->json($responseData);
@@ -329,17 +336,21 @@ class TaxController extends Controller
     }
 
     /**
-     * Update SPT Tax Report Status & BPE Number
+     * Update SPT Tax Report Status (Setor / Lapor DJP)
      */
     public function updateSptReport(Request $request)
     {
         $request->validate([
-            'period'     => 'required|string',
-            'tax_type'   => 'required|string',
-            'status'     => 'required|string', // 'Belum Lapor', 'Draft', 'Sudah Lapor DJP'
-            'bpe_number' => 'nullable|string',
-            'notes'      => 'nullable|string',
-            'bpe_file'   => 'nullable|file|mimes:pdf,jpg,png|max:5120',
+            'period'         => 'required|string',
+            'tax_type'       => 'required|string',
+            'action_type'    => 'nullable|string', // 'setor' or 'lapor'
+            'status'         => 'nullable|string', // 'Belum Lapor', 'Draft', 'Sudah Lapor DJP'
+            'payment_status' => 'nullable|string', // 'Belum Setor', 'Sudah Setor'
+            'bpe_number'     => 'nullable|string',
+            'ntpn_number'    => 'nullable|string',
+            'nominal'        => 'nullable|numeric',
+            'notes'          => 'nullable|string',
+            'bpe_file'       => 'nullable|file|mimes:pdf,jpg,png|max:5120',
         ]);
 
         $filePath = null;
@@ -349,32 +360,193 @@ class TaxController extends Controller
             $filePath = $file->storeAs('uploads/bpe', $fileName, 'public');
         }
 
+        $updateData = [];
+
+        if ($request->filled('nominal')) {
+            $updateData['total_tax_amount'] = (float)$request->nominal;
+        }
+
+        $action = $request->input('action_type');
+
+        // Handle Setor (Penyetoran NTPN Bank) - strictly only when action is setor or explicitly updating payment
+        if ($action === 'setor' || (!$action && ($request->filled('payment_status') || $request->filled('ntpn_number')))) {
+            $pStatus = $request->input('payment_status', 'Sudah Setor');
+            $updateData['payment_status'] = $pStatus;
+            if ($request->filled('ntpn_number')) {
+                $updateData['ntpn_number'] = $request->ntpn_number;
+            }
+            if ($pStatus === 'Sudah Setor') {
+                $updateData['paid_at'] = Carbon::now('Asia/Jakarta');
+            } else {
+                $updateData['paid_at'] = null;
+                $updateData['ntpn_number'] = null;
+            }
+        }
+
+        // Handle Lapor (Pelaporan BPE DJP Online) - strictly only when action is lapor or explicitly updating report
+        if ($action === 'lapor' || (!$action && ($request->filled('status') || $request->filled('bpe_number')))) {
+            $rStatus = $request->input('status', 'Sudah Lapor DJP');
+            $updateData['status'] = $rStatus;
+            if ($request->filled('bpe_number')) {
+                $updateData['bpe_number'] = $request->bpe_number;
+            }
+            if ($rStatus === 'Sudah Lapor DJP') {
+                $updateData['reported_at'] = Carbon::now('Asia/Jakarta');
+                $updateData['reported_by'] = auth()->user() ? auth()->user()->name : 'PIC Tax Admin';
+            } else {
+                $updateData['reported_at'] = null;
+                $updateData['reported_by'] = null;
+                $updateData['bpe_number'] = null;
+            }
+        }
+
+        if ($request->has('notes')) {
+            $updateData['notes'] = !empty($request->notes) ? $request->notes : null;
+        }
+
+        $existing = SptTaxReport::where('period', $request->period)
+            ->where('tax_type', $request->tax_type)
+            ->first();
+
+        $finalPayStatus = $updateData['payment_status'] ?? ($existing ? $existing->payment_status : 'Belum Setor');
+        $finalLaporStatus = $updateData['status'] ?? ($existing ? $existing->status : 'Belum Lapor');
+
+        if ($request->input('clear_notes') || ($request->has('notes') && empty($request->notes)) || ($finalPayStatus === 'Belum Setor' && $finalLaporStatus === 'Belum Lapor')) {
+            $updateData['notes'] = null;
+        }
+
+        if ($filePath) {
+            $updateData['bpe_file_path'] = $filePath;
+        }
+
         $report = SptTaxReport::updateOrCreate(
             [
                 'period'   => $request->period,
                 'tax_type' => $request->tax_type,
             ],
-            [
-                'status'           => $request->status,
-                'bpe_number'       => $request->bpe_number,
-                'notes'            => $request->notes,
-                'reported_at'      => $request->status === 'Sudah Lapor DJP' ? Carbon::now('Asia/Jakarta') : null,
-                'reported_by'      => auth()->user() ? auth()->user()->name : 'PIC Tax Admin',
-                'bpe_file_path'    => $filePath ?? DB::raw('bpe_file_path'),
-            ]
+            $updateData
         );
 
         return response()->json([
             'success' => true,
-            'message' => 'Status Pelaporan SPT Masa DJP berhasil diperbarui.',
+            'message' => 'Status Kewajiban Pajak berhasil disimpan.',
             'data'    => $report
         ]);
     }
 
     /**
-     * Helper to ensure last 6 months default SPT entries exist
+     * Handle bulk update for multiple SPT tax reports (Bulk Setor or Bulk Lapor)
      */
-    private function ensureAndGetSptReports()
+    public function bulkUpdateSptReports(Request $request)
+    {
+        $request->validate([
+            'items'               => 'required|array|min:1',
+            'items.*.period'      => 'required|string',
+            'items.*.tax_type'    => 'required|string',
+            'items.*.ntpn_number' => 'nullable|string',
+            'items.*.bpe_number'  => 'nullable|string',
+            'items.*.notes'       => 'nullable|string',
+            'action_type'         => 'required|in:setor,lapor,batal_setor,batal_lapor,batal_semua',
+            'ntpn_number'         => 'nullable|string',
+            'bpe_number'          => 'nullable|string',
+            'notes'               => 'nullable|string',
+        ]);
+
+        $action = $request->action_type;
+        $items = $request->items;
+        $now = Carbon::now('Asia/Jakarta');
+        $updatedCount = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $period = $item['period'];
+                $taxType = $item['tax_type'];
+                $nominal = isset($item['nominal']) ? (float)$item['nominal'] : 0;
+
+                $report = SptTaxReport::firstOrNew([
+                    'period'   => $period,
+                    'tax_type' => $taxType,
+                ]);
+
+                if (!$report->exists && $nominal > 0) {
+                    $report->total_tax_amount = $nominal;
+                }
+
+                if ($action === 'setor') {
+                    $report->payment_status = 'Sudah Setor';
+                    $report->paid_at = $now;
+                    $itemNtpn = !empty($item['ntpn_number']) ? $item['ntpn_number'] : $request->ntpn_number;
+                    if (!empty($itemNtpn)) {
+                        $report->ntpn_number = $itemNtpn;
+                    }
+                } elseif ($action === 'lapor') {
+                    $report->status = 'Sudah Lapor DJP';
+                    $report->reported_at = $now;
+                    $report->reported_by = auth()->user() ? auth()->user()->name : 'PIC Tax Admin';
+                    $itemBpe = !empty($item['bpe_number']) ? $item['bpe_number'] : $request->bpe_number;
+                    if (!empty($itemBpe)) {
+                        $report->bpe_number = $itemBpe;
+                    }
+                } elseif ($action === 'batal_setor') {
+                    $report->payment_status = 'Belum Setor';
+                    $report->ntpn_number = null;
+                    $report->paid_at = null;
+                    if ($report->status === 'Belum Lapor') {
+                        $report->notes = null;
+                    }
+                } elseif ($action === 'batal_lapor') {
+                    $report->status = 'Belum Lapor';
+                    $report->bpe_number = null;
+                    $report->reported_at = null;
+                    $report->reported_by = null;
+                    if ($report->payment_status === 'Belum Setor') {
+                        $report->notes = null;
+                    }
+                } elseif ($action === 'batal_semua') {
+                    $report->payment_status = 'Belum Setor';
+                    $report->ntpn_number = null;
+                    $report->paid_at = null;
+                    $report->status = 'Belum Lapor';
+                    $report->bpe_number = null;
+                    $report->reported_at = null;
+                    $report->reported_by = null;
+                    $report->notes = null;
+                }
+
+                if (!in_array($action, ['batal_setor', 'batal_lapor', 'batal_semua'])) {
+                    $itemNotes = isset($item['notes']) && $item['notes'] !== '' ? $item['notes'] : $request->notes;
+                    if (!empty($itemNotes)) {
+                        $report->notes = $itemNotes;
+                    }
+                }
+
+                $report->save();
+                $updatedCount++;
+            }
+
+            DB::commit();
+
+            $actionText = str_starts_with($action, 'batal') ? 'pembatalan' : $action;
+
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil memproses bulk {$actionText} untuk {$updatedCount} kewajiban pajak.",
+                'updated_count' => $updatedCount
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memproses bulk update: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper to ensure last 6 months default SPT entries exist without any dummy hash/data
+     */
+    private function ensureAndGetSptReports($monthlyDataMap = [])
     {
         $taxTypes = ['PPN Masa', 'PPh 23', 'PPh 4(2)', 'PPh 21'];
         $now = Carbon::now('Asia/Jakarta');
@@ -382,19 +554,28 @@ class TaxController extends Controller
         for ($i = 0; $i < 6; $i++) {
             $period = $now->copy()->subMonths($i)->format('Y-m');
             foreach ($taxTypes as $tType) {
-                $exists = SptTaxReport::where('period', $period)->where('tax_type', $tType)->exists();
-                if (!$exists) {
-                    $isPast = $i > 0;
+                $nominal = 0;
+                if ($tType === 'PPN Masa' && isset($monthlyDataMap[$period])) {
+                    $nominal = max(0, ($monthlyDataMap[$period]['keluaran'] ?? 0) - ($monthlyDataMap[$period]['masukan'] ?? 0));
+                }
+
+                $record = SptTaxReport::where('period', $period)->where('tax_type', $tType)->first();
+                if (!$record) {
                     SptTaxReport::create([
                         'period'           => $period,
                         'tax_type'         => $tType,
-                        'total_tax_amount' => 0,
-                        'status'           => $isPast ? 'Sudah Lapor DJP' : 'Belum Lapor',
-                        'bpe_number'       => $isPast ? ('BPE-' . strtoupper(substr(md5($period . $tType), 0, 10))) : null,
-                        'reported_at'      => $isPast ? $now->copy()->subMonths($i)->endOfMonth()->setHour(14) : null,
-                        'reported_by'      => $isPast ? 'System Synchronizer' : null,
-                        'notes'            => $isPast ? 'Pelaporan SPT Masa via DJP Online e-Faktur Web App.' : 'Menunggu penutupan masa pajak.',
+                        'total_tax_amount' => $nominal,
+                        'status'           => 'Belum Lapor',
+                        'payment_status'   => 'Belum Setor',
+                        'bpe_number'       => null,
+                        'ntpn_number'      => null,
+                        'reported_at'      => null,
+                        'paid_at'          => null,
+                        'reported_by'      => null,
+                        'notes'            => null,
                     ]);
+                } else if ($tType === 'PPN Masa' && $nominal > 0 && (float)$record->total_tax_amount == 0) {
+                    $record->update(['total_tax_amount' => $nominal]);
                 }
             }
         }
