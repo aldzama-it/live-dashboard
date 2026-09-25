@@ -17,6 +17,9 @@ dist-ssr/
 .eslintcache
 .vscode/
 
+# Local agent instructions
+AGENTS.md
+
 # OS files
 .DS_Store
 Thumbs.db

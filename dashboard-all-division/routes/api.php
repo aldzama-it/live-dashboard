@@ -49,11 +49,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance Dashboard Routes
     Route::get('/finance-dashboard/ap', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'getApDashboard']);
+    Route::get('/finance-dashboard/ap-api', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'getApDashboardApi']);
     Route::get('/finance-dashboard/ar', [\App\Http\Controllers\Api\Finance\ArDashboardController::class, 'getArDashboard']);
+    Route::get('/finance-dashboard/ar-api', [\App\Http\Controllers\Api\Finance\ArDashboardController::class, 'getArDashboardApi']);
+    Route::get('/finance-dashboard/financial-statement', [\App\Http\Controllers\Api\Finance\FinancialStatementController::class, 'getFinancialStatement']);
     Route::post('/finance-dashboard/sync', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'syncSynology']);
+    Route::get('/finance-dashboard/test-connection', [\App\Http\Controllers\Api\FinanceDashboardController::class, 'testConnection']);
 
     // Tax Dashboard Routes
     Route::get('/tax-dashboard/summary', [\App\Http\Controllers\Api\TaxController::class, 'index']);
+    Route::get('/tax-dashboard/api-summary', [\App\Http\Controllers\Api\TaxController::class, 'getTaxDashboardApi']);
+    Route::get('/tax-dashboard/spt-reports', [\App\Http\Controllers\Api\TaxController::class, 'getSptReports']);
+    Route::post('/tax-dashboard/spt-reports', [\App\Http\Controllers\Api\TaxController::class, 'updateSptReport']);
     Route::post('/tax-dashboard/sync', [\App\Http\Controllers\Api\TaxController::class, 'syncSynology']);
 
     // Legal Dashboard Routes

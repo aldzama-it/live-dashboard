@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2 } from 'lucide-react';
+import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2, BookOpen, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -91,64 +92,85 @@ const formatSimpleMoney = (amount) => {
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-export default function AccountsReceivable({ user }) {
+export default function AccountsPayableApi({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Menyambungkan ke server Accurate...");
   
   const [asOfDate, setAsOfDate] = useState('');
-  const [trendRange, setTrendRange] = useState(6);
   
-  const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
-  const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
-  const canSync = isAdmin || isPIC;
-  const [isSyncing, setIsSyncing] = useState(false);
-
   // Pagination, Filtering & Sorting state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [globalSearch, setGlobalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [customerFilter, setPelangganFilter] = useState('all');
+  const [vendorFilter, setVendorFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'invoice_date', direction: 'desc' });
+  const [trendRange, setTrendRange] = useState(6);
 
+  // Aging chart custom legend toggle
   const agingChartRef = useRef(null);
   const [hiddenAgingSeries, setHiddenAgingSeries] = useState(new Set());
 
-  const uniquePelanggans = useMemo(() => {
+  const uniqueVendors = useMemo(() => {
     if (!data?.invoices) return [];
-    return [...new Set(data.invoices.map(inv => inv.customer).filter(Boolean))].sort();
+    return [...new Set(data.invoices.map(inv => inv.vendor).filter(Boolean))].sort();
   }, [data?.invoices]);
 
-  const fetchDashboardData = async () => {
+  // Update Loading Message and Progress
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += (90 - progress) * 0.1; 
+      setLoadingProgress(Math.floor(progress));
+    }, 200);
+
+    const messages = [
+      "Menyambungkan ke server Accurate...",
+      "Mendownload faktur terbaru...",
+      "Memproses perhitungan umur utang...",
+      "Menyiapkan grafik dan tabel..."
+    ];
+    let msgIndex = 0;
+    const messageInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % messages.length;
+      setLoadingMessage(messages[msgIndex]);
+    }, 1500);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, [isLoading]);
+
+  const fetchDashboardData = async (isRefresh = false) => {
     setIsLoading(true);
+    setLoadingProgress(10);
+    setLoadingMessage("Menyambungkan ke server Accurate...");
     try {
-      const url = `/api/finance-dashboard/ar` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      let url = '/api/finance-dashboard/ap-api';
+      if (asOfDate) {
+        url += `?as_of_date=${asOfDate}`;
+      }
+      if (isRefresh) {
+        url += (url.includes('?') ? '&' : '?') + 'refresh=true';
+      }
       const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoadingProgress(100);
+      setTimeout(() => setIsLoading(false), 500);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
   }, [asOfDate]);
-
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    try {
-      await api.post('/api/finance-dashboard/sync');
-      fetchDashboardData();
-      alert('Data successfully synced from Synology!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to sync data: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const trendFilteredData = useMemo(() => {
     const raw = data?.payment_trend || [];
@@ -213,17 +235,38 @@ export default function AccountsReceivable({ user }) {
     }
   }, [data?.payment_trend, trendRange]);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <DashboardLoader 
-        title="Dashboard Piutang (AR)"
-        message="Memuat data sisa piutang dan histori pembayaran..."
-        icon={RefreshCw}
+        title="Live API Accounts Payable"
+        message={loadingMessage}
+        progress={loadingProgress}
+        icon={Activity}
       />
     );
   }
 
-  // --- Charts Data Preparation ---
+  if (!data) {
+    return (
+      <div className="p-6 h-full flex flex-col items-center justify-center text-center">
+        <div className="text-red-500 mb-4">
+          <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">Gagal Memuat Data</h3>
+        <p className="text-gray-600 mb-4">Terjadi kesalahan saat menyambung ke API Accurate atau data kosong.</p>
+        <button 
+          onClick={fetchDashboardData}
+          className="px-4 py-2 bg-primary text-white rounded hover:bg-blue-700 transition"
+        >
+          Coba Lagi
+        </button>
+      </div>
+    );
+  }
+
+  // --- Calculations for Table ---
   const defaultAgingLabels = ['Belum Tempo', '1 - 15 Hari', '16 - 30 Hari', '31 - 45 Hari', '> 60 Hari'];
   const agingSeries = (data?.aging_chart && data.aging_chart.length > 0)
     ? data.aging_chart.map(item => Number(item.value) || 0)
@@ -262,21 +305,21 @@ export default function AccountsReceivable({ user }) {
     }
   };
 
-  const topPelanggansSeries = [{
+  const topVendorsSeries = [{
     name: 'Outstanding',
-    data: data.top_customers?.map(v => v.total) || []
+    data: data.top_vendors?.map(v => v.total) || []
   }];
-  const topPelanggansLabels = data.top_customers?.map(v => v.name) || [];
+  const topVendorsLabels = data.top_vendors?.map(v => v.vendor) || [];
 
   const paymentTrendSeries = [{
-    name: 'Total Penerimaan',
+    name: 'Total Pembayaran',
     data: trendFilteredData.map(p => ({
       x: new Date(p.date || p.period).getTime(),
       y: Number(p.total ?? p.actual ?? 0)
     }))
   }];
   
-  const paymentTrendTitle = trendRange === 1 ? 'Trend Penerimaan (1 Bulan Terakhir)' : `Trend Penerimaan (${trendRange} Bulan Terakhir)`;
+  const paymentTrendTitle = trendRange === 1 ? 'Trend Pembayaran (1 Bulan Terakhir)' : `Trend Pembayaran (${trendRange} Bulan Terakhir)`;
 
   // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
   const projectionMap = {};
@@ -322,14 +365,14 @@ export default function AccountsReceivable({ user }) {
       if (statusFilter === 'due_90_plus' && age <= 90) return false;
     }
 
-    if (customerFilter !== 'all' && inv.customer !== customerFilter) {
+    if (vendorFilter !== 'all' && inv.vendor !== vendorFilter) {
       return false;
     }
 
     if (!globalSearch) return true;
     const term = globalSearch.toLowerCase();
     return (
-      (inv.customer || '').toLowerCase().includes(term) ||
+      (inv.vendor || '').toLowerCase().includes(term) ||
       (inv.invoice_no || '').toLowerCase().includes(term) ||
       (inv.invoice_date || '').includes(term) ||
       (inv.due_date || '').includes(term)
@@ -346,50 +389,49 @@ export default function AccountsReceivable({ user }) {
   return (
     <div className="flex flex-col gap-2 pb-2">
       
-      {/* 
-        [PENGATURAN PORTAL ACTION]
-        Render tombol sync dan filter ke PageHeader
-      */}
       {ReactDOM.createPortal(
-        canSync && (
-          <button 
-            onClick={handleManualSync} 
-            disabled={isSyncing}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchDashboardData(true)}
+            title="Muat ulang data langsung dari Accurate API"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded shadow-sm transition-colors"
           >
-            <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            <RefreshCw size={14} />
+            Refresh
           </button>
-        ),
+        </div>,
         document.getElementById('page-header-actions') || document.body
       )}
-      <AsOfDateFilter asOfDate={asOfDate} onChange={setAsOfDate} />
+      <AsOfDateFilter 
+        asOfDate={asOfDate} 
+        onChange={(date) => { setAsOfDate(date); setCurrentPage(1); }} 
+      />
       {asOfDate && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
           <Info size={13} />
-          <span>Menampilkan posisi akumulasi sisa piutang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
+          <span>Menampilkan posisi akumulasi sisa utang <strong>Per Tanggal {asOfDate}</strong>. <button className="underline font-semibold ml-1 cursor-pointer" onClick={() => setAsOfDate('')}>Hapus filter (Kembali ke Hari Ini)</button>.</span>
         </div>
       )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
         <KpiCard
-          title="Total Outstanding AR"
+          title="Total Outstanding AP"
           value={formatSimpleMoney(data.kpis?.total_outstanding)}
           icon={FileText}
           colorClass="text-primary bg-primary/10"
-          subtitle="Total sisa piutang saat ini"
+          subtitle="Total sisa utang saat ini"
         />
         <KpiCard
-          title="Piutang Jatuh Tempo"
+          title="Utang Jatuh Tempo"
           value={formatSimpleMoney(data.kpis?.total_overdue)}
           icon={Calendar}
           colorClass="text-danger bg-danger/10"
           subtitle="Tagihan melewati tempo"
         />
         <KpiCard
-          title="Piutang > 30 Hari"
-          value={formatSimpleMoney(data.kpis?.total_piutang_30_hari)}
+          title="Utang > 30 Hari"
+          value={formatSimpleMoney(data.kpis?.total_utang_30_hari)}
           icon={Clock}
           colorClass="text-warning bg-warning/10"
           subtitle="Tagihan kritis >30 hari"
@@ -402,18 +444,18 @@ export default function AccountsReceivable({ user }) {
           subtitle="Total bayar bulan ini"
         />
         <KpiCard
-          title="Pelanggan Terbesar"
-          value={data.kpis?.customer_terbesar ? formatSimpleMoney(data.kpis?.customer_terbesar.total) : 'Rp 0'}
+          title="Vendor Terbesar"
+          value={data.kpis?.vendor_terbesar ? formatSimpleMoney(data.kpis?.vendor_terbesar.total) : 'Rp 0'}
           icon={Award}
           colorClass="text-purple-600 bg-purple-100"
-          subtitle={data.kpis?.customer_terbesar?.name || '-'}
+          subtitle={data.kpis?.vendor_terbesar?.name || '-'}
         />
       </div>
 
       {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         {/* Aging Donut Chart */}
-        <Card title="Aging Piutang" className="h-[315px]">
+        <Card title="Aging Utang" className="h-[315px]">
           <div className="h-full w-full flex flex-col justify-between overflow-hidden">
             {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
               <>
@@ -486,7 +528,7 @@ export default function AccountsReceivable({ user }) {
             <Chart
               options={{
                 chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false } },
-                colors: ['#10B981'],
+                colors: ['#3C50E0'],
                 stroke: { curve: 'smooth', width: 2 },
                 fill: {
                   type: 'gradient',
@@ -529,7 +571,7 @@ export default function AccountsReceivable({ user }) {
           </div>
         </ChartContainer>
 
-        {/* Right Column Top - Peringatan & Ringkasan AR per Mata Uang */}
+        {/* Right Column Top - Peringatan & Ringkasan AP per Mata Uang */}
         <div className="flex flex-col gap-2 h-[315px]">
           {/* Peringatan */}
           <Card title="Peringatan" className="shrink-0">
@@ -548,35 +590,35 @@ export default function AccountsReceivable({ user }) {
             </div>
           </Card>
 
-          {/* Ringkasan AR per Mata Uang */}
-          <Card title="Ringkasan AR per Mata Uang" className="flex-1 flex flex-col min-h-0">
+          {/* Ringkasan AP per Mata Uang */}
+          <Card title="Ringkasan AP per Mata Uang" className="flex-1 flex flex-col min-h-0">
             <div className="px-1 py-0.5">
-              <table className="w-full text-left text-xs text-gray-500">
+              <table className="w-full text-left text-xs text-gray-600">
                 <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
                   <tr>
-                    <th className="px-2 py-1 font-medium">Mata Uang</th>
-                    <th className="px-2 py-1 font-medium text-right">Total Outstanding</th>
-                    <th className="px-2 py-1 font-medium text-right">%</th>
+                    <th className="px-2.5 py-1.5 font-semibold">Mata Uang</th>
+                    <th className="px-2.5 py-1.5 font-semibold text-right">Total Outstanding</th>
+                    <th className="px-2.5 py-1.5 font-semibold text-right">%</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100">
                   {data.ringkasan_mata_uang?.map((row, idx) => (
-                    <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="px-2 py-1 font-medium text-boxdark whitespace-nowrap">
+                    <tr key={idx} className="hover:bg-gray-50/80">
+                      <td className="px-2.5 py-1.5 font-medium text-boxdark whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           {getCurrencyFlag(row.currency)}
                           <span>{getCurrencyCode(row.currency)}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap">{row.percentage}%</td>
+                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
+                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{row.percentage}%</td>
                     </tr>
                   ))}
                   {/* Total row */}
-                  <tr className="bg-gray-50 font-bold text-boxdark">
-                    <td className="px-2 py-1 whitespace-nowrap">Total Equivalent</td>
-                    <td className="px-2 py-1 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
-                    <td className="px-2 py-1 text-right whitespace-nowrap">100%</td>
+                  <tr className="bg-gray-50 font-bold text-boxdark border-t border-gray-200">
+                    <td className="px-2.5 py-1.5 whitespace-nowrap">Total Equivalent</td>
+                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
+                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">100%</td>
                   </tr>
                 </tbody>
               </table>
@@ -585,10 +627,10 @@ export default function AccountsReceivable({ user }) {
         </div>
       </div>
 
-      {/* Row 2 - Top 5 Pelanggan, Proyeksi Jatuh Tempo & Aktivitas AR Terbaru */}
+      {/* Row 2 - Top Vendors, Proyeksi Jatuh Tempo & Aktivitas AP Terbaru */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
-        {/* Top Pelanggans Bar Chart */}
-        <ChartContainer title="Top 5 Pelanggan (Sisa Piutang)" className="h-[290px]">
+        {/* Top Vendors Bar Chart */}
+        <ChartContainer title="Top 5 Vendor (Sisa Utang)" className="h-[290px]">
           <div className="h-full w-full">
              <Chart
                 options={{
@@ -603,14 +645,14 @@ export default function AccountsReceivable({ user }) {
                     offsetX: 30,
                     style: { fontSize: '9px', colors: ['#64748B'] }
                   },
-                  xaxis: { categories: topPelanggansLabels, labels: { show: false } },
+                  xaxis: { categories: topVendorsLabels, labels: { show: false } },
                   yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
                   grid: { show: false },
                   tooltip: {
                     y: { formatter: (val) => formatSimpleMoney(val) }
                   }
                 }}
-                series={topPelanggansSeries}
+                series={topVendorsSeries}
                 type="bar"
                 height="100%"
               />
@@ -662,8 +704,8 @@ export default function AccountsReceivable({ user }) {
           </div>
         </ChartContainer>
 
-        {/* Aktivitas AR Terbaru */}
-        <Card title="Aktivitas AR Terbaru" className="h-[290px] flex flex-col">
+        {/* Aktivitas AP Terbaru */}
+        <Card title="Aktivitas AP Terbaru" className="h-[290px] flex flex-col">
           <div className="flex-1 flex flex-col px-4 py-2 overflow-y-auto min-h-0">
             {data.aktivitas_terbaru?.length > 0 ? data.aktivitas_terbaru.map((act, i) => (
               <div key={i} className="flex flex-col border-b border-stroke py-3 last:border-0">
@@ -693,11 +735,11 @@ export default function AccountsReceivable({ user }) {
           <div className="flex gap-2 items-center">
             <select 
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-primary bg-white cursor-pointer text-gray-600 max-w-[150px] truncate"
-              value={customerFilter}
-              onChange={e => {setPelangganFilter(e.target.value); setCurrentPage(1);}}
+              value={vendorFilter}
+              onChange={e => {setVendorFilter(e.target.value); setCurrentPage(1);}}
             >
-              <option value="all">Semua Pelanggan</option>
-              {uniquePelanggans.map(v => (
+              <option value="all">Semua Vendor</option>
+              {uniqueVendors.map(v => (
                 <option key={v} value={v}>{v}</option>
               ))}
             </select>
@@ -716,7 +758,7 @@ export default function AccountsReceivable({ user }) {
             <div className="relative w-64">
               <input 
                 type="text" 
-                placeholder="Cari customer / invoice..." 
+                placeholder="Cari vendor / invoice..." 
                 className="w-full text-xs border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-primary" 
                 value={globalSearch} 
                 onChange={e => {setGlobalSearch(e.target.value); setCurrentPage(1);}} 
@@ -729,8 +771,8 @@ export default function AccountsReceivable({ user }) {
           <table className="w-full text-left text-sm text-gray-500">
             <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('customer')}>
-                  Pelanggan {sortConfig.key === 'customer' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('vendor')}>
+                  Vendor {sortConfig.key === 'vendor' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
                 </th>
                 <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('invoice_no')}>
                   No. Faktur {sortConfig.key === 'invoice_no' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
@@ -753,13 +795,17 @@ export default function AccountsReceivable({ user }) {
               {paginatedInvoices.length > 0 ? (
                 paginatedInvoices.map((inv, idx) => (
                   <tr key={idx} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-2 font-medium text-boxdark">{inv.customer}</td>
+                    <td className="px-4 py-2 font-medium text-boxdark">{inv.vendor}</td>
                     <td className="px-4 py-2">{inv.invoice_no}</td>
                     <td className="px-4 py-2">{inv.invoice_date}</td>
                     <td className="px-4 py-2">{inv.due_date}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${inv.age_days > 0 ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
-                        {inv.age_days}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${
+                        parseInt(inv.age_days || 0) > 0 
+                          ? 'bg-danger/10 text-danger' 
+                          : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {parseInt(inv.age_days || 0) > 0 ? `${parseInt(inv.age_days)} hari` : 'Belum Tempo'}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right font-bold text-primary">

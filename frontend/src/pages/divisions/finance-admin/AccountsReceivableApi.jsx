@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2 } from 'lucide-react';
+import { DollarSign, AlertCircle, FileText, RefreshCw, Calendar, Clock, CreditCard, Award, Info, CheckCircle2, BookOpen, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -91,64 +92,80 @@ const formatSimpleMoney = (amount) => {
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-export default function AccountsReceivable({ user }) {
+export default function AccountsReceivableApi({ user }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Menyambungkan ke server Accurate...");
   
   const [asOfDate, setAsOfDate] = useState('');
-  const [trendRange, setTrendRange] = useState(6);
   
-  const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
-  const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
-  const canSync = isAdmin || isPIC;
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  // Pagination, Filtering & Sorting state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [globalSearch, setGlobalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [customerFilter, setPelangganFilter] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'invoice_date', direction: 'desc' });
+  const [trendRange, setTrendRange] = useState(6);
 
   const agingChartRef = useRef(null);
   const [hiddenAgingSeries, setHiddenAgingSeries] = useState(new Set());
 
-  const uniquePelanggans = useMemo(() => {
+  const uniqueCustomers = useMemo(() => {
     if (!data?.invoices) return [];
     return [...new Set(data.invoices.map(inv => inv.customer).filter(Boolean))].sort();
   }, [data?.invoices]);
 
-  const fetchDashboardData = async () => {
+  // Update Loading Message and Progress
+  useEffect(() => {
+    if (!isLoading) return;
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += (90 - progress) * 0.1; 
+      setLoadingProgress(Math.floor(progress));
+    }, 200);
+
+    const messages = [
+      "Menyambungkan ke server Accurate...",
+      "Mendownload faktur piutang terbaru...",
+      "Memproses perhitungan umur piutang...",
+      "Menyiapkan grafik dan tabel..."
+    ];
+    let msgIndex = 0;
+    const messageInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % messages.length;
+      setLoadingMessage(messages[msgIndex]);
+    }, 1500);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, [isLoading]);
+
+  const fetchDashboardData = async (isRefresh = false) => {
     setIsLoading(true);
+    setLoadingProgress(10);
+    setLoadingMessage("Menyambungkan ke server Accurate...");
     try {
-      const url = `/api/finance-dashboard/ar` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      let url = `/api/finance-dashboard/ar-api` + (asOfDate ? `?as_of_date=${asOfDate}` : '');
+      if (isRefresh) {
+        url += (url.includes('?') ? '&' : '?') + 'refresh=true';
+      }
       const res = await api.get(url);
       setData(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch AR Live API data:', err);
     } finally {
-      setIsLoading(false);
+      setLoadingProgress(100);
+      setTimeout(() => setIsLoading(false), 500);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
   }, [asOfDate]);
-
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    try {
-      await api.post('/api/finance-dashboard/sync');
-      fetchDashboardData();
-      alert('Data successfully synced from Synology!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to sync data: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const trendFilteredData = useMemo(() => {
     const raw = data?.payment_trend || [];
@@ -216,18 +233,19 @@ export default function AccountsReceivable({ user }) {
   if (isLoading || !data) {
     return (
       <DashboardLoader 
-        title="Dashboard Piutang (AR)"
-        message="Memuat data sisa piutang dan histori pembayaran..."
-        icon={RefreshCw}
+        title="Live API Accounts Receivable"
+        message={loadingMessage}
+        progress={loadingProgress}
+        icon={Activity}
       />
     );
   }
 
   // --- Charts Data Preparation ---
-  const defaultAgingLabels = ['Belum Tempo', '1 - 15 Hari', '16 - 30 Hari', '31 - 45 Hari', '> 60 Hari'];
+  const defaultAgingLabels = ['Belum Tempo', '1 - 15 Hari', '16 - 30 Hari', '31 - 45 Hari', '46 - 60 Hari', '> 60 Hari'];
   const agingSeries = (data?.aging_chart && data.aging_chart.length > 0)
     ? data.aging_chart.map(item => Number(item.value) || 0)
-    : [0, 0, 0, 0, 0];
+    : [0, 0, 0, 0, 0, 0];
   const agingLabels = (data?.aging_chart && data.aging_chart.length > 0)
     ? data.aging_chart.map(item => item.name)
     : defaultAgingLabels;
@@ -240,7 +258,7 @@ export default function AccountsReceivable({ user }) {
   const agingChartOptions = {
     chart: { type: 'donut', toolbar: { show: false } },
     labels: agingLabels,
-    colors: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'],
+    colors: ['#10B981', '#3B82F6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6'],
     stroke: { width: 2, colors: ['#ffffff'] },
     plotOptions: {
       pie: {
@@ -262,108 +280,106 @@ export default function AccountsReceivable({ user }) {
     }
   };
 
-  const topPelanggansSeries = [{
-    name: 'Outstanding',
-    data: data.top_customers?.map(v => v.total) || []
+  const topCustomersSeries = [{
+    name: 'Sisa Piutang',
+    data: data.top_customers?.map(item => item.total) || []
   }];
-  const topPelanggansLabels = data.top_customers?.map(v => v.name) || [];
+  const topCustomersLabels = data.top_customers?.map(item => item.name) || [];
 
   const paymentTrendSeries = [{
     name: 'Total Penerimaan',
-    data: trendFilteredData.map(p => ({
-      x: new Date(p.date || p.period).getTime(),
-      y: Number(p.total ?? p.actual ?? 0)
+    data: trendFilteredData.map(item => ({
+      x: new Date(item.date || item.period).getTime(),
+      y: Number(item.total ?? item.actual ?? 0)
     }))
   }];
-  
   const paymentTrendTitle = trendRange === 1 ? 'Trend Penerimaan (1 Bulan Terakhir)' : `Trend Penerimaan (${trendRange} Bulan Terakhir)`;
 
-  // Proyeksi Jatuh Tempo (6 Bulan Kedepan)
-  const projectionMap = {};
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-  const now = new Date();
+  // Projection labels & data
+  const today = new Date();
+  const projectionLabels = [];
+  const projectionSeriesData = [0, 0, 0, 0, 0, 0];
+  const monthsIndo = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
   for (let i = 0; i < 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-    projectionMap[key] = { label, total: 0 };
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    projectionLabels.push(`${monthsIndo[d.getMonth()]} ${d.getFullYear()}`);
   }
 
-  (data.invoices || []).forEach(inv => {
-    if (!inv.due_date) return;
-    const key = inv.due_date.substring(0, 7); // YYYY-MM
-    if (projectionMap[key]) {
-      projectionMap[key].total += parseFloat(inv.outstanding_amount || 0);
-    }
-  });
+  if (data.invoices) {
+    data.invoices.forEach(inv => {
+      if (!inv.due_date) return;
+      const dueDate = new Date(inv.due_date);
+      for (let i = 0; i < 6; i++) {
+        const targetMonth = (today.getMonth() + i) % 12;
+        const targetYear = today.getFullYear() + Math.floor((today.getMonth() + i) / 12);
+        if (dueDate.getMonth() === targetMonth && dueDate.getFullYear() === targetYear) {
+          projectionSeriesData[i] += parseFloat(inv.outstanding_amount || 0);
+          break;
+        }
+      }
+    });
+  }
 
-  const projectionLabels = Object.values(projectionMap).map(p => p.label);
   const projectionSeries = [{
     name: 'Proyeksi Jatuh Tempo',
-    data: Object.values(projectionMap).map(p => p.total)
+    data: projectionSeriesData
   }];
 
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // Logic for Filtering and Sorting
+  // --- Filtering & Sorting Table ---
   const filteredInvoices = (data.invoices || []).filter(inv => {
-    if (statusFilter !== 'all') {
-      const age = parseInt(inv.age_days || 0);
-      if (statusFilter === 'not_due' && age > 0) return false;
-      if (statusFilter === 'due_1_30' && (age < 1 || age > 30)) return false;
-      if (statusFilter === 'due_31_60' && (age < 31 || age > 60)) return false;
-      if (statusFilter === 'due_61_90' && (age < 61 || age > 90)) return false;
-      if (statusFilter === 'due_90_plus' && age <= 90) return false;
-    }
+    const matchesSearch = 
+      (inv.invoice_no && inv.invoice_no.toLowerCase().includes(globalSearch.toLowerCase())) ||
+      (inv.customer && inv.customer.toLowerCase().includes(globalSearch.toLowerCase()));
+    
+    let matchesStatus = true;
+    if (statusFilter === 'overdue') matchesStatus = inv.age_days > 0;
+    else if (statusFilter === 'current') matchesStatus = inv.age_days <= 0;
 
-    if (customerFilter !== 'all' && inv.customer !== customerFilter) {
-      return false;
-    }
+    let matchesCustomer = true;
+    if (customerFilter !== 'all') matchesCustomer = inv.customer === customerFilter;
 
-    if (!globalSearch) return true;
-    const term = globalSearch.toLowerCase();
-    return (
-      (inv.customer || '').toLowerCase().includes(term) ||
-      (inv.invoice_no || '').toLowerCase().includes(term) ||
-      (inv.invoice_date || '').includes(term) ||
-      (inv.due_date || '').includes(term)
-    );
-  }).sort((a, b) => {
-    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+    return matchesSearch && matchesStatus && matchesCustomer;
+  });
+
+  const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+    let aVal = a[sortConfig.key];
+    let bVal = b[sortConfig.key];
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
     return 0;
   });
 
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
-  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sortedInvoices.length / itemsPerPage) || 1;
+  const paginatedInvoices = sortedInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   return (
     <div className="flex flex-col gap-2 pb-2">
-      
-      {/* 
-        [PENGATURAN PORTAL ACTION]
-        Render tombol sync dan filter ke PageHeader
-      */}
       {ReactDOM.createPortal(
-        canSync && (
-          <button 
-            onClick={handleManualSync} 
-            disabled={isSyncing}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchDashboardData(true)}
+            title="Muat ulang data langsung dari Accurate API"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded shadow-sm transition-colors cursor-pointer"
           >
-            <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            Refresh
           </button>
-        ),
+        </div>,
         document.getElementById('page-header-actions') || document.body
       )}
       <AsOfDateFilter asOfDate={asOfDate} onChange={setAsOfDate} />
+
+      {/* Informational banner when asOfDate is active */}
       {asOfDate && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
           <Info size={13} />
@@ -374,43 +390,43 @@ export default function AccountsReceivable({ user }) {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
         <KpiCard
-          title="Total Outstanding AR"
-          value={formatSimpleMoney(data.kpis?.total_outstanding)}
-          icon={FileText}
-          colorClass="text-primary bg-primary/10"
-          subtitle="Total sisa piutang saat ini"
+          title="Total Outstanding Piutang"
+          value={formatSimpleMoney(data.kpis?.total_outstanding || 0)}
+          icon={DollarSign}
+          colorClass="text-emerald-600 bg-emerald-100"
+          subtitle="Total Piutang Belum Lunas"
         />
         <KpiCard
-          title="Piutang Jatuh Tempo"
-          value={formatSimpleMoney(data.kpis?.total_overdue)}
-          icon={Calendar}
-          colorClass="text-danger bg-danger/10"
-          subtitle="Tagihan melewati tempo"
+          title="Overdue (Jatuh Tempo)"
+          value={formatSimpleMoney(data.kpis?.total_overdue || 0)}
+          icon={AlertCircle}
+          colorClass="text-rose-600 bg-rose-100"
+          subtitle="Melewati Tanggal Tempo"
         />
         <KpiCard
           title="Piutang > 30 Hari"
-          value={formatSimpleMoney(data.kpis?.total_piutang_30_hari)}
+          value={formatSimpleMoney(data.kpis?.total_utang_30_hari || 0)}
           icon={Clock}
-          colorClass="text-warning bg-warning/10"
-          subtitle="Tagihan kritis >30 hari"
+          colorClass="text-amber-600 bg-amber-100"
+          subtitle="Manajemen Penagihan"
         />
         <KpiCard
-          title="Pembayaran Bulan Ini"
-          value={formatSimpleMoney(data.kpis?.pembayaran_bulan_ini)}
+          title="Penerimaan Bulan Ini"
+          value={formatSimpleMoney(data.kpis?.pembayaran_bulan_ini || 0)}
           icon={CreditCard}
-          colorClass="text-success bg-success/10"
-          subtitle="Total bayar bulan ini"
+          colorClass="text-blue-600 bg-blue-100"
+          subtitle="Kas Masuk Pelanggan"
         />
         <KpiCard
           title="Pelanggan Terbesar"
-          value={data.kpis?.customer_terbesar ? formatSimpleMoney(data.kpis?.customer_terbesar.total) : 'Rp 0'}
+          value={formatSimpleMoney(data.kpis?.customer_terbesar?.total || 0)}
           icon={Award}
           colorClass="text-purple-600 bg-purple-100"
           subtitle={data.kpis?.customer_terbesar?.name || '-'}
         />
       </div>
 
-      {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
+      {/* Row 1 Charts & Summary (Aging, Trend, Peringatan & Ringkasan) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         {/* Aging Donut Chart */}
         <Card title="Aging Piutang" className="h-[315px]">
@@ -429,7 +445,7 @@ export default function AccountsReceivable({ user }) {
                 </div>
                 <div className="flex-shrink-0 mt-2 pb-1 flex flex-col gap-y-1.5">
                   {(() => {
-                    const agingColors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
+                    const agingColors = ['#10B981', '#3B82F6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6'];
                     const rows = [agingLabels.slice(0, 3), agingLabels.slice(3)];
                     return rows.map((row, ri) => (
                       <div key={ri} className="flex justify-center gap-x-4">
@@ -529,7 +545,7 @@ export default function AccountsReceivable({ user }) {
           </div>
         </ChartContainer>
 
-        {/* Right Column Top - Peringatan & Ringkasan AR per Mata Uang */}
+        {/* Peringatan & Ringkasan Mata Uang */}
         <div className="flex flex-col gap-2 h-[315px]">
           {/* Peringatan */}
           <Card title="Peringatan" className="shrink-0">
@@ -551,32 +567,32 @@ export default function AccountsReceivable({ user }) {
           {/* Ringkasan AR per Mata Uang */}
           <Card title="Ringkasan AR per Mata Uang" className="flex-1 flex flex-col min-h-0">
             <div className="px-1 py-0.5">
-              <table className="w-full text-left text-xs text-gray-500">
+              <table className="w-full text-left text-xs text-gray-600">
                 <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
                   <tr>
-                    <th className="px-2 py-1 font-medium">Mata Uang</th>
-                    <th className="px-2 py-1 font-medium text-right">Total Outstanding</th>
-                    <th className="px-2 py-1 font-medium text-right">%</th>
+                    <th className="px-2.5 py-1.5 font-semibold">Mata Uang</th>
+                    <th className="px-2.5 py-1.5 font-semibold text-right">Total Outstanding</th>
+                    <th className="px-2.5 py-1.5 font-semibold text-right">%</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100">
                   {data.ringkasan_mata_uang?.map((row, idx) => (
-                    <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="px-2 py-1 font-medium text-boxdark whitespace-nowrap">
+                    <tr key={idx} className="hover:bg-gray-50/80">
+                      <td className="px-2.5 py-1.5 font-medium text-boxdark whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           {getCurrencyFlag(row.currency)}
                           <span>{getCurrencyCode(row.currency)}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
-                      <td className="px-2 py-1 text-right whitespace-nowrap">{row.percentage}%</td>
+                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
+                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{row.percentage}%</td>
                     </tr>
                   ))}
                   {/* Total row */}
-                  <tr className="bg-gray-50 font-bold text-boxdark">
-                    <td className="px-2 py-1 whitespace-nowrap">Total Equivalent</td>
-                    <td className="px-2 py-1 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
-                    <td className="px-2 py-1 text-right whitespace-nowrap">100%</td>
+                  <tr className="bg-gray-50 font-bold text-boxdark border-t border-gray-200">
+                    <td className="px-2.5 py-1.5 whitespace-nowrap">Total Equivalent</td>
+                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
+                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">100%</td>
                   </tr>
                 </tbody>
               </table>
@@ -585,15 +601,15 @@ export default function AccountsReceivable({ user }) {
         </div>
       </div>
 
-      {/* Row 2 - Top 5 Pelanggan, Proyeksi Jatuh Tempo & Aktivitas AR Terbaru */}
+      {/* Row 2 Charts & Activities (Top 5 Customers, Proyeksi Jatuh Tempo & Aktivitas AR) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
-        {/* Top Pelanggans Bar Chart */}
+        {/* Top Customers Bar Chart */}
         <ChartContainer title="Top 5 Pelanggan (Sisa Piutang)" className="h-[290px]">
           <div className="h-full w-full">
              <Chart
                 options={{
                   chart: { toolbar: { show: false } },
-                  colors: ['#3B82F6'], // Standard blue like PDF
+                  colors: ['#10B981'],
                   plotOptions: {
                     bar: { horizontal: true, borderRadius: 4, dataLabels: { position: 'top' } }
                   },
@@ -603,14 +619,14 @@ export default function AccountsReceivable({ user }) {
                     offsetX: 30,
                     style: { fontSize: '9px', colors: ['#64748B'] }
                   },
-                  xaxis: { categories: topPelanggansLabels, labels: { show: false } },
+                  xaxis: { categories: topCustomersLabels, labels: { show: false } },
                   yaxis: { labels: { style: { cssClass: 'text-[10px] font-medium truncate max-w-[120px]' } } },
                   grid: { show: false },
                   tooltip: {
                     y: { formatter: (val) => formatSimpleMoney(val) }
                   }
                 }}
-                series={topPelanggansSeries}
+                series={topCustomersSeries}
                 type="bar"
                 height="100%"
               />
@@ -685,134 +701,132 @@ export default function AccountsReceivable({ user }) {
         </Card>
       </div>
 
-      {/* Row 4 - Table */}
+      {/* Row 3 - Table */}
       <Card 
-        title="Daftar Faktur Belum Lunas" 
+        title="Daftar Faktur Piutang Belum Lunas (Accurate API)" 
         className="mb-2"
         action={
           <div className="flex gap-2 items-center">
             <select 
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-primary bg-white cursor-pointer text-gray-600 max-w-[150px] truncate"
               value={customerFilter}
-              onChange={e => {setPelangganFilter(e.target.value); setCurrentPage(1);}}
+              onChange={(e) => { setCustomerFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="all">Semua Pelanggan</option>
-              {uniquePelanggans.map(v => (
-                <option key={v} value={v}>{v}</option>
+              {uniqueCustomers.map((cust, idx) => (
+                <option key={idx} value={cust}>{cust}</option>
               ))}
             </select>
             <select 
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 outline-none focus:border-primary bg-white cursor-pointer text-gray-600"
               value={statusFilter}
-              onChange={e => {setStatusFilter(e.target.value); setCurrentPage(1);}}
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="all">Semua Status</option>
-              <option value="not_due">Belum Jatuh Tempo</option>
-              <option value="due_1_30">Jatuh Tempo (1-30 Hari)</option>
-              <option value="due_31_60">Jatuh Tempo (31-60 Hari)</option>
-              <option value="due_61_90">Jatuh Tempo (61-90 Hari)</option>
-              <option value="due_90_plus">Jatuh Tempo (&gt;90 Hari)</option>
+              <option value="overdue">Overdue (Jatuh Tempo)</option>
+              <option value="current">Belum Tempo</option>
             </select>
-            <div className="relative w-64">
-              <input 
-                type="text" 
-                placeholder="Cari customer / invoice..." 
-                className="w-full text-xs border border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-primary" 
-                value={globalSearch} 
-                onChange={e => {setGlobalSearch(e.target.value); setCurrentPage(1);}} 
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Cari faktur / pelanggan..."
+              className="text-xs border border-gray-300 rounded-md px-2.5 py-1.5 outline-none focus:border-primary w-36 sm:w-48"
+              value={globalSearch}
+              onChange={(e) => { setGlobalSearch(e.target.value); setCurrentPage(1); }}
+            />
           </div>
         }
       >
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-stroke">
               <tr>
-                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('customer')}>
-                  Pelanggan {sortConfig.key === 'customer' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('invoice_no')}>
+                  No. Faktur {sortConfig.key === 'invoice_no' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('invoice_no')}>
-                  No. Faktur {sortConfig.key === 'invoice_no' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('customer')}>
+                  Pelanggan {sortConfig.key === 'customer' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('invoice_date')}>
-                  Tgl Faktur {sortConfig.key === 'invoice_date' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('invoice_date')}>
+                  Tgl. Faktur {sortConfig.key === 'invoice_date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-left cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('due_date')}>
-                  Jatuh Tempo {sortConfig.key === 'due_date' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('due_date')}>
+                  Jatuh Tempo {sortConfig.key === 'due_date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('age_days')}>
-                  Umur (Hari) {sortConfig.key === 'age_days' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSort('total_amount')}>
+                  Total Faktur {sortConfig.key === 'total_amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-4 py-3 text-right cursor-pointer hover:bg-gray-100 transition-colors whitespace-nowrap" onClick={() => handleSort('outstanding_amount')}>
-                  Total Outstanding {sortConfig.key === 'outstanding_amount' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
+                <th className="px-3 py-2 text-right cursor-pointer hover:bg-gray-100" onClick={() => handleSort('outstanding_amount')}>
+                  Sisa Piutang {sortConfig.key === 'outstanding_amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                 </th>
+                <th className="px-3 py-2 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('age_days')}>
+                  Umur (Hari) {sortConfig.key === 'age_days' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-3 py-2 text-center">Status</th>
               </tr>
             </thead>
             <tbody>
               {paginatedInvoices.length > 0 ? (
-                paginatedInvoices.map((inv, idx) => (
-                  <tr key={idx} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-2 font-medium text-boxdark">{inv.customer}</td>
-                    <td className="px-4 py-2">{inv.invoice_no}</td>
-                    <td className="px-4 py-2">{inv.invoice_date}</td>
-                    <td className="px-4 py-2">{inv.due_date}</td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${inv.age_days > 0 ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
-                        {inv.age_days}
-                      </span>
+                paginatedInvoices.map((inv, i) => (
+                  <tr key={i} className="border-b border-stroke hover:bg-gray-50 text-xs">
+                    <td className="px-3 py-2 font-semibold text-boxdark">{inv.invoice_no}</td>
+                    <td className="px-3 py-2 font-medium text-boxdark max-w-[200px] truncate" title={inv.customer}>{inv.customer}</td>
+                    <td className="px-3 py-2">{inv.invoice_date || '-'}</td>
+                    <td className="px-3 py-2">{inv.due_date || '-'}</td>
+                    <td className="px-3 py-2 text-right font-medium">{formatFullMoney(inv.total_amount)}</td>
+                    <td className="px-3 py-2 text-right font-bold text-boxdark">{formatFullMoney(inv.outstanding_amount)}</td>
+                    <td className="px-3 py-2 text-center font-medium">
+                      {inv.age_days > 0 ? (
+                        <span className="text-rose-600 font-semibold">{inv.age_days} hari</span>
+                      ) : (
+                        <span className="text-emerald-600">0 hari</span>
+                      )}
                     </td>
-                    <td className="px-4 py-2 text-right font-bold text-primary">
-                      Rp {parseFloat(inv.outstanding_amount).toLocaleString('id-ID')}
+                    <td className="px-3 py-2 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        inv.age_days > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {inv.age_days > 0 ? 'OVERDUE' : 'CURRENT'}
+                      </span>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center text-gray-400">
-                    Tidak ada data faktur yang sesuai filter.
+                  <td colSpan="8" className="text-center py-6 text-gray-500 text-xs">
+                    Tidak ada data faktur piutang yang sesuai filter.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-auto">
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs text-gray-700">
-                    Menampilkan <span className="font-medium">{((currentPage - 1) * itemsPerPage) + 1}</span> hingga <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</span> dari <span className="font-medium">{filteredInvoices.length}</span> hasil
-                  </p>
-                </div>
-                <div>
-                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center rounded-l-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="text-xs">Prev</span>
-                    </button>
-                    <span className="relative inline-flex items-center px-3 py-1 text-xs font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center rounded-r-md px-2 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                    >
-                      <span className="text-xs">Next</span>
-                    </button>
-                  </nav>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
 
-
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row justify-between items-center mt-3 pt-3 border-t border-stroke text-xs text-gray-500 gap-2">
+          <span>
+            Menampilkan {paginatedInvoices.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} hingga {Math.min(currentPage * itemsPerPage, sortedInvoices.length)} dari {sortedInvoices.length} faktur
+          </span>
+          <div className="flex gap-1 items-center">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-2.5 py-1 rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sebelumnya
+            </button>
+            <span className="px-2 font-medium text-boxdark">
+              Halaman {currentPage} dari {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-2.5 py-1 rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Selanjutnya
+            </button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

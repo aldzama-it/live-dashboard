@@ -6,6 +6,7 @@ import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
 import DateRangeFilter from '../../../components/ui/DateRangeFilter';
+import DashboardLoader from '../../../components/ui/DashboardLoader';
 
 export default function Tax({ user }) {
   const [data, setData] = useState(null);
@@ -53,6 +54,33 @@ export default function Tax({ user }) {
     }
   };
 
+  const formatSimpleMoney = (amount) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
+    const num = Number(amount);
+    const absNum = Math.abs(num);
+    if (absNum >= 1_000_000_000_000) {
+      const val = num / 1_000_000_000_000;
+      const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+      return `Rp ${formatted} T`;
+    }
+    if (absNum >= 1_000_000_000) {
+      const val = num / 1_000_000_000;
+      const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+      return `Rp ${formatted} M`;
+    }
+    if (absNum >= 1_000_000) {
+      const val = num / 1_000_000;
+      const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+      return `Rp ${formatted} Jt`;
+    }
+    if (absNum >= 1_000) {
+      const val = num / 1_000;
+      const formatted = val % 1 === 0 ? val : val.toFixed(1).replace(/\.0$/, '');
+      return `Rp ${formatted} Rb`;
+    }
+    return `Rp ${num.toLocaleString('id-ID')}`;
+  };
+
   const formatCurrency = (val) => {
     if (val === null || val === undefined) return 'Rp 0';
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
@@ -60,10 +88,11 @@ export default function Tax({ user }) {
 
   if (loading && !data) {
     return (
-      <div className="p-6 h-full flex flex-col gap-6 items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500">Memuat data Dashboard Tax...</p>
-      </div>
+      <DashboardLoader 
+        title="Dashboard Tax Monitoring"
+        message="Memuat ringkasan PPN Masukan dan PPN Keluaran..."
+        icon={RefreshCw}
+      />
     );
   }
 
@@ -96,7 +125,7 @@ export default function Tax({ user }) {
         
         <KpiCard
           title="Total PPN Keluaran"
-          value={formatCurrency(summary.total_keluaran)}
+          value={formatSimpleMoney(summary.total_keluaran)}
           subtitle="VAT Out (Sales)"
           icon={TrendingUp}
           colorClass="text-[#10B981] bg-success/10"
@@ -105,7 +134,7 @@ export default function Tax({ user }) {
 
         <KpiCard
           title="Total PPN Masukan"
-          value={formatCurrency(summary.total_masukan)}
+          value={formatSimpleMoney(summary.total_masukan)}
           subtitle="VAT In (Purchases)"
           icon={FileText}
           colorClass="text-[#3C50E0] bg-secondary/10"
@@ -114,7 +143,7 @@ export default function Tax({ user }) {
 
         <KpiCard
           title="Net PPN"
-          value={formatCurrency(Math.abs(summary.net_ppn))}
+          value={formatSimpleMoney(Math.abs(summary.net_ppn))}
           subtitle="Selisih Masukan & Keluaran"
           icon={Activity}
           colorClass="text-[#F59E0B] bg-warning/10"
