@@ -49,31 +49,36 @@ class SynologySyncService
         
         try {
             if ($isWindows) {
-                // FALLBACK UNTUK WINDOWS: Menggunakan 'net use' dan UNC Path
-                $host = $connectionConfig['host'];
-                $share = $connectionConfig['share'];
-                $user = $connectionConfig['username'];
-                $pass = $connectionConfig['password'];
-                $uncPath = "\\\\{$host}\\{$share}";
-                
-                // Cek apakah sudah terkoneksi ke share (menghindari net use berulang)
-                if (!is_dir($uncPath)) {
-                    // Hapus koneksi sebelumnya untuk mencegah System error 1219 (Multiple connections)
-                    exec("net use {$uncPath} /delete /y 2>NUL");
+                $directPath = $config['direct_path'] ?? null;
+                if ($directPath && File::exists($directPath)) {
+                    $fullPath = $directPath;
+                } else {
+                    // FALLBACK UNTUK WINDOWS: Menggunakan 'net use' dan UNC Path
+                    $host = $connectionConfig['host'];
+                    $share = $connectionConfig['share'];
+                    $user = $connectionConfig['username'];
+                    $pass = $connectionConfig['password'];
+                    $uncPath = "\\\\{$host}\\{$share}";
                     
-                    // Login session via Windows CMD
-                    exec("net use {$uncPath} \"{$pass}\" /user:{$user} 2>&1", $output, $returnVar);
-                    $outputStr = implode(" ", $output);
-                    
-                    if ($returnVar !== 0 && stripos($outputStr, 'multiple connections') === false) {
-                        throw new \Exception("Net Use Auth Failed: " . $outputStr);
+                    // Cek apakah sudah terkoneksi ke share (menghindari net use berulang)
+                    if (!is_dir($uncPath)) {
+                        // Hapus koneksi sebelumnya untuk mencegah System error 1219 (Multiple connections)
+                        exec("net use {$uncPath} /delete /y 2>NUL");
+                        
+                        // Login session via Windows CMD
+                        exec("net use {$uncPath} \"{$pass}\" /user:{$user} 2>&1", $output, $returnVar);
+                        $outputStr = implode(" ", $output);
+                        
+                        if ($returnVar !== 0 && stripos($outputStr, 'multiple connections') === false) {
+                            throw new \Exception("Net Use Auth Failed: " . $outputStr);
+                        }
                     }
+                    
+                    $fullPath = $uncPath . '\\' . str_replace('/', '\\', $relativePath);
                 }
                 
-                $fullPath = $uncPath . '\\' . str_replace('/', '\\', $relativePath);
-                
                 if (!File::exists($fullPath)) {
-                    throw new \Exception("File not found on Windows UNC path: " . $fullPath);
+                    throw new \Exception("File not found on Windows path: " . $fullPath);
                 }
                 
                 $mtime = filemtime($fullPath);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LegalDocument;
+use App\Models\LegalRegulation;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,28 +32,53 @@ class LegalDashboardController extends Controller
         return base_path('database/seeders');
     }
 
-    /**
-     * Executive Overview Summary for 1-Page Dashboard (All 6 Modules)
-     */
     public function summary(Request $request): JsonResponse
     {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
         $selectedMonth = $request->input('month', 'all'); // 'all' or '1'..'12'
+
+        if (!empty($startDate) && !empty($endDate)) {
+            try {
+                $startM = (int) Carbon::parse($startDate)->format('n');
+                $endM = (int) Carbon::parse($endDate)->format('n');
+                if ($startM === $endM) {
+                    $selectedMonth = (string) $startM;
+                } else {
+                    $selectedMonth = 'all';
+                }
+            } catch (\Exception $e) {}
+        }
         $allDocs = LegalDocument::all();
 
         // 1. Legal Documents & SILO Stats
+        $totalDocs = $allDocs->count();
+        $totalSafe = $allDocs->where('urgency_status', 'safe')->count();
+        $totalCritical = $allDocs->where('urgency_status', 'critical')->count();
+        $totalExpired = $allDocs->where('urgency_status', 'expired')->count();
+        $totalNoExpiry = $allDocs->where('urgency_status', 'no_expiry')->count();
+        $totalPending = $allDocs->where('urgency_status', 'pending')->count();
+        $activeRate = $totalDocs > 0 ? round((($totalSafe + $totalNoExpiry) / $totalDocs) * 100) : 0;
+
         $docStats = [
-            'total_documents' => $allDocs->count(),
+            'total_documents' => $totalDocs,
             'total_silo' => $allDocs->where('category', 'silo')->count(),
             'total_permit' => $allDocs->where('category', 'permit')->count(),
             'total_agreement' => $allDocs->where('category', 'agreement')->count(),
             'total_project_contract' => $allDocs->where('category', 'project_contract')->count(),
             'total_vehicle' => $allDocs->where('category', 'vehicle')->count(),
-            'total_expired' => $allDocs->where('urgency_status', 'expired')->count(),
-            'total_critical' => $allDocs->where('urgency_status', 'critical')->count(),
-            'total_warning' => $allDocs->where('urgency_status', 'warning')->count(),
-            'total_safe' => $allDocs->where('urgency_status', 'safe')->count(),
+            'total_expired' => $totalExpired,
+            'total_critical' => $totalCritical,
+            'total_warning' => 0,
+            'total_safe' => $totalSafe,
+            'total_no_expiry' => $totalNoExpiry,
+            'total_pending' => $totalPending,
+            'active_rate' => $activeRate,
             'silo_critical_h60' => $allDocs->where('category', 'silo')->where('urgency_status', 'critical')->count(),
             'permit_critical_h30' => $allDocs->where('category', 'permit')->where('urgency_status', 'critical')->count(),
+            'agreement_critical_h30' => $allDocs->where('category', 'agreement')->where('urgency_status', 'critical')->count(),
+            'project_critical_h30' => $allDocs->where('category', 'project_contract')->where('urgency_status', 'critical')->count(),
+            'vehicle_critical_h30' => $allDocs->where('category', 'vehicle')->where('urgency_status', 'critical')->count(),
         ];
 
         // 2. MP Baseline (Kontrak Karyawan Expiring Stats & Site Distribution)
@@ -73,7 +99,15 @@ class LegalDashboardController extends Controller
                 try {
                     $end = Carbon::parse($emp['end_date']);
                     $diff = $now->diffInDays($end, false);
-                    if ($selectedMonth !== 'all' && (int)$end->format('n') === (int)$selectedMonth) {
+                    if (!empty($startDate) && !empty($endDate)) {
+                        try {
+                            $s = Carbon::parse($startDate)->startOfDay();
+                            $e = Carbon::parse($endDate)->endOfDay();
+                            if ($end->between($s, $e)) {
+                                $mpExpiringMonth++;
+                            }
+                        } catch (\Exception $e) {}
+                    } elseif ($selectedMonth !== 'all' && (int)$end->format('n') === (int)$selectedMonth) {
                         $mpExpiringMonth++;
                     }
                     if ($diff >= 0 && $diff <= 30) {
@@ -101,12 +135,12 @@ class LegalDashboardController extends Controller
                 'selected_month' => $selectedMonth,
                 'documents' => array_merge($docStats, [
                     'chart_status' => [
-                        'labels' => ['Aman / Valid', 'Kritis (H-30/60)', 'Expired', 'Mendekati Expired'],
+                        'labels' => ['Aman / Valid', 'Pending Update', 'Kritis (H-30/60)', 'Expired'],
                         'series' => [
                             $docStats['total_safe'],
+                            $docStats['total_pending'],
                             $docStats['total_critical'],
                             $docStats['total_expired'],
-                            $docStats['total_warning'],
                         ],
                     ],
                     'chart_categories' => [
@@ -134,6 +168,14 @@ class LegalDashboardController extends Controller
                     'categories' => $budgetData['current_categories'] ?? [],
                     'monthly_trend' => $budgetData['monthly_trend'] ?? [],
                 ]),
+                'regulations' => [
+                    'total' => LegalRegulation::count(),
+                    'comply' => LegalRegulation::where('compliance_status', 'Comply')->count(),
+                    'non_comply' => LegalRegulation::where('compliance_status', 'Non-Comply')->count(),
+                    'compliance_rate' => LegalRegulation::count() > 0 ? round((LegalRegulation::where('compliance_status', 'Comply')->count() / LegalRegulation::count()) * 100) : 0,
+                    'by_nature' => LegalRegulation::selectRaw('nature_of_compliance, count(*) as count')->groupBy('nature_of_compliance')->pluck('count', 'nature_of_compliance'),
+                    'by_party' => LegalRegulation::selectRaw('related_party, count(*) as count')->groupBy('related_party')->pluck('count', 'related_party'),
+                ],
                 'downloads_count' => [
                     'perizinan_sbu' => count(array_filter($downloads, fn($d) => $d['category'] !== 'Template Kontrak & MoU')),
                     'templates' => count(array_filter($downloads, fn($d) => $d['category'] === 'Template Kontrak & MoU')),
@@ -144,6 +186,60 @@ class LegalDashboardController extends Controller
                         'BPJS' => count(array_filter($downloads, fn($d) => $d['category'] === 'Ketenagakerjaan & BPJS')),
                     ],
                 ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get Legal Regulations (Matriks Peraturan Perundang-Undangan)
+     */
+    public function getRegulations(Request $request): JsonResponse
+    {
+        $status = $request->input('compliance_status', 'all');
+        $nature = $request->input('nature', 'all');
+        $party = $request->input('party', 'all');
+        $search = trim((string)$request->input('search', ''));
+
+        $query = LegalRegulation::query();
+
+        if ($status !== 'all' && !empty($status)) {
+            $query->where('compliance_status', $status);
+        }
+
+        if ($nature !== 'all' && !empty($nature)) {
+            $query->where('nature_of_compliance', $nature);
+        }
+
+        if ($party !== 'all' && !empty($party)) {
+            $query->where('related_party', $party);
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('regulation_name', 'like', "%{$search}%")
+                  ->orWhere('relevance', 'like', "%{$search}%")
+                  ->orWhere('follow_up', 'like', "%{$search}%")
+                  ->orWhere('validity_status', 'like', "%{$search}%")
+                  ->orWhere('related_party', 'like', "%{$search}%");
+            });
+        }
+
+        $items = $query->orderBy('no', 'asc')->get();
+
+        $totalReg = LegalRegulation::count();
+        $complyReg = LegalRegulation::where('compliance_status', 'Comply')->count();
+        $nonComplyReg = LegalRegulation::where('compliance_status', 'Non-Comply')->count();
+        $complianceRate = $totalReg > 0 ? round(($complyReg / $totalReg) * 100) : 0;
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $items,
+            'total' => $items->count(),
+            'summary' => [
+                'total' => $totalReg,
+                'comply' => $complyReg,
+                'non_comply' => $nonComplyReg,
+                'compliance_rate' => $complianceRate,
             ],
         ]);
     }
@@ -517,14 +613,15 @@ class LegalDashboardController extends Controller
     public function requestDownloadPermission(Request $request): JsonResponse
     {
         $filename = $request->input('filename');
+        $applicantName = $request->input('applicant_name', 'Pemohon');
         $division = $request->input('division', 'Divisi Terkait');
         $reason = $request->input('reason', 'Kebutuhan Operasional / Tender');
 
-        Log::info("Download Permission Approved for {$filename} by {$division}. Reason: {$reason}");
+        Log::info("Download Permission Approved for {$filename} by {$applicantName} ({$division}). Reason: {$reason}");
 
         return response()->json([
             'status' => 'success',
-            'message' => "Izin unduh untuk file '{$filename}' telah disetujui untuk {$division}. Mengunduh file...",
+            'message' => "Permohonan unduh dokumen '{$filename}' berhasil diproses.",
             'download_url' => "#download-file-approved",
         ]);
     }
@@ -538,6 +635,10 @@ class LegalDashboardController extends Controller
 
         if ($request->filled('category') && $request->category !== 'all') {
             $query->where('category', $request->category);
+        }
+
+        if ($request->filled('location') && $request->location !== 'all') {
+            $query->where('location', $request->location);
         }
 
         if ($request->filled('search')) {
@@ -554,7 +655,17 @@ class LegalDashboardController extends Controller
             });
         }
 
-        $docs = $query->orderByRaw('expired_date IS NULL, expired_date ASC')->get();
+        $sortBy = $request->input('sort', 'default');
+        if ($sortBy === 'expired_asc') {
+            $query->orderByRaw('expired_date IS NULL, expired_date ASC');
+        } elseif ($sortBy === 'expired_desc') {
+            $query->orderByRaw('expired_date IS NULL, expired_date DESC');
+        } else {
+            // Default: Urutkan persis sesuai urutan baris di Excel
+            $query->orderBy('id', 'asc');
+        }
+
+        $docs = $query->get();
 
         if ($request->filled('urgency') && $request->urgency !== 'all') {
             $docs = $docs->filter(function ($doc) use ($request) {
@@ -583,33 +694,52 @@ class LegalDashboardController extends Controller
             'status' => 'nullable|string|max:100',
             'new_expired_date' => 'nullable|date',
             'pic_name' => 'nullable|string|max:150',
-            'pic_email' => 'nullable|email|max:150',
+            'pic_email' => [
+                'nullable',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $emails = array_filter(array_map('trim', explode(';', (string)$value)));
+                    foreach ($emails as $email) {
+                        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                            $fail("Format email '{$email}' tidak valid. Gunakan tanda titik koma (;) jika lebih dari 1 email.");
+                        }
+                    }
+                },
+            ],
         ]);
 
         if (!empty($validated['extension_submission_date'])) {
             $doc->extension_submission_date = $validated['extension_submission_date'];
         }
-        if (isset($validated['extension_progress'])) {
-            $doc->extension_progress = $validated['extension_progress'];
+        if (!empty(trim((string)($validated['extension_progress'] ?? '')))) {
+            $doc->extension_progress = trim((string)$validated['extension_progress']);
         }
-        if (isset($validated['notes'])) {
-            $doc->notes = $validated['notes'];
-        }
-        if (!empty($validated['status'])) {
-            $doc->status = $validated['status'];
+        if (!empty(trim((string)($validated['notes'] ?? '')))) {
+            $newNote = trim((string)$validated['notes']);
+            $doc->notes = !empty($doc->notes) ? ($newNote . ' | ' . $doc->notes) : $newNote;
         }
         if (!empty($validated['new_expired_date'])) {
             $doc->expired_date = $validated['new_expired_date'];
         }
-        if (!empty($validated['pic_name'])) {
-            $doc->pic_name = $validated['pic_name'];
+
+        // Automatic Status calculation matching Excel formula (Kolom G -> Kolom I)
+        $effectiveExp = !empty($doc->expired_date) ? (string)$doc->expired_date : null;
+        if ($doc->category === 'silo' || !empty($validated['new_expired_date'])) {
+            $doc->status = \App\Imports\Legal\LegalSiloImport::determineStatus($validated['status'] ?? null, $effectiveExp);
+        } elseif (!empty($validated['status'])) {
+            $doc->status = $validated['status'];
         }
-        if (!empty($validated['pic_email'])) {
-            $doc->pic_email = $validated['pic_email'];
+
+        if (!empty(trim((string)($validated['pic_name'] ?? '')))) {
+            $doc->pic_name = trim((string)$validated['pic_name']);
+        }
+        if (isset($validated['pic_email'])) {
+            $emails = array_filter(array_map('trim', explode(';', (string)$validated['pic_email'])));
+            $doc->pic_email = !empty($emails) ? implode('; ', $emails) : null;
         }
 
         $doc->save();
-
 
         return response()->json([
             'status' => 'success',
@@ -726,7 +856,7 @@ class LegalDashboardController extends Controller
         }
 
         $urgentDocs = LegalDocument::all()->filter(function ($d) {
-            return in_array($d->urgency_status, ['critical', 'warning', 'expired']);
+            return in_array($d->urgency_status, ['critical', 'expired']);
         });
 
         // DEV SAFEGUARD MUTLAK: Selama masa testing / pembuatan sistem,
@@ -890,6 +1020,24 @@ class LegalDashboardController extends Controller
         $monthly = [];
         $ytd = [];
 
+        $nasFile = config('synology.divisions.Legal_Kpi.direct_path');
+        if ($nasFile && File::exists($nasFile)) {
+            $nasMtime = filemtime($nasFile);
+            $cacheMtime = File::exists($cacheFile) ? filemtime($cacheFile) : 0;
+            if ($nasMtime > $cacheMtime || !File::exists($cacheFile)) {
+                try {
+                    $importer = new \App\Imports\Legal\LegalKpiImport();
+                    $temp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'kpi_ctrl_' . uniqid() . '.xlsx';
+                    if (copy($nasFile, $temp)) {
+                        \Maatwebsite\Excel\Facades\Excel::import($importer, $temp);
+                        if (File::exists($temp)) File::delete($temp);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Auto-sync Legal KPI failed: " . $e->getMessage());
+                }
+            }
+        }
+
         if (File::exists($cacheFile)) {
             $cached = json_decode(File::get($cacheFile), true);
             if (!empty($cached['monthly']) && !empty($cached['ytd'])) {
@@ -901,18 +1049,18 @@ class LegalDashboardController extends Controller
         // Fallback default from actual Excel file "Data KPI Divisi Legal 2026 .xlsx" (5 sheets)
         if (empty($monthly)) {
             $ytd = [
-                'total_review' => 40,
-                'total_drafting' => 49,
-                'total_review_and_draft' => 89,
-                'total_advisory' => 12,
-                'total_work' => 101,
+                'total_review' => 49,
+                'total_drafting' => 76,
+                'total_review_and_draft' => 125,
+                'total_advisory' => 14,
+                'total_work' => 139,
                 'total_litigasi' => 0,
                 'total_pelanggaran' => 0,
                 'achievement_rate' => 100.0,
                 'target_review_days' => 7,
                 'target_drafting_days' => 14,
                 'target_advisory_days' => 7,
-                'actual_avg_days' => 2.3,
+                'actual_avg_days' => 2.4,
             ];
             $monthly = [
                 '1' => ['month_name' => 'Januari 2026', 'review' => 6, 'drafting' => 2, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 10, 'avg_days' => 3.5],
@@ -921,9 +1069,9 @@ class LegalDashboardController extends Controller
                 '4' => ['month_name' => 'April 2026', 'review' => 5, 'drafting' => 10, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 17, 'avg_days' => 2.4],
                 '5' => ['month_name' => 'Mei 2026', 'review' => 3, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 14, 'avg_days' => 2.2],
                 '6' => ['month_name' => 'Juni 2026', 'review' => 11, 'drafting' => 11, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 24, 'avg_days' => 1.9],
-                '7' => ['month_name' => 'Juli 2026', 'review' => 5, 'drafting' => 9, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 16, 'avg_days' => 2.3],
-                '8' => ['month_name' => 'Agustus 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
-                '9' => ['month_name' => 'September 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
+                '7' => ['month_name' => 'Juli 2026', 'review' => 6, 'drafting' => 12, 'advisory' => 2, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 20, 'avg_days' => 3.0],
+                '8' => ['month_name' => 'Agustus 2026', 'review' => 5, 'drafting' => 14, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 20, 'avg_days' => 2.4],
+                '9' => ['month_name' => 'September 2026', 'review' => 3, 'drafting' => 10, 'advisory' => 1, 'litigasi' => 0, 'pelanggaran' => 0, 'total' => 14, 'avg_days' => 1.0],
                 '10' => ['month_name' => 'Oktober 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
                 '11' => ['month_name' => 'November 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
                 '12' => ['month_name' => 'Desember 2026', 'review' => null, 'drafting' => null, 'advisory' => null, 'litigasi' => null, 'pelanggaran' => null, 'total' => null, 'avg_days' => null],
@@ -984,16 +1132,40 @@ class LegalDashboardController extends Controller
 
     private function getOperationalBudgetData(string $selectedMonth): array
     {
-        // Data riil dari Synology NAS (Z:\dashboard-data\legal\Dana Operasional\ 01. Januari s/d 07. Juli 2026)
-        $monthlyBudgets = [
-            '1' => ['month_name' => 'Januari 2026', 'budget' => 12000000, 'actual' => 11126570, 'categories' => ['OSS Jasa' => 10000000, 'E-Materai' => 23570, 'Konsultasi Hukum' => 497000, 'Data Perseroan' => 300000, 'Lainnya' => 306000]],
-            '2' => ['month_name' => 'Februari 2026', 'budget' => 2000000, 'actual' => 578963, 'categories' => ['E-Materai' => 45000, 'Legalisasi Notaris' => 350000, 'Operasional' => 183963]],
-            '3' => ['month_name' => 'Maret 2026', 'budget' => 17000000, 'actual' => 15700000, 'categories' => ['Biaya Notaris PT Cita' => 15000000, 'Operasional Legal' => 700000]],
-            '4' => ['month_name' => 'April 2026', 'budget' => 2000000, 'actual' => 1150000, 'categories' => ['Penerjemah Tersumpah' => 650000, 'Operasional & Meterai' => 500000]],
-            '5' => ['month_name' => 'Mei 2026', 'budget' => 2000000, 'actual' => 299574, 'categories' => ['E-Materai' => 99574, 'Operasional' => 200000]],
-            '6' => ['month_name' => 'Juni 2026', 'budget' => 2000000, 'actual' => 366400, 'categories' => ['Legalisir & Notaris' => 250000, 'Operasional' => 116400]],
-            '7' => ['month_name' => 'Juli 2026', 'budget' => 12000000, 'actual' => 1393900, 'categories' => ['Biaya Advokasi / Lawfirm' => 1000000, 'Operasional Rutin' => 393900]],
-        ];
+        $cacheFile = storage_path('app/legal_budget_cache.json');
+        $monthlyBudgets = [];
+
+        if (File::exists($cacheFile)) {
+            $cached = json_decode(File::get($cacheFile), true);
+            if (!empty($cached['monthly'])) {
+                $monthlyBudgets = $cached['monthly'];
+            }
+        }
+
+        if (empty($monthlyBudgets)) {
+            try {
+                $importer = new \App\Imports\Legal\LegalBudgetImport();
+                $payload = $importer->sync();
+                $monthlyBudgets = $payload['monthly'] ?? [];
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Legal budget sync failed: " . $e->getMessage());
+            }
+        }
+
+        // Fallback default from Synology NAS (Y:\Google Drive Legal\...\10. DANA OPERASIONAL\2026)
+        if (empty($monthlyBudgets)) {
+            $monthlyBudgets = [
+                '1' => ['month_name' => 'Januari 2026', 'budget' => 12000000, 'actual' => 11126570, 'categories' => ['OSS Jasa' => 10000000, 'E-Materai' => 23570, 'Konsultasi Hukum' => 497000, 'Data Perseroan' => 300000, 'Lainnya' => 306000]],
+                '2' => ['month_name' => 'Februari 2026', 'budget' => 2000000, 'actual' => 578963, 'categories' => ['E-Materai' => 45000, 'Legalisasi Notaris' => 350000, 'Operasional' => 183963]],
+                '3' => ['month_name' => 'Maret 2026', 'budget' => 17000000, 'actual' => 15700000, 'categories' => ['Biaya Notaris PT Cita' => 15000000, 'Operasional Legal' => 700000]],
+                '4' => ['month_name' => 'April 2026', 'budget' => 2000000, 'actual' => 1150000, 'categories' => ['Penerjemah Tersumpah' => 650000, 'Operasional & Meterai' => 500000]],
+                '5' => ['month_name' => 'Mei 2026', 'budget' => 2000000, 'actual' => 299574, 'categories' => ['E-Materai' => 99574, 'Operasional' => 200000]],
+                '6' => ['month_name' => 'Juni 2026', 'budget' => 2000000, 'actual' => 366400, 'categories' => ['Legalisir & Notaris' => 250000, 'Operasional' => 116400]],
+                '7' => ['month_name' => 'Juli 2026', 'budget' => 12000000, 'actual' => 1393900, 'categories' => ['Biaya Advokasi / Lawfirm' => 1000000, 'Operasional Rutin' => 393900]],
+                '8' => ['month_name' => 'Agustus 2026', 'budget' => 2000000, 'actual' => 62000, 'categories' => ['Logistik & Pengiriman Dokumen Proyek' => 62000]],
+                '9' => ['month_name' => 'September 2026', 'budget' => 2000000, 'actual' => 0, 'categories' => ['Alokasi Dana Operasional Berjalan' => 0]],
+            ];
+        }
 
         $ytdBudget = array_sum(array_column($monthlyBudgets, 'budget'));
         $ytdActual = array_sum(array_column($monthlyBudgets, 'actual'));
@@ -1016,8 +1188,8 @@ class LegalDashboardController extends Controller
                 'categories' => [],
             ];
         } else {
-            // Default YTD (ambil bulan aktif terakhir: Juli)
-            $curr = $monthlyBudgets['7'];
+            // Default YTD (ambil bulan aktif terakhir: September)
+            $curr = $monthlyBudgets['9'] ?? $monthlyBudgets['8'] ?? $monthlyBudgets['7'];
         }
 
         $currBudget = $curr['budget'] ?? 0;

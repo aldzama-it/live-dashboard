@@ -61,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/legal-dashboard/mp-contracts', [LegalDashboardController::class, 'getMpContracts']);
     Route::get('/legal-dashboard/kpi-performance', [LegalDashboardController::class, 'getKpiPerformance']);
     Route::get('/legal-dashboard/operational-budget', [LegalDashboardController::class, 'getOperationalBudget']);
+    Route::get('/legal-dashboard/regulations', [LegalDashboardController::class, 'getRegulations']);
     Route::get('/legal-dashboard/downloads', [LegalDashboardController::class, 'getDownloads']);
     Route::post('/legal-dashboard/send-mp-reminder-email', [LegalDashboardController::class, 'sendMpReminderEmail']);
     Route::post('/legal-dashboard/request-download-permission', [LegalDashboardController::class, 'requestDownloadPermission']);
