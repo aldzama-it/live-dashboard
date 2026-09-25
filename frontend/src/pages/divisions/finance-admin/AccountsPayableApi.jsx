@@ -100,6 +100,88 @@ export default function AccountsPayableApi({ user }) {
   
   const [asOfDate, setAsOfDate] = useState('');
   
+  // Dynamic Exchange Rates (Kurs Global Real-Time)
+  const defaultRates = useMemo(() => ({
+    IDR: 1,
+    USD: 16250,
+    CNY: 2250,
+    EUR: 17600,
+    SGD: 12100,
+    JPY: 105,
+    GBP: 20600
+  }), []);
+
+  const [exchangeRates, setExchangeRates] = useState(() => {
+    const saved = localStorage.getItem('ap_custom_exchange_rates');
+    return saved ? JSON.parse(saved) : defaultRates;
+  });
+  const [isRateLive, setIsRateLive] = useState(false);
+  const [rateLastUpdated, setRateLastUpdated] = useState('');
+
+  useEffect(() => {
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then(res => res.json())
+      .then(apiData => {
+        if (apiData && apiData.rates && apiData.rates.IDR) {
+          const usdInIdr = apiData.rates.IDR;
+          const liveRates = {
+            IDR: 1,
+            USD: usdInIdr,
+            CNY: apiData.rates.CNY ? usdInIdr / apiData.rates.CNY : 2250,
+            EUR: apiData.rates.EUR ? usdInIdr / apiData.rates.EUR : 17600,
+            SGD: apiData.rates.SGD ? usdInIdr / apiData.rates.SGD : 12100,
+            JPY: apiData.rates.JPY ? usdInIdr / apiData.rates.JPY : 105,
+            GBP: apiData.rates.GBP ? usdInIdr / apiData.rates.GBP : 20600,
+          };
+          setExchangeRates(prev => {
+            const saved = localStorage.getItem('ap_custom_exchange_rates');
+            if (saved) return JSON.parse(saved);
+            return { ...defaultRates, ...liveRates };
+          });
+          setIsRateLive(true);
+          if (apiData.time_last_update_utc) {
+            const d = new Date(apiData.time_last_update_utc);
+            setRateLastUpdated(d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch live exchange rates:', err);
+      });
+  }, [defaultRates]);
+
+  const handleRateChange = (code, val) => {
+    const num = parseFloat(val) || 0;
+    setExchangeRates(prev => {
+      const updated = { ...prev, [code]: num };
+      localStorage.setItem('ap_custom_exchange_rates', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleResetRates = async () => {
+    localStorage.removeItem('ap_custom_exchange_rates');
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      const apiData = await res.json();
+      if (apiData && apiData.rates && apiData.rates.IDR) {
+        const usdInIdr = apiData.rates.IDR;
+        setExchangeRates({
+          IDR: 1,
+          USD: usdInIdr,
+          CNY: apiData.rates.CNY ? usdInIdr / apiData.rates.CNY : 2250,
+          EUR: apiData.rates.EUR ? usdInIdr / apiData.rates.EUR : 17600,
+          SGD: apiData.rates.SGD ? usdInIdr / apiData.rates.SGD : 12100,
+          JPY: apiData.rates.JPY ? usdInIdr / apiData.rates.JPY : 105,
+          GBP: apiData.rates.GBP ? usdInIdr / apiData.rates.GBP : 20600,
+        });
+        setIsRateLive(true);
+        return;
+      }
+    } catch (e) {}
+    setExchangeRates(defaultRates);
+  };
+  
   // Pagination, Filtering & Sorting state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -413,6 +495,21 @@ export default function AccountsPayableApi({ user }) {
         </div>
       )}
 
+      {/* Peringatan Top Alert Banner (if any) */}
+      {data.peringatan?.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-1">
+          {data.peringatan.map((p, i) => (
+            <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded border text-xs ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
+              <AlertCircle size={15} className="shrink-0" />
+              <div className="flex items-center justify-between w-full min-w-0">
+                <span className="font-semibold leading-tight">{p.message}</span>
+                {p.sub_message && <span className="text-[11px] font-bold opacity-90 leading-tight shrink-0 ml-2">{p.sub_message}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
         <KpiCard
@@ -452,10 +549,10 @@ export default function AccountsPayableApi({ user }) {
         />
       </div>
 
-      {/* Row 1 - Aging, Payment Trend & Alerts/Summary */}
+      {/* Row 1 - Aging, Payment Trend & Ringkasan AP per Mata Uang */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
         {/* Aging Donut Chart */}
-        <Card title="Aging Utang" className="h-[315px]">
+        <Card title="Aging Utang" className="h-[325px]">
           <div className="h-full w-full flex flex-col justify-between overflow-hidden">
             {agingSeries.reduce((a,b)=>a+b, 0) > 0 ? (
               <>
@@ -510,7 +607,7 @@ export default function AccountsPayableApi({ user }) {
         {/* Payment Trend Line Chart */}
         <ChartContainer 
           title={paymentTrendTitle} 
-          className="h-[315px]"
+          className="h-[325px]"
           action={
             <select
               value={trendRange}
@@ -571,60 +668,114 @@ export default function AccountsPayableApi({ user }) {
           </div>
         </ChartContainer>
 
-        {/* Right Column Top - Peringatan & Ringkasan AP per Mata Uang */}
-        <div className="flex flex-col gap-2 h-[315px]">
-          {/* Peringatan */}
-          <Card title="Peringatan" className="shrink-0">
-            <div className="flex flex-col gap-1 p-0.5">
-              {data.peringatan?.length > 0 ? data.peringatan.map((p, i) => (
-                <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 rounded border ${p.type === 'danger' ? 'bg-danger/10 border-danger/20 text-danger' : 'bg-warning/10 border-warning/20 text-warning'}`}>
-                  <AlertCircle size={14} className="shrink-0" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-semibold text-xs leading-tight">{p.message}</span>
-                    {p.sub_message && <span className="text-[10px] font-medium opacity-80 leading-tight">{p.sub_message}</span>}
-                  </div>
-                </div>
-              )) : (
-                <p className="text-xs text-gray-400 text-center py-1">Tidak ada peringatan.</p>
-              )}
+        {/* Ringkasan AP per Mata Uang (Full Column 3 Height) */}
+        <Card 
+          title="Ringkasan AP per Mata Uang" 
+          className="h-[325px] flex flex-col overflow-hidden"
+          action={
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium border border-emerald-200" title={rateLastUpdated ? `Diupdate: ${rateLastUpdated}` : 'Live Rate'}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                {isRateLive ? 'Live Kurs' : 'Standard'}
+              </span>
+              <button 
+                onClick={handleResetRates}
+                className="px-1.5 py-0.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded border border-gray-200 font-medium transition"
+                title="Reset ke Kurs Global Real-Time"
+              >
+                Reset
+              </button>
             </div>
-          </Card>
+          }
+        >
+            <div className="px-1 py-0.5 overflow-x-auto">
+              {(() => {
+                const totalAccurateIdr = parseFloat(data.kpis?.total_outstanding || 0);
+                const convertedSummary = (data.ringkasan_mata_uang || []).map(row => {
+                  const code = getCurrencyCode(row.currency);
+                  const rate = exchangeRates[code] !== undefined ? exchangeRates[code] : 1;
+                  const totalRealIdr = row.total * rate;
+                  return { ...row, code, rate, totalRealIdr };
+                });
+                const totalRealIdr = convertedSummary.reduce((acc, curr) => acc + curr.totalRealIdr, 0);
+                const selisihKurs = totalRealIdr - totalAccurateIdr;
 
-          {/* Ringkasan AP per Mata Uang */}
-          <Card title="Ringkasan AP per Mata Uang" className="flex-1 flex flex-col min-h-0">
-            <div className="px-1 py-0.5">
-              <table className="w-full text-left text-xs text-gray-600">
-                <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-2.5 py-1.5 font-semibold">Mata Uang</th>
-                    <th className="px-2.5 py-1.5 font-semibold text-right">Total Outstanding</th>
-                    <th className="px-2.5 py-1.5 font-semibold text-right">%</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {data.ringkasan_mata_uang?.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/80">
-                      <td className="px-2.5 py-1.5 font-medium text-boxdark whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          {getCurrencyFlag(row.currency)}
-                          <span>{getCurrencyCode(row.currency)}</span>
-                        </div>
-                      </td>
-                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
-                      <td className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap">{row.percentage}%</td>
-                    </tr>
-                  ))}
-                  {/* Total row */}
-                  <tr className="bg-gray-50 font-bold text-boxdark border-t border-gray-200">
-                    <td className="px-2.5 py-1.5 whitespace-nowrap">Total Equivalent</td>
-                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">Rp {parseFloat(data.kpis?.total_outstanding || 0).toLocaleString('id-ID')}</td>
-                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">100%</td>
-                  </tr>
-                </tbody>
-              </table>
+                return (
+                  <table className="w-full text-left text-xs text-gray-600">
+                    <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-2 py-1 font-semibold">Mata Uang</th>
+                        <th className="px-2 py-1 font-semibold text-right">Outstanding</th>
+                        <th className="px-1 py-1 font-semibold text-center w-20">Kurs (IDR)</th>
+                        <th className="px-2 py-1 font-semibold text-right">Nilai Convert (IDR)</th>
+                        <th className="px-2 py-1 font-semibold text-right">%</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {convertedSummary.map((row, idx) => {
+                        const pct = totalRealIdr > 0 ? ((row.totalRealIdr / totalRealIdr) * 100).toFixed(2) : 0;
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50/80">
+                            <td className="px-2 py-1 font-medium text-boxdark whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {getCurrencyFlag(row.currency)}
+                                <span>{row.code}</span>
+                              </div>
+                            </td>
+                            <td className="px-2 py-1 text-right font-medium whitespace-nowrap">{formatCurrencyAmount(row.total, row.currency)}</td>
+                            <td className="px-1 py-1 text-center whitespace-nowrap">
+                              {row.code === 'IDR' ? (
+                                <span className="text-gray-400 text-[11px]">1</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  value={Math.round(row.rate)}
+                                  onChange={(e) => handleRateChange(row.code, e.target.value)}
+                                  className="w-16 text-right text-[11px] px-1 py-0.5 border border-amber-300 rounded font-semibold text-primary focus:outline-none focus:border-primary bg-amber-50/60 hover:bg-white transition-colors"
+                                  title="Ubah nilai kurs real-time"
+                                />
+                              )}
+                            </td>
+                            <td className="px-2 py-1 text-right font-bold text-gray-800 whitespace-nowrap">
+                              Rp {Math.round(row.totalRealIdr).toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-2 py-1 text-right font-medium whitespace-nowrap text-gray-500">{pct}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50 font-bold text-boxdark border-t-2 border-gray-200">
+                      <tr className="border-b border-gray-200">
+                        <td colSpan={3} className="px-2 py-1 text-[11px] text-gray-600 font-medium whitespace-nowrap">Total Accurate (Buku)</td>
+                        <td className="px-2 py-1 text-right text-[11px] text-gray-700 font-bold whitespace-nowrap">
+                          Rp {Math.round(totalAccurateIdr).toLocaleString('id-ID')}
+                        </td>
+                        <td className="px-2 py-1 text-right text-[10px] text-gray-400">100%</td>
+                      </tr>
+                      <tr className="border-b border-gray-200 bg-blue-50/50">
+                        <td colSpan={3} className="px-2 py-1 text-[11px] text-primary font-bold whitespace-nowrap">Total Real (Kurs Terkini)</td>
+                        <td className="px-2 py-1 text-right text-[11px] text-primary font-extrabold whitespace-nowrap">
+                          Rp {Math.round(totalRealIdr).toLocaleString('id-ID')}
+                        </td>
+                        <td className="px-2 py-1 text-right text-[11px] text-primary font-bold">100%</td>
+                      </tr>
+                      {selisihKurs !== 0 && (
+                        <tr className={selisihKurs > 0 ? "bg-amber-50/50 text-amber-800" : "bg-emerald-50/50 text-emerald-800"}>
+                          <td colSpan={3} className="px-2 py-1 text-[10px] font-semibold whitespace-nowrap">
+                            {selisihKurs > 0 ? 'Potensi Selisih Kurs +' : 'Efisiensi Selisih Kurs -'}
+                          </td>
+                          <td className="px-2 py-1 text-right text-[11px] font-bold whitespace-nowrap">
+                            {selisihKurs > 0 ? '+' : ''}Rp {Math.round(selisihKurs).toLocaleString('id-ID')}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                    </tfoot>
+                  </table>
+                );
+              })()}
             </div>
           </Card>
-        </div>
       </div>
 
       {/* Row 2 - Top Vendors, Proyeksi Jatuh Tempo & Aktivitas AP Terbaru */}
