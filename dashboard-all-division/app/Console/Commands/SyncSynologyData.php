@@ -12,7 +12,7 @@ class SyncSynologyData extends Command
      *
      * @var string
      */
-    protected $signature = 'synology:sync';
+    protected $signature = 'synology:sync {division? : Specific division to sync}';
 
     /**
      * The console command description.
@@ -29,7 +29,18 @@ class SyncSynologyData extends Command
         $this->info('Synology Sync Started');
         $this->line('');
 
-        $divisions = config('synology.divisions', []);
+        $targetDivision = $this->argument('division');
+        $allDivisions = config('synology.divisions', []);
+
+        if ($targetDivision) {
+            if (!isset($allDivisions[$targetDivision])) {
+                $this->error("Division '{$targetDivision}' not found in config/synology.php");
+                return Command::FAILURE;
+            }
+            $divisions = [$targetDivision => $allDivisions[$targetDivision]];
+        } else {
+            $divisions = $allDivisions;
+        }
         
         if (empty($divisions)) {
             $this->warn('No divisions configured in config/synology.php');
