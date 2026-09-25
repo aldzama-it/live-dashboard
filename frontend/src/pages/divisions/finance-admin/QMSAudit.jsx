@@ -766,7 +766,7 @@ export default function QMSAudit() {
   );
 
   return (
-    <div className="w-full h-full flex flex-col justify-between space-y-2.5 overflow-x-hidden">
+    <div className="w-full h-full flex flex-col justify-between gap-2.5 overflow-hidden text-xs pb-1 min-h-0">
       {/* Portal action into page layout header */}
       {headerActions && createPortal(periodFilterContent, headerActions)}
 
@@ -781,7 +781,7 @@ export default function QMSAudit() {
       {/* ========================================================================= */}
       {/* 1. ROW 1: MONITORING KPI (LEFT) & FOLLOW-UP BOD (RIGHT)                   */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 w-full flex-1 min-h-[175px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 w-full flex-1 min-h-0">
         {/* ---------------- CARD 1: MONITORING KPI ---------------- */}
         <div
           onClick={() => {
@@ -790,221 +790,175 @@ export default function QMSAudit() {
             setSelectedDivisionDetail(null);
             setActiveDetailModal('kpi');
           }}
-          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
+          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full min-h-0"
         >
-          <div className="flex items-start justify-between shrink-0">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-2 min-w-0 pr-1">
-              <div className="p-1.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
-                <Target size={15} />
+              <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                <Target size={14} />
               </div>
               <div className="truncate">
                 <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
                   Monitoring KPI
                 </h3>
-                <p className="text-[9.5px] text-slate-400 truncate">
-                  Kepatuhan Pelaporan & Target KPI Seluruh Divisi
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <DatasetBadgeButton source={QMS_DATA_SOURCES.kpi} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          {/* Body Section with 2 Distinct Sub-Boxes: Status Box (Left) & Ranking Box (Right) */}
-          <div className="my-auto py-1 border-y border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1">
-            {/* ========================================================= */}
-            {/* KOTAK 1 (KIRI): DIAGRAM STATUS KPI & 3 INDIKATOR STATUS   */}
-            {/* ========================================================= */}
-            <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-[9px] pb-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider">
-                  Evaluasi Status KPI:
-                </span>
-                <span className="text-slate-400 font-normal">
-                  Total {summary.total_divisions || 19} Divisi
-                </span>
+          {/* Clean Executive Body: Donut + Status (Left) & Top Belum Lapor (Right) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-auto py-1.5 border-y border-slate-100 flex-1 min-h-0 items-center">
+            {/* Left: Donut + 3 Statuses */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="relative w-[68px] h-[68px] flex items-center justify-center shrink-0">
+                <Chart
+                  options={kpiDonutChart.options}
+                  series={kpiDonutChart.series}
+                  type="donut"
+                  height={68}
+                  width={68}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-0.5">
+                  <span className="text-xs font-extrabold text-slate-800 leading-none">
+                    {summary.total_divisions || 19}
+                  </span>
+                  <span className="text-[8px] text-slate-400 font-medium">divisi</span>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2.5 my-auto py-1">
-                {/* Donut Chart */}
-                <div className="relative w-[76px] h-[76px] flex items-center justify-center shrink-0">
-                  <Chart
-                    options={kpiDonutChart.options}
-                    series={kpiDonutChart.series}
-                    type="donut"
-                    height={76}
-                    width={76}
-                  />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-0.5">
-                    <span className="text-xs font-extrabold text-slate-800 leading-none">
-                      {summary.total_divisions || 19}
-                    </span>
-                    <span className="text-[8.5px] text-slate-400 font-medium">divisi</span>
+              {/* 3 Status Indicators */}
+              <div className="flex-1 space-y-1 min-w-0">
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCardKpiFilter('memenuhi');
+                  }}
+                  className={`flex items-center justify-between px-2 py-0.5 rounded cursor-pointer transition text-[9.5px] border ${
+                    cardKpiFilter === 'memenuhi'
+                      ? 'bg-emerald-50/80 border-emerald-300 font-bold text-emerald-800'
+                      : 'border-transparent hover:bg-slate-50 text-slate-600'
+                  }`}
+                  title="Klik untuk menyaring divisi KPI Terpenuhi"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="truncate">Terpenuhi</span>
                   </div>
+                  <span className="font-bold text-emerald-700 ml-1">{summary.meeting_count || 0}</span>
                 </div>
 
-                {/* 3 Status Items (Terpenuhi, Tidak Terpenuhi, Belum Laporan) */}
-                <div className="flex-1 space-y-1">
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCardKpiFilter('memenuhi');
-                    }}
-                    className={`flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer transition border text-[9.5px] ${
-                      cardKpiFilter === 'memenuhi'
-                        ? 'bg-white border-emerald-500 ring-1 ring-emerald-500/20 shadow-2xs font-semibold'
-                        : 'bg-white/80 border-slate-200/70 hover:bg-white text-slate-700'
-                    }`}
-                    title="Klik untuk menyaring divisi KPI Terpenuhi"
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                      <span className="truncate">Terpenuhi</span>
-                    </div>
-                    <span className="font-bold text-emerald-600 ml-1">
-                      {summary.meeting_count || 0}
-                    </span>
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCardKpiFilter('tidak_memenuhi');
+                  }}
+                  className={`flex items-center justify-between px-2 py-0.5 rounded cursor-pointer transition text-[9.5px] border ${
+                    cardKpiFilter === 'tidak_memenuhi'
+                      ? 'bg-amber-50/80 border-amber-300 font-bold text-amber-800'
+                      : 'border-transparent hover:bg-slate-50 text-slate-600'
+                  }`}
+                  title="Klik untuk menyaring divisi KPI Tidak Terpenuhi"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                    <span className="truncate">Tidak Terpenuhi</span>
                   </div>
+                  <span className="font-bold text-amber-700 ml-1">{summary.not_meeting_count || 0}</span>
+                </div>
 
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCardKpiFilter('tidak_memenuhi');
-                    }}
-                    className={`flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer transition border text-[9.5px] ${
-                      cardKpiFilter === 'tidak_memenuhi'
-                        ? 'bg-white border-amber-500 ring-1 ring-amber-500/20 shadow-2xs font-semibold'
-                        : 'bg-white/80 border-slate-200/70 hover:bg-white text-slate-700'
-                    }`}
-                    title="Klik untuk menyaring divisi KPI Tidak Terpenuhi"
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                      <span className="truncate">Tidak Terpenuhi</span>
-                    </div>
-                    <span className="font-bold text-amber-600 ml-1">
-                      {summary.not_meeting_count || 0}
-                    </span>
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCardKpiFilter('belum_lapor');
+                  }}
+                  className={`flex items-center justify-between px-2 py-0.5 rounded cursor-pointer transition text-[9.5px] border ${
+                    cardKpiFilter === 'belum_lapor'
+                      ? 'bg-slate-100 border-slate-300 font-bold text-slate-900'
+                      : 'border-transparent hover:bg-slate-50 text-slate-600'
+                  }`}
+                  title="Klik untuk menyaring divisi Belum Laporan"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                    <span className="truncate">Belum Laporan</span>
                   </div>
-
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCardKpiFilter('belum_lapor');
-                    }}
-                    className={`flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer transition border text-[9.5px] ${
-                      cardKpiFilter === 'belum_lapor'
-                        ? 'bg-white border-slate-600 ring-1 ring-slate-400/20 shadow-2xs font-semibold'
-                        : 'bg-white/80 border-slate-200/70 hover:bg-white text-slate-700'
-                    }`}
-                    title="Klik untuk menyaring divisi Belum Laporan KPI"
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
-                      <span className="truncate">Belum Laporan</span>
-                    </div>
-                    <span className="font-bold text-slate-700 ml-1">
-                      {summary.report_pending_count || summary.incomplete_count || 0}
-                    </span>
-                  </div>
+                  <span className="font-bold text-slate-700 ml-1">
+                    {summary.report_pending_count || summary.incomplete_count || 0}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* ========================================================= */}
-            {/* KOTAK 2 (KANAN): TOP 3 DIVISI                             */}
-            {/* ========================================================= */}
-            <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-[9px] pb-1 border-b border-slate-200/60">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider">
-                  Top 3 Divisi:
-                </span>
-              </div>
-
-              <div className="space-y-1 my-auto py-1">
-                {cardKpiDivisions.length === 0 ? (
-                  <div className="text-slate-400 italic text-[9.5px] py-3 text-center bg-white/60 rounded-lg border border-slate-100">
-                    Tidak ada divisi pada status ini
-                  </div>
-                ) : (
-                  cardKpiDivisions.slice(0, 3).map((div, idx) => (
-                    <div
-                      key={div.name}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (div.raw) {
-                          setSelectedDivisionDetail(div.raw);
-                          setDetailMonthFilter('all');
-                          setDetailStatusFilter(cardKpiFilter);
-                          setDetailSearch('');
-                        }
-                      }}
-                      className="flex items-center justify-between text-[9.5px] py-1 px-1.5 rounded-lg bg-white/80 hover:bg-white border border-slate-100 hover:border-slate-200 cursor-pointer transition group/item"
-                      title={`Klik untuk melihat detail ${div.name}`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                        <span className={`w-3.5 h-3.5 rounded-full font-bold text-[8.5px] flex items-center justify-center shrink-0 ${
-                          idx === 0
-                            ? 'bg-slate-700 text-white'
-                            : idx === 1
-                            ? 'bg-slate-400 text-white'
-                            : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {idx + 1}
-                        </span>
-                        <span className="font-semibold text-slate-800 group-hover/item:text-blue-600 transition truncate">
-                          {div.name}
-                        </span>
-                      </div>
-                      <span className={`font-semibold px-1.5 py-0.5 rounded text-[8.5px] shrink-0 border ${
-                        cardKpiFilter === 'belum_lapor'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200/70'
-                          : cardKpiFilter === 'tidak_memenuhi'
-                          ? 'bg-amber-50 text-amber-700 border-amber-200/70'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
-                      }`}>
-                        {div.count} {cardKpiFilter === 'belum_lapor' ? 'Belum Lapor' : cardKpiFilter === 'tidak_memenuhi' ? 'Tidak Capai' : 'Terpenuhi'}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {cardKpiDivisions.length > 3 ? (
-                <div
+            {/* Right: Top 3 Divisi */}
+            <div className="sm:border-l border-slate-100 sm:pl-3 space-y-1 min-w-0">
+              <div className="flex items-center justify-between text-[9px] text-slate-400 font-semibold uppercase tracking-wider mb-0.5">
+                <span>Top Divisi:</span>
+                <span
                   onClick={(e) => {
                     e.stopPropagation();
                     setModalSearch('');
-                    setModalFilter(
-                      cardKpiFilter === 'belum_lapor'
-                        ? 'pending'
-                        : cardKpiFilter === 'tidak_memenuhi'
-                        ? 'not_meeting'
-                        : 'meeting'
-                    );
+                    setModalFilter(cardKpiFilter === 'belum_lapor' ? 'pending' : cardKpiFilter === 'tidak_memenuhi' ? 'not_meeting' : 'meeting');
                     setSelectedDivisionDetail(null);
                     setActiveDetailModal('kpi');
                   }}
-                  className="pt-1 flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-200/60"
+                  className="text-blue-600 hover:text-blue-800 font-medium normal-case flex items-center gap-0.5 cursor-pointer hover:underline"
                 >
-                  <span>{cardKpiDivisions.length} divisi</span>
-                  <span className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer hover:underline flex items-center gap-0.5">
-                    Lihat Semua &rarr;
-                  </span>
+                  Lihat Semua &rarr;
+                </span>
+              </div>
+              {cardKpiDivisions.length === 0 ? (
+                <div className="text-slate-400 italic text-[9px] py-2 text-center">
+                  Tidak ada divisi pada status ini
                 </div>
               ) : (
-                <div className="pt-1 text-[9px] text-slate-400 border-t border-slate-200/60">
-                  Total {cardKpiDivisions.length} divisi
-                </div>
+                cardKpiDivisions.slice(0, 3).map((div, idx) => (
+                  <div
+                    key={div.name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (div.raw) {
+                        setSelectedDivisionDetail(div.raw);
+                        setDetailMonthFilter('all');
+                        setDetailStatusFilter(cardKpiFilter);
+                        setDetailSearch('');
+                      }
+                    }}
+                    className="flex items-center justify-between text-[9.5px] py-0.5 px-1.5 rounded hover:bg-slate-50 cursor-pointer transition group/item"
+                    title={`Klik untuk melihat detail ${div.name}`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                      <span className={`w-3.5 h-3.5 rounded-full font-bold text-[8px] flex items-center justify-center shrink-0 ${
+                        idx === 0 ? 'bg-slate-700 text-white' : idx === 1 ? 'bg-slate-400 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <span className="font-medium text-slate-700 group-hover/item:text-blue-600 transition truncate">
+                        {div.name}
+                      </span>
+                    </div>
+                    <span className={`font-semibold px-1.5 py-0.2 rounded text-[8px] shrink-0 ${
+                      cardKpiFilter === 'belum_lapor'
+                        ? 'bg-rose-50 text-rose-700'
+                        : cardKpiFilter === 'tidak_memenuhi'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {div.count} {cardKpiFilter === 'belum_lapor' ? 'Belum Lapor' : cardKpiFilter === 'tidak_memenuhi' ? 'Tidak Capai' : 'Capai'}
+                    </span>
+                  </div>
+                ))
               )}
             </div>
           </div>
 
+          {/* Footer */}
           <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
             <span className="font-medium text-slate-700">
-              {summary.total_divisions || 19} Divisi
+              {summary.total_divisions || 19} Divisi Terdaftar
             </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
               Lihat Detail KPI Divisi <ChevronRight size={11} />
@@ -1021,128 +975,98 @@ export default function QMSAudit() {
             setModalPriorityFilter('all');
             setActiveDetailModal('followup');
           }}
-          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
+          className="group relative flex flex-col justify-between p-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full min-h-0"
         >
-          <div className="flex items-start justify-between shrink-0">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-2 min-w-0 pr-1">
-              <div className="p-1.5 bg-blue-50 text-blue-700 rounded-md shrink-0">
-                <Briefcase size={15} />
+              <div className="p-1 bg-blue-50 text-blue-700 rounded-md shrink-0">
+                <Briefcase size={14} />
               </div>
               <div className="truncate">
                 <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
                   Follow-up Evaluasi & Strategi BoD
                 </h3>
-                <p className="text-[9.5px] text-slate-400 truncate">
-                  Tindak Lanjut Notulen Rapat BoD & Penugasan PIC Terkait
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <DatasetBadgeButton source={QMS_DATA_SOURCES.followup} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          {/* Body Section with BoD Summary & Progress */}
-          <div className="py-1.5 border-y border-slate-100 flex flex-col justify-between flex-1 gap-2">
-            {/* Top Quick Badges */}
-            <div className="flex items-center justify-between text-[10px] bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/70 shrink-0">
-              <span className="text-slate-600 font-medium">
-                Total: <strong className="text-slate-900">{followUpStats.total}</strong>
-              </span>
-              <span className="text-emerald-700 font-medium">
-                Selesai: <strong>{followUpStats.done}</strong>
-              </span>
-              <span className="text-amber-700 font-medium">
-                Outstanding: <strong>{followUpStats.outstanding}</strong>
-              </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px]">
-                {followUpStats.completionRate}% Selesai
+          {/* Body */}
+          <div className="my-auto py-1.5 border-y border-slate-100 flex flex-col justify-between flex-1 min-h-0 gap-2">
+            {/* Top Quick Stats: Total, Selesai Rate, Overdue Alert */}
+            <div className="flex items-center justify-between text-[10px]">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-900 text-sm">{followUpStats.total}</span>
+                <span className="text-slate-500 font-medium text-[10px]">Total Tugas</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-emerald-700 font-bold">{followUpStats.completionRate}% Selesai</span>
+              </div>
+              <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-bold">
+                {followUpStats.overdue} Lewat Due Date
               </span>
             </div>
 
-            {/* Split: Status Bars (Left) & Top Outstanding (Right) */}
-            <div className="grid grid-cols-2 gap-3 text-[10px] flex-1">
-              {/* Left: Status Bars */}
-              <div className="flex flex-col justify-between pr-2 border-r border-slate-100">
-                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider pb-0.5">
-                  Status Penyelesaian:
-                </div>
-                <div className="flex flex-col justify-between flex-1 py-1 gap-1.5">
-                  <div>
-                    <div className="flex items-center justify-between text-[9.5px]">
-                      <span className="text-slate-600 font-medium truncate">Selesai</span>
-                      <span className="font-bold text-emerald-700">{followUpStats.done}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-0.5">
-                      <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.donePercent}%` }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[9.5px]">
-                      <span className="text-slate-600 font-medium truncate">On Progress</span>
-                      <span className="font-bold text-amber-700">{followUpStats.inProgress}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-0.5">
-                      <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.progPercent}%` }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-[9.5px]">
-                      <span className="text-slate-600 font-medium truncate">Belum Mulai</span>
-                      <span className="font-bold text-slate-700">{followUpStats.open}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-0.5">
-                      <div className="bg-slate-400 h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.openPercent}%` }} />
-                    </div>
-                  </div>
-                </div>
+            {/* Segmented Progress Bar */}
+            <div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                <div
+                  className="bg-emerald-500 h-full transition-all duration-500"
+                  style={{ width: `${followUpStats.donePercent}%` }}
+                  title={`Selesai: ${followUpStats.done} (${followUpStats.donePercent}%)`}
+                />
+                <div
+                  className="bg-amber-500 h-full transition-all duration-500"
+                  style={{ width: `${followUpStats.progPercent}%` }}
+                  title={`On Progress: ${followUpStats.inProgress} (${followUpStats.progPercent}%)`}
+                />
+                <div
+                  className="bg-slate-400 h-full transition-all duration-500"
+                  style={{ width: `${followUpStats.openPercent}%` }}
+                  title={`Belum Mulai: ${followUpStats.open} (${followUpStats.openPercent}%)`}
+                />
               </div>
 
-              {/* Right: Top Outstanding PICs */}
-              <div className="flex flex-col justify-between pl-1">
-                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider pb-0.5">
-                  Outstanding Terbanyak:
-                </div>
-                <div className="flex flex-col justify-between flex-1 py-1 gap-1.5">
-                  {topOutstandingOwners.length === 0 ? (
-                    <div className="text-slate-400 italic text-[10px] py-4 text-center">
-                      {followUpStats.total === 0 ? 'Tidak ada tugas pada periode ini' : 'Semua tugas selesai'}
-                    </div>
-                  ) : (
-                    topOutstandingOwners.map((owner, idx) => (
-                      <div
-                        key={owner.owner}
-                        className="flex items-center justify-between text-[9.5px] py-1 px-2 rounded-lg bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 hover:border-slate-200 transition"
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                          <span className={`w-3.5 h-3.5 rounded-full font-bold text-[8.5px] flex items-center justify-center shrink-0 ${
-                            idx === 0
-                              ? 'bg-blue-700 text-white'
-                              : idx === 1
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {idx + 1}
-                          </span>
-                          <span className="font-medium text-slate-700 truncate">{owner.owner}</span>
-                        </div>
-                        <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 shrink-0 text-[8.5px]">
-                          {owner.outstanding}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
+              {/* Progress Legend */}
+              <div className="flex items-center justify-between text-[9px] text-slate-500 mt-1">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> Selesai: <strong>{followUpStats.done}</strong>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" /> Progress: <strong>{followUpStats.inProgress}</strong>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" /> Belum: <strong>{followUpStats.open}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Top 3 Outstanding PICs */}
+            <div className="flex items-center gap-2 pt-0.5 border-t border-slate-50">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+                Outstanding:
+              </span>
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                {topOutstandingOwners.slice(0, 3).map((owner, idx) => (
+                  <div
+                    key={owner.owner}
+                    className="flex items-center justify-between text-[9px] px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200/70 flex-1 min-w-0"
+                  >
+                    <span className="text-slate-700 font-medium truncate">{owner.owner}</span>
+                    <span className="font-bold text-blue-700 ml-1">{owner.outstanding}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10.5px] text-slate-500 shrink-0 pt-0.5">
-            <span className="text-rose-600 font-medium">
-              <strong className="text-rose-700">{followUpStats.overdue} Lewat Due Date</strong> &bull; {followUpStats.highPriority} Prioritas Tinggi
+          {/* Footer */}
+          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
+            <span className="text-slate-600 font-medium">
+              {followUpStats.outstanding} Tugas Perlu Ditindaklanjuti
             </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
               Lihat Rekap BoD <ChevronRight size={11} />
@@ -1153,10 +1077,9 @@ export default function QMSAudit() {
 
       {/* ========================================================================= */}
       {/* 2. ROW 2: RISK ASSESSMENT, CORRECTIVE ACTION & KAIZEN LEADERBOARD         */}
-      {/* Proportions: Risk Assessment (1.5fr ~37.5%), CAR (1.5fr ~37.5%), Kaizen (1.0fr ~25%) */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.5fr_1fr] gap-2.5 w-full flex-1 min-h-[185px]">
-        {/* ---------------- CARD 3: RISK ASSESSMENT (WIDER) ---------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 w-full flex-1 min-h-0">
+        {/* ---------------- CARD 3: RISK ASSESSMENT ---------------- */}
         <div
           onClick={() => {
             setModalSearch('');
@@ -1164,21 +1087,19 @@ export default function QMSAudit() {
             setModalDivisionFilter(cardRiskDivisionFilter);
             setActiveDetailModal('risk');
           }}
-          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full group"
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
         >
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100 shrink-0">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-1.5 min-w-0 pr-1">
               <div className="p-1 bg-indigo-50 text-indigo-700 rounded-md shrink-0">
                 <ShieldAlert size={14} />
               </div>
-              <div className="truncate">
-                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                  Risk Assessment
-                </h3>
-              </div>
+              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                Risk Assessment
+              </h3>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {/* Dropdown Filter Divisi di Kartu (Overall vs Per Divisi) */}
               <select
                 value={cardRiskDivisionFilter}
                 onChange={(e) => {
@@ -1186,83 +1107,49 @@ export default function QMSAudit() {
                   setCardRiskDivisionFilter(e.target.value);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="py-0.5 px-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-700 font-medium focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[160px] truncate transition"
-                title="Pilih Divisi"
+                className="py-0.5 px-1 bg-slate-50 border border-slate-200 rounded text-[9.5px] text-slate-700 font-medium focus:outline-none cursor-pointer max-w-[105px] truncate"
               >
                 <option value="all">Semua Divisi</option>
                 {availableRiskDivisions.map((d) => (
-                  <option key={d.name} value={d.name}>
-                    {d.name} ({d.count})
-                  </option>
+                  <option key={d.name} value={d.name}>{d.name}</option>
                 ))}
               </select>
               <DatasetBadgeButton source={QMS_DATA_SOURCES.risk} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          {/* Body with Quick Metrics + Donut Chart & 4 Categories */}
-          <div className="py-1.5 border-y border-slate-100 flex flex-col justify-around gap-2 flex-1">
-            {/* Quick Risk Status Chips */}
-            <div className="grid grid-cols-3 gap-1.5 text-center items-stretch">
-              <div className="py-1 px-1 rounded-md bg-slate-50 border border-slate-200/70 flex flex-col justify-center">
-                <div className="text-xs font-bold text-slate-800 leading-tight">{cardRiskData.total}</div>
-                <div className="text-[8px] text-slate-500 font-medium leading-tight mt-0.5">Total Risiko</div>
+          {/* Body: 3 Scorecard Numbers + 4 Category Progress Bars */}
+          <div className="my-auto py-1.5 border-y border-slate-100 flex flex-col justify-between flex-1 min-h-0 gap-1.5">
+            {/* 3 Metrics */}
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              <div className="py-1 px-1 rounded bg-slate-50 border border-slate-100">
+                <div className="text-xs font-bold text-slate-800">{cardRiskData.total}</div>
+                <div className="text-[8px] text-slate-500 font-medium">Total Risiko</div>
               </div>
-              <div className="py-1 px-1 rounded-md bg-rose-50/70 border border-rose-200/70 flex flex-col justify-center">
-                <div className="text-xs font-bold text-rose-700 leading-tight">{cardRiskData.highRisk}</div>
-                <div className="text-[8px] text-rose-800 font-semibold leading-tight mt-0.5">High Risk</div>
-                {cardRiskData.highRiskBefore > 0 && (
-                  <div className="text-[7.5px] text-rose-600 font-medium leading-none mt-0.5 whitespace-nowrap">
-                    (Turun dari {cardRiskData.highRiskBefore})
-                  </div>
-                )}
+              <div className="py-1 px-1 rounded bg-rose-50/70 border border-rose-100">
+                <div className="text-xs font-bold text-rose-700">{cardRiskData.highRisk}</div>
+                <div className="text-[8px] text-rose-800 font-semibold">High Risk</div>
               </div>
-              <div
-                className="py-1 px-1 rounded-md bg-emerald-50/70 border border-emerald-200/70 flex flex-col justify-center cursor-help"
-                title={`Efektivitas mitigasi: ${Math.max(0, cardRiskData.highRiskBefore - cardRiskData.highRisk)} dari ${cardRiskData.highRiskBefore} risiko tinggi berhasil diturunkan levelnya`}
-              >
-                <div className="text-xs font-bold text-emerald-700 leading-tight">{cardRiskData.reductionRate}%</div>
-                <div className="text-[8px] text-emerald-800 font-semibold leading-tight mt-0.5">Mitigasi Efektif</div>
+              <div className="py-1 px-1 rounded bg-emerald-50/70 border border-emerald-100">
+                <div className="text-xs font-bold text-emerald-700">{cardRiskData.reductionRate}%</div>
+                <div className="text-[8px] text-emerald-800 font-semibold">Mitigasi Efektif</div>
               </div>
             </div>
 
-            {/* Donut Chart + 4 Categories with Mini Progress Bars */}
-            <div className="flex items-center justify-between gap-3 py-0.5">
-              <div className="relative w-[84px] h-[84px] flex items-center justify-center shrink-0">
-                <Chart
-                  options={riskDonutChart.options}
-                  series={riskDonutChart.series}
-                  type="donut"
-                  height={84}
-                  width={84}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-sm font-extrabold text-slate-800 leading-none">
-                    {cardRiskData.total}
-                  </span>
-                  <span className="text-[8.5px] text-slate-400 font-medium">risiko</span>
-                </div>
-              </div>
-
-              <div className="flex-1 grid grid-cols-2 gap-1.5 text-[9.5px]">
+            {/* 4 Category Bars */}
+            <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px]">
                 {cardRiskData.types.map((rt) => (
-                  <div
-                    key={rt.label}
-                    className="flex flex-col p-1.5 px-2 rounded-lg bg-slate-50/90 border border-slate-200/70 hover:bg-slate-100/70 transition"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${rt.color}`} />
-                        <span className="text-slate-700 truncate font-semibold">{rt.label}</span>
-                      </div>
-                      <span className="font-extrabold text-slate-900 ml-1">{rt.count}</span>
+                  <div key={rt.label} className="min-w-0">
+                    <div className="flex items-center justify-between text-[8.5px] mb-0.5">
+                      <span className="text-slate-600 font-medium truncate">{rt.label}</span>
+                      <span className="font-bold text-slate-800 ml-1">{rt.count}</span>
                     </div>
-                    <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden flex">
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                       <div
                         className={`${rt.barColor} h-full rounded-full transition-all duration-300`}
-                        style={{ width: `${Math.min(100, Math.max(8, rt.pct))}%` }}
-                        title={`${rt.label}: ${rt.count} (${rt.pct}%)`}
+                        style={{ width: `${Math.min(100, Math.max(10, rt.pct))}%` }}
                       />
                     </div>
                   </div>
@@ -1271,198 +1158,160 @@ export default function QMSAudit() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
-            <span className="font-medium text-slate-700 truncate max-w-[190px]" title={cardRiskData.divisionName}>
-              {cardRiskData.isOverall ? (
-                `${cardRiskData.total} Total Risiko • ${riskAssessment?.total_divisions || 20} Divisi`
-              ) : (
-                `${cardRiskData.total} Risiko • ${cardRiskData.divisionName}`
-              )}
+          {/* Footer */}
+          <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-0.5">
+            <span className="text-slate-600 font-medium truncate">
+              {cardRiskData.isOverall ? `${cardRiskData.total} Risiko • ${riskAssessment?.total_divisions || 20} Divisi` : cardRiskData.divisionName}
             </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5 shrink-0">
-              Lihat Detail Risk <ChevronRight size={10} />
+              Lihat Risk <ChevronRight size={10} />
             </span>
           </div>
         </div>
 
-        {/* ---------------- CARD 4: CORRECTIVE ACTION REGISTER (CAR) (WIDER, COMPACT BARS) ---------------- */}
+        {/* ---------------- CARD 4: CORRECTIVE ACTION REGISTER (CAR) ---------------- */}
         <div
           onClick={() => {
             setModalSearch('');
             setModalFilter('all');
             setActiveDetailModal('corrective');
           }}
-          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full group"
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
         >
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100 shrink-0">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-1.5 min-w-0 pr-1">
               <div className="p-1 bg-amber-50 text-amber-700 rounded-md shrink-0">
                 <Wrench size={14} />
               </div>
-              <div className="truncate">
-                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                  Corrective Action (CAR)
-                </h3>
-              </div>
+              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                Corrective Action (CAR)
+              </h3>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <DatasetBadgeButton source={QMS_DATA_SOURCES.corrective} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          {/* Body Section: Status Chips + Finding Divisions */}
-          <div className="my-auto py-1 border-y border-slate-100 flex flex-col justify-start gap-1.5 flex-1">
-            {/* Quick Status Chips */}
-            <div className="grid grid-cols-4 gap-1 text-center">
-              <div className="p-1 rounded bg-rose-50 border border-rose-100">
+          {/* Body: 3 Status Pills + Top Findings */}
+          <div className="my-auto py-1.5 border-y border-slate-100 flex flex-col justify-between flex-1 min-h-0 gap-1.5">
+            {/* 3 Status Pills */}
+            <div className="grid grid-cols-3 gap-1 text-center">
+              <div className="py-0.5 px-1 rounded bg-rose-50 border border-rose-100">
                 <div className="text-xs font-bold text-rose-700">{correctiveAction?.summary?.open ?? 0}</div>
-                <div className="text-[8px] text-rose-800 font-semibold">Open</div>
+                <div className="text-[7.5px] text-rose-800 font-semibold">Open</div>
               </div>
-              <div className="p-1 rounded bg-amber-50 border border-amber-100">
+              <div className="py-0.5 px-1 rounded bg-amber-50 border border-amber-100">
                 <div className="text-xs font-bold text-amber-700">{correctiveAction?.summary?.in_progress ?? 0}</div>
-                <div className="text-[8px] text-amber-800 font-semibold">Progress</div>
+                <div className="text-[7.5px] text-amber-800 font-semibold">Progress</div>
               </div>
-              <div className="p-1 rounded bg-emerald-50 border border-emerald-100">
+              <div className="py-0.5 px-1 rounded bg-emerald-50 border border-emerald-100">
                 <div className="text-xs font-bold text-emerald-700">{correctiveAction?.summary?.closed ?? 0}</div>
-                <div className="text-[8px] text-emerald-800 font-semibold">Closed</div>
-              </div>
-              <div className="p-1 rounded bg-slate-50 border border-slate-100">
-                <div className="text-xs font-bold text-slate-800">{correctiveAction?.summary?.total ?? (correctiveAction?.total_actions ?? 0)}</div>
-                <div className="text-[8px] text-slate-500 font-medium">Total CAR</div>
+                <div className="text-[7.5px] text-emerald-800 font-semibold">Closed</div>
               </div>
             </div>
 
-            {/* Finding Divisions Progress List */}
-            <div className="space-y-1 mt-1">
-              <div className="flex items-center justify-between text-[8.5px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
-                <span>Temuan per Departemen:</span>
-                <div className="flex items-center gap-2 font-medium normal-case text-[8px] text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Closed
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> Progress
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> Open
-                  </span>
-                </div>
+            {/* Department Findings Progress Bars */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[8px] font-semibold text-slate-400 uppercase tracking-wider">
+                <span>Temuan Departemen:</span>
+                <span className="text-slate-500 font-normal">Total {correctiveAction?.summary?.total ?? 124} CAR</span>
               </div>
-              {topCarDivisions.length === 0 ? (
-                <div className="text-slate-400 italic text-[10px] py-1">Tidak ada temuan pada periode ini</div>
-              ) : (
-                topCarDivisions.slice(0, 5).map((d) => (
-                  <div key={d.name} className="flex items-center justify-between text-[9.5px] py-0.5">
-                    <span className="font-medium text-slate-700 truncate w-32 sm:w-36" title={d.name}>
-                      {d.name}
-                    </span>
-                    <div className="flex-1 mx-2.5 bg-slate-100 h-2 rounded-full overflow-hidden flex shadow-2xs">
-                      <div
-                        className="bg-emerald-500 h-full transition-all duration-300"
-                        style={{ width: `${(d.closed / Math.max(1, d.total)) * 100}%` }}
-                        title={`Closed: ${d.closed}`}
-                      />
-                      <div
-                        className="bg-amber-500 h-full transition-all duration-300"
-                        style={{ width: `${(d.inProgress / Math.max(1, d.total)) * 100}%` }}
-                        title={`In Progress: ${d.inProgress}`}
-                      />
-                      <div
-                        className="bg-rose-500 h-full transition-all duration-300"
-                        style={{ width: `${(d.open / Math.max(1, d.total)) * 100}%` }}
-                        title={`Open: ${d.open}`}
-                      />
-                    </div>
-                    <span className="font-bold text-slate-800 text-[10px] w-5 text-right shrink-0">{d.total}</span>
+              {topCarDivisions.slice(0, 4).map((d) => (
+                <div key={d.name} className="flex items-center justify-between text-[9px]">
+                  <span className="font-medium text-slate-700 truncate w-24" title={d.name}>{d.name}</span>
+                  <div className="flex-1 mx-2 bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
+                    <div className="bg-emerald-500 h-full" style={{ width: `${(d.closed / Math.max(1, d.total)) * 100}%` }} />
+                    <div className="bg-amber-500 h-full" style={{ width: `${(d.inProgress / Math.max(1, d.total)) * 100}%` }} />
+                    <div className="bg-rose-500 h-full" style={{ width: `${(d.open / Math.max(1, d.total)) * 100}%` }} />
                   </div>
-                ))
-              )}
+                  <span className="font-bold text-slate-800 text-[8.5px] w-4 text-right shrink-0">{d.total}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
+          {/* Footer */}
+          <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-0.5">
             <span className="text-amber-700 font-medium">
-              <strong>{correctiveAction?.summary?.open ?? 0} Open</strong> &bull; {correctiveAction?.summary?.in_progress ?? 0} In Progress
+              <strong>{correctiveAction?.summary?.open ?? 0} Open</strong> &bull; {correctiveAction?.summary?.in_progress ?? 0} Progress
             </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
-              Lihat Rincian CAR <ChevronRight size={10} />
+              Rincian CAR <ChevronRight size={10} />
             </span>
           </div>
         </div>
 
-        {/* ---------------- CARD 5: KAIZEN RECAP (COMPACT) ---------------- */}
+        {/* ---------------- CARD 5: KAIZEN RECAP ---------------- */}
         <div
           onClick={() => {
             setModalSearch('');
             setModalFilter('all');
             setActiveDetailModal('kaizen');
           }}
-          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full group"
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
         >
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100 shrink-0">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-1.5 min-w-0 pr-1">
               <div className="p-1 bg-purple-50 text-purple-700 rounded-md shrink-0">
                 <Award size={14} />
               </div>
-              <div className="truncate">
-                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                  Kaizen Recap
-                </h3>
-              </div>
+              <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                Kaizen Recap
+              </h3>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <DatasetBadgeButton source={QMS_DATA_SOURCES.kaizen} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          {/* Body Section: Leaderboard Table Box */}
-          <div className="my-auto py-1 border-y border-slate-100 flex-1 flex flex-col justify-center">
-            <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg overflow-hidden">
-              <table className="w-full text-left border-collapse text-[9.5px]">
-                <thead>
-                  <tr className="bg-slate-100/90 text-slate-500 uppercase font-semibold text-[8px] border-b border-slate-200/70">
-                    <th className="py-1 px-1.5 w-7 text-center">Rank</th>
-                    <th className="py-1 px-1.5">Nama Inovator</th>
-                    <th className="py-1 px-1.5 text-right">Skor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white/90">
-                  {kaizenTop5.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="py-3 text-center text-slate-400 italic">
-                        Belum ada skor Kaizen terhitung
-                      </td>
-                    </tr>
-                  ) : (
-                    kaizenTop5.map((k, idx) => {
-                      const rankNum = k.rank || idx + 1;
-                      return (
-                        <tr key={k.id || idx} className="hover:bg-purple-50/40 transition">
-                          <td className="py-1 px-1.5 text-center font-bold text-slate-500 text-[8.5px]">
-                            {rankNum}
-                          </td>
-                          <td className="py-1 px-1.5 font-medium text-slate-800 truncate max-w-[105px]" title={k.idea || k.name}>
-                            {k.name}
-                          </td>
-                          <td className="py-1 px-1.5 text-right">
-                            <span className="font-bold text-purple-700 bg-purple-50 border border-purple-200/60 px-1.5 py-0.2 rounded text-[8.5px]">
-                              {Number(k.score || 0).toFixed(2)}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+          {/* Body: Top 4 Innovator Leaderboard */}
+          <div className="my-auto py-1.5 border-y border-slate-100 flex flex-col justify-between flex-1 min-h-0 gap-1">
+            <div className="flex items-center justify-between text-[8px] font-semibold text-slate-400 uppercase tracking-wider">
+              <span>Top Inovator:</span>
+              <span className="text-purple-700 font-bold">{kaizenRecap?.total_scored_entries || 76} Ide Dinilai</span>
+            </div>
+
+            <div className="space-y-1">
+              {kaizenTop5.slice(0, 4).map((k, idx) => {
+                const rankNum = k.rank || idx + 1;
+                return (
+                  <div
+                    key={k.id || idx}
+                    className="flex items-center justify-between text-[9px] py-0.5 px-1 rounded hover:bg-purple-50/50 transition"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                      <span className={`w-3.5 h-3.5 rounded-full font-bold text-[8px] flex items-center justify-center shrink-0 ${
+                        idx === 0
+                          ? 'bg-amber-400 text-amber-950 font-black'
+                          : idx === 1
+                          ? 'bg-slate-300 text-slate-800'
+                          : idx === 2
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {rankNum}
+                      </span>
+                      <span className="font-medium text-slate-700 truncate" title={k.name}>
+                        {k.name}
+                      </span>
+                    </div>
+                    <span className="font-bold text-purple-700 bg-purple-50 px-1 py-0.2 rounded text-[8px] shrink-0 border border-purple-200/60">
+                      {Number(k.score || 0).toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
+          {/* Footer */}
           <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-0.5">
-            <span className="font-medium text-purple-700 truncate pr-1" title={`${kaizenRecap?.total_scored_entries || 76} Ide Dinilai • Bobot 60/40`}>
-              {kaizenRecap?.total_scored_entries || 76} Ide &bull; 60/40
+            <span className="text-purple-700 font-medium truncate">
+              {kaizenRecap?.total_scored_entries || 76} Ide &bull; Bobot 60/40
             </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5 shrink-0">
               Leaderboard <ChevronRight size={10} />
@@ -2343,31 +2192,77 @@ export default function QMSAudit() {
                       </td>
                       <td className="p-2 text-slate-700 font-semibold">{task.owner || task.pic || '-'}</td>
                       <td className="p-2 whitespace-nowrap text-slate-600">{task.due_date || '-'}</td>
-                      <td className="p-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          (task.priority || '').toLowerCase().includes('critical')
-                            ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                            : (task.priority || '').toLowerCase().includes('tinggi') || (task.priority || '').toLowerCase().includes('high')
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : (task.priority || '').toLowerCase().includes('medium')
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : (task.priority || '').toLowerCase().includes('low')
-                            ? 'bg-slate-100 text-slate-600 border border-slate-200'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {task.priority || 'Normal'}
-                        </span>
+                      <td className="p-2 text-center whitespace-nowrap">
+                        {(() => {
+                          const pRaw = (task.priority || '').trim();
+                          const pLower = pRaw.toLowerCase();
+                          let label = 'Belum Ditentukan';
+                          let style = 'bg-slate-100 text-slate-600 border border-slate-200';
+
+                          if (pLower.includes('critical') || pLower.includes('kritis')) {
+                            label = 'Critical';
+                            style = 'bg-purple-100 text-purple-800 border border-purple-300';
+                          } else if (pLower.includes('high') || pLower.includes('tinggi')) {
+                            label = 'High';
+                            style = 'bg-rose-50 text-rose-700 border border-rose-200';
+                          } else if (pLower.includes('medium') || pLower.includes('sedang')) {
+                            label = 'Medium';
+                            style = 'bg-amber-50 text-amber-700 border border-amber-200';
+                          } else if (pLower.includes('low') || pLower.includes('rendah')) {
+                            label = 'Low';
+                            style = 'bg-slate-100 text-slate-600 border border-slate-200';
+                          } else if (pLower.includes('belum') || !pRaw || pRaw === '-') {
+                            label = 'Belum Ditentukan';
+                            style = 'bg-slate-100 text-slate-600 border border-slate-200';
+                          } else {
+                            label = pRaw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                          }
+
+                          return (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${style}`}>
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
-                      <td className="p-2 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          (task.status || '').toLowerCase().includes('done') || (task.status || '').toLowerCase().includes('selesai')
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : (task.status || '').toLowerCase().includes('progress')
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}>
-                          {task.status || 'Open'}
-                        </span>
+                      <td className="p-2 text-center whitespace-nowrap">
+                        {(() => {
+                          const sRaw = (task.status || '').trim();
+                          const sLower = sRaw.toLowerCase();
+                          let label = 'Open';
+                          let style = 'bg-slate-100 text-slate-700 border border-slate-200';
+
+                          if (sLower.includes('done') || sLower.includes('selesai')) {
+                            label = 'Done';
+                            style = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
+                          } else if (sLower.includes('progress')) {
+                            label = 'In Progress';
+                            style = 'bg-amber-50 text-amber-800 border border-amber-200';
+                          } else if (sLower.includes('open') || sLower.includes('belum')) {
+                            label = 'Open';
+                            style = 'bg-sky-50 text-sky-800 border border-sky-200';
+                          } else if (sLower.includes('overdue') || sLower.includes('lewat')) {
+                            label = 'Overdue';
+                            style = 'bg-rose-50 text-rose-800 border border-rose-200';
+                          } else if (sLower === 'pending') {
+                            label = 'Pending';
+                            style = 'bg-slate-100 text-slate-700 border border-slate-200';
+                          } else if (sLower === 'closed') {
+                            label = 'Closed';
+                            style = 'bg-slate-100 text-slate-600 border border-slate-200';
+                          } else if (!sRaw || sRaw === '-') {
+                            label = 'Open';
+                            style = 'bg-sky-50 text-sky-800 border border-sky-200';
+                          } else {
+                            label = sRaw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                          }
+
+                          return (
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${style}`}>
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))
