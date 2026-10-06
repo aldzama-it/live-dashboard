@@ -342,10 +342,19 @@ const BudgetRow = ({ expense, canEdit, onUpdate, onDelete, onCancelAdd, budgetCa
 
   return (
     <tr className="hover:bg-gray-50">
-      <td className="px-3 py-2">{expense.expense_date}</td>
-      <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{expense.description}</td>
+      <td className="px-3 py-2 whitespace-nowrap">{expense.expense_date}</td>
+      <td className="px-3 py-2 whitespace-normal break-words max-w-[260px]">
+        <div className="flex flex-col">
+          <span className="font-medium text-boxdark">{expense.description}</span>
+          {expense.trans_number && expense.trans_number !== '-' && (
+            <span className="text-[10px] text-gray-400 font-mono mt-0.5">
+              {expense.trans_number} {expense.transaction_type ? `• ${expense.transaction_type}` : ''}
+            </span>
+          )}
+        </div>
+      </td>
       <td className="px-3 py-2 text-primary">{expense.budget?.category || expense.group_category}</td>
-      <td className="px-3 py-2 text-right font-medium text-boxdark">Rp {parseFloat(expense.amount).toLocaleString('id-ID')}</td>
+      <td className="px-3 py-2 text-right font-medium text-boxdark whitespace-nowrap">Rp {parseFloat(expense.amount).toLocaleString('id-ID')}</td>
       {canEdit && (
         <td className="px-3 py-2 text-right">
           <div className="flex justify-end gap-1">
@@ -1006,10 +1015,10 @@ export default function ITSystem({ user }) {
           <KpiCard
             title="Pemakaian Budget"
             value={budgetData ? formatSimpleMoney(budgetData.total_used) : 'Rp 0'}
-            subtitle={budgetData ? `Rp ${budgetData.total_used.toLocaleString('id-ID')} / Rp ${budgetData.total_budget.toLocaleString('id-ID')}` : 'Loading...'}
+            subtitle={budgetData ? `Rp ${Math.round(budgetData.total_used).toLocaleString('id-ID')} / Rp ${Math.round(budgetData.total_budget).toLocaleString('id-ID')}` : 'Loading...'}
             icon={DollarSign}
             colorClass="text-danger bg-danger/10"
-            action={canEdit && <button onClick={(e) => { e.stopPropagation(); setModalType('budget'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>}
+            action={<button onClick={(e) => { e.stopPropagation(); setModalType('budget'); }} className="text-gray-400 hover:text-primary transition-colors bg-white rounded-full p-1 shadow-sm"><Pencil size={12} /></button>}
           />
           <KpiCard 
             title="Resolved Tickets" 
@@ -1071,18 +1080,36 @@ export default function ITSystem({ user }) {
                         labels: { style: { fontSize: '10px' } }
                       },
                       yaxis: {
-                        labels: { formatter: (val) => "Rp " + val.toLocaleString('id-ID'), style: { fontSize: '10px' } }
+                        labels: { formatter: (val) => "Rp " + Math.round(val || 0).toLocaleString('id-ID'), style: { fontSize: '10px' } }
                       },
                       legend: { position: 'top', fontSize: '10px', itemMargin: { horizontal: 5, vertical: 0 } },
                       dataLabels: { enabled: false },
-                      tooltip: { shared: true, intersect: false }
+                      tooltip: { 
+                        shared: true, 
+                        intersect: false,
+                        y: {
+                          formatter: (val) => val !== undefined && val !== null ? "Rp " + Math.round(val).toLocaleString('id-ID') : '-',
+                          title: {
+                            formatter: (seriesName) => {
+                              const map = {
+                                'Asset': 'Asset (Hardware):',
+                                'Sub': 'Subscription (Langganan):',
+                                'Maint': 'Maintenance (Perbaikan):',
+                                'Ops': 'Operasional:',
+                                'Total': 'Total Pengeluaran:'
+                              };
+                              return map[seriesName] || (seriesName + ':');
+                            }
+                          }
+                        }
+                      }
                     }}
                     series={[
-                      { name: 'Asset', type: 'column', data: budgetData.monthly_trend.map(item => item.Asset) },
-                      { name: 'Sub', type: 'column', data: budgetData.monthly_trend.map(item => item.Subscription) },
-                      { name: 'Maint', type: 'column', data: budgetData.monthly_trend.map(item => item.Maintenance) },
-                      { name: 'Ops', type: 'column', data: budgetData.monthly_trend.map(item => item.Operational) },
-                      { name: 'Total', type: 'line', data: budgetData.monthly_trend.map(item => item.Total) }
+                      { name: 'Asset', type: 'column', data: budgetData.monthly_trend.map(item => Math.round(item.Asset || 0)) },
+                      { name: 'Sub', type: 'column', data: budgetData.monthly_trend.map(item => Math.round(item.Subscription || 0)) },
+                      { name: 'Maint', type: 'column', data: budgetData.monthly_trend.map(item => Math.round(item.Maintenance || 0)) },
+                      { name: 'Ops', type: 'column', data: budgetData.monthly_trend.map(item => Math.round(item.Operational || 0)) },
+                      { name: 'Total', type: 'line', data: budgetData.monthly_trend.map(item => Math.round(item.Total || 0)) }
                     ]}
                     type="line"
                     height="100%"
@@ -1510,17 +1537,32 @@ export default function ITSystem({ user }) {
       </Modal>
 
       {/* Budget Modal */}
-      <Modal isOpen={modalType === 'budget'} onClose={() => setModalType(null)} title="Rincian Penggunaan Budget" maxWidth="max-w-4xl">
+      <Modal isOpen={modalType === 'budget'} onClose={() => setModalType(null)} title="Rincian Penggunaan Budget IT" maxWidth="max-w-4xl">
         {budgetData ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
-                <p className="text-sm text-gray-500 font-medium mb-1">Total Alokasi (Tahun Ini)</p>
-                <h3 className="text-2xl font-bold text-boxdark">Rp {budgetData.total_budget.toLocaleString('id-ID')}</h3>
+            <div className="flex items-center justify-between bg-slate-50 border border-stroke rounded p-3 -mt-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs font-semibold text-boxdark">Sumber Realisasi: Accurate Online (Akun 6211 - IT Internet, Software, Server, dll)</span>
               </div>
-              <div className="bg-white rounded border border-stroke p-4 flex flex-col items-center justify-center">
-                <p className="text-sm text-gray-500 font-medium mb-1">Total Terpakai</p>
-                <h3 className="text-2xl font-bold text-danger">Rp {budgetData.total_used.toLocaleString('id-ID')}</h3>
+              <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-medium">Live Accurate API</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="bg-white rounded border border-stroke p-3 flex flex-col items-center justify-center">
+                <p className="text-xs text-gray-500 font-medium mb-1">Total Alokasi (Tahun Ini)</p>
+                <h3 className="text-lg font-bold text-boxdark">Rp {Math.round(budgetData.total_budget).toLocaleString('id-ID')}</h3>
+              </div>
+              <div className="bg-white rounded border border-stroke p-3 flex flex-col items-center justify-center">
+                <p className="text-xs text-gray-500 font-medium mb-1">Total Terpakai (Mutasi Accurate)</p>
+                <h3 className="text-lg font-bold text-danger">Rp {Math.round(budgetData.total_used).toLocaleString('id-ID')}</h3>
+                <span className="text-[10px] text-danger font-medium mt-0.5">
+                  Utilisasi: {budgetData.total_budget > 0 ? ((budgetData.total_used / budgetData.total_budget) * 100).toFixed(1) : 0}%
+                </span>
+              </div>
+              <div className="bg-white rounded border border-stroke p-3 flex flex-col items-center justify-center">
+                <p className="text-xs text-gray-500 font-medium mb-1">Sisa Anggaran</p>
+                <h3 className="text-lg font-bold text-success">Rp {Math.max(0, Math.round(budgetData.total_budget - budgetData.total_used)).toLocaleString('id-ID')}</h3>
               </div>
             </div>
 
