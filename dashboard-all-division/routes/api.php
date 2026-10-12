@@ -31,8 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // IT Emails Routes
     Route::apiResource('it-emails', \App\Http\Controllers\Api\ItEmailController::class);
 
-    // Divisions
+    // Divisions and Departments
     Route::get('/divisions', [DivisionController::class, 'index']);
+    Route::get('/departments', [DivisionController::class, 'departments']);
 
     // IT Dashboard Routes
     Route::get('/it-dashboard/assets', [ItDashboardController::class, 'getAssets']);
