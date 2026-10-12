@@ -59,22 +59,22 @@ class DivisionDepartmentSeeder extends Seeder
             ],
         ];
 
-        foreach ($structure as $divisionName => $codeAndDepartments) {
-            foreach ($codeAndDepartments as $divisionCode => $departments) {
-                $division = Division::firstOrCreate(
-                    ['code' => $divisionCode],
-                    ['name' => $divisionName]
+        foreach ($structure as $departmentName => $codeAndDivisions) {
+            foreach ($codeAndDivisions as $departmentCode => $divisions) {
+                $department = Department::firstOrCreate(
+                    ['code' => $departmentCode],
+                    ['name' => $departmentName]
                 );
 
-                foreach ($departments as $index => $departmentName) {
-                    $departmentCode = $divisionCode . '-' . ($index + 1);
+                foreach ($divisions as $index => $divisionName) {
+                    $divisionCode = $departmentCode . '-' . ($index + 1);
 
-                    Department::firstOrCreate(
+                    Division::firstOrCreate(
                         [
-                            'division_id' => $division->id,
-                            'name' => $departmentName,
+                            'department_id' => $department->id,
+                            'name' => $divisionName,
                         ],
-                        ['code' => $departmentCode]
+                        ['code' => $divisionCode]
                     );
                 }
             }

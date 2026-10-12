@@ -9,11 +9,11 @@ class Division extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code', 'description'];
+    protected $fillable = ['department_id', 'name', 'code'];
 
-    public function departments()
+    public function department()
     {
-        return $this->hasMany(Department::class);
+        return $this->belongsTo(Department::class);
     }
 
     public function pages()
