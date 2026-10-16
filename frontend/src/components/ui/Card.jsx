@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Card({ title, children, className = '', delay = 'delay-0', onClick, action }) {
+export default function Card({ title, children, className = '', delay = 'delay-0', onClick, action, bodyClassName = '' }) {
   const interactiveClasses = onClick 
     ? 'cursor-pointer hover:border-primary hover:shadow-md transition-all duration-300' 
     : '';
@@ -18,10 +18,11 @@ export default function Card({ title, children, className = '', delay = 'delay-0
           {action && <div className="shrink-0">{action}</div>}
         </div>
       )}
-      <div className="flex-1 p-3 min-h-0 flex flex-col overflow-y-auto">
+      <div className={`flex-1 p-3 min-h-0 flex flex-col ${bodyClassName || 'overflow-y-auto'}`}>
         {children}
       </div>
     </div>
   );
 }
+
 

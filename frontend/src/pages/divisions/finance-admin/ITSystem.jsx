@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, Plus, Pencil, Trash2, Check, X, RefreshCw } from 'lucide-react';
+import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, Plus, Pencil, Trash2, Check, X, RefreshCw, ExternalLink } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -382,10 +382,8 @@ const SoftwareRow = ({ software, canEdit, onUpdate, onDelete, onCancelAdd }) => 
           </select>
         </div>
         <div className="flex gap-2">
-          {formData.status === 'development' ? (
-            <input type="number" placeholder="Progress (0-100)..." className="w-1/2 border rounded px-2 py-1 text-xs h-7" value={formData.progress || ''} onChange={e => setFormData({ ...formData, progress: e.target.value })} />
-          ) : (
-            <input type="number" placeholder="Active Users..." className="w-1/2 border rounded px-2 py-1 text-xs h-7" value={formData.active_users || ''} onChange={e => setFormData({ ...formData, active_users: e.target.value })} />
+          {formData.status === 'development' && (
+            <input type="number" placeholder="Progress (0-100)..." className="w-32 border rounded px-2 py-1 text-xs h-7" value={formData.progress || ''} onChange={e => setFormData({ ...formData, progress: e.target.value })} />
           )}
           <input type="text" placeholder="Deskripsi..." className="flex-1 border rounded px-2 py-1 text-xs h-7" value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
         </div>
@@ -432,10 +430,9 @@ const SoftwareRow = ({ software, canEdit, onUpdate, onDelete, onCancelAdd }) => 
         <span className="text-xs text-gray-500 truncate">{software.description}</span>
       </div>
       <div className="flex flex-col items-end shrink-0 pl-2">
-        <span className="text-xs font-bold text-success bg-success/10 px-2 py-1 rounded">
-          {new Intl.NumberFormat('id-ID').format(software.active_users || 0)}
+        <span className="text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
+          Launched
         </span>
-        <span className="text-[10px] text-gray-400 mt-1">Active Users</span>
       </div>
       {canEdit && (
         <div className="absolute top-1/2 -translate-y-1/2 right-14 opacity-0 group-hover:opacity-100 transition flex gap-1 bg-white p-1 rounded shadow">
@@ -464,11 +461,12 @@ const TicketRow = ({ ticket, canEdit, onUpdate, onDelete, onCancelAdd }) => {
           <input type="text" placeholder="Department..." className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.department || ''} onChange={e => setFormData({ ...formData, department: e.target.value })} />
         </td>
         <td className="px-2 py-2 min-w-[120px]">
-          <select className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.status || 'Open'} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-            <option value="Open">Open</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
-            <option value="Closed">Closed</option>
+          <select className="w-full border rounded px-2 py-1 text-xs h-7" value={formData.status || 'NEW'} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+            <option value="NEW">NEW</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="WAITING_USER">WAITING_USER</option>
+            <option value="RESOLVED">RESOLVED</option>
+            <option value="CLOSED">CLOSED</option>
           </select>
         </td>
         <td className="px-2 py-2 min-w-[130px]">
@@ -491,17 +489,64 @@ const TicketRow = ({ ticket, canEdit, onUpdate, onDelete, onCancelAdd }) => {
     );
   }
 
-  const statusColors = { Open: 'bg-warning/20 text-warning', 'In Progress': 'bg-primary/20 text-primary', Resolved: 'bg-success/20 text-success', Closed: 'bg-gray-200 text-gray-500' };
-  
+  const statusColors = {
+    Open: 'bg-warning/20 text-warning',
+    NEW: 'bg-blue-100 text-blue-700',
+    'In Progress': 'bg-primary/20 text-primary',
+    IN_PROGRESS: 'bg-indigo-100 text-indigo-700',
+    WAITING_USER: 'bg-amber-100 text-amber-700',
+    Resolved: 'bg-success/20 text-success',
+    RESOLVED: 'bg-emerald-100 text-emerald-700',
+    Closed: 'bg-gray-200 text-gray-500',
+    CLOSED: 'bg-slate-200 text-slate-600',
+  };
+
+  const priorityColors = {
+    Low: 'text-gray-500 bg-gray-100',
+    Medium: 'text-blue-600 bg-blue-50',
+    High: 'text-amber-600 bg-amber-50',
+    Urgent: 'text-rose-600 bg-rose-50 font-bold',
+  };
+
   return (
     <tr className="hover:bg-gray-50">
-      <td className="px-3 py-2 font-medium text-boxdark">{ticket.ticket_number}</td>
-      <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">{ticket.subject}</td>
-      <td className="px-3 py-2">{ticket.department}</td>
+      <td className="px-3 py-2 font-medium text-boxdark">
+        {ticket.detail_url ? (
+          <a
+            href={ticket.detail_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline inline-flex items-center gap-1 font-semibold group/link"
+            title="Buka tiket di aplikasi Ticketing"
+          >
+            {ticket.ticket_number}
+            <ExternalLink size={11} className="opacity-60 group-hover/link:opacity-100" />
+          </a>
+        ) : (
+          ticket.ticket_number
+        )}
+      </td>
+      <td className="px-3 py-2 whitespace-normal break-words max-w-[200px]">
+        <div>{ticket.subject}</div>
+        {ticket.reporter_name && (
+          <div className="text-[10px] text-gray-400 mt-0.5">Pelapor: {ticket.reporter_name}</div>
+        )}
+      </td>
       <td className="px-3 py-2">
-        <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${statusColors[ticket.status] || 'bg-gray-100'}`}>
-          {ticket.status}
-        </span>
+        <div>{ticket.department || '-'}</div>
+        {ticket.location && <div className="text-[10px] text-gray-400">{ticket.location}</div>}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex flex-col gap-1 items-start">
+          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[ticket.status] || 'bg-gray-100 text-gray-600'}`}>
+            {ticket.status}
+          </span>
+          {ticket.priority && (
+            <span className={`px-1.5 py-0.5 text-[9px] rounded font-medium ${priorityColors[ticket.priority] || 'text-gray-500'}`}>
+              {ticket.priority}
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-2">{ticket.assigned_to || '-'}</td>
       {canEdit && (
@@ -515,6 +560,7 @@ const TicketRow = ({ ticket, canEdit, onUpdate, onDelete, onCancelAdd }) => {
     </tr>
   );
 };
+
 
 const formatSimpleMoney = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
@@ -556,6 +602,7 @@ export default function ITSystem({ user }) {
   const [showSoftwareDetails, setShowSoftwareDetails] = useState(false);
   const [ticketsData, setTicketsData] = useState(null);
   const [isAddingTicket, setIsAddingTicket] = useState(false);
+  const [isSyncingTickets, setIsSyncingTickets] = useState(false);
   const [budgetData, setBudgetData] = useState(null);
   const [isAddingBudget, setIsAddingBudget] = useState(false);
   const [softwareData, setSoftwareData] = useState(null);
@@ -590,15 +637,34 @@ export default function ITSystem({ user }) {
     }
   };
 
-  const fetchTickets = async () => {
+  const fetchTickets = async (isRefresh = false) => {
     try {
-      const qs = dateRange.startDate && dateRange.endDate ? `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}` : '';
+      let qs = dateRange.startDate && dateRange.endDate ? `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}` : '';
+      if (isRefresh) {
+        qs += (qs ? '&' : '?') + 'refresh=true';
+      }
       const res = await api.get(`/api/it-dashboard/tickets${qs}`);
       setTicketsData(res.data.data);
     } catch (err) {
       console.error(err);
     }
   };
+
+  const handleSyncTickets = async () => {
+    try {
+      setIsSyncingTickets(true);
+      const qs = dateRange.startDate && dateRange.endDate ? `?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}` : '';
+      const res = await api.post(`/api/it-dashboard/sync-tickets${qs}`);
+      alert(res.data.message || 'Sinkronisasi berhasil!');
+      await fetchTickets(true);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Gagal menyinkronkan data tiket.');
+    } finally {
+      setIsSyncingTickets(false);
+    }
+  };
+
 
   const fetchBudget = async () => {
     try {
@@ -1035,30 +1101,26 @@ export default function ITSystem({ user }) {
         [PENGATURAN BARIS 2: HIGHLIGHTS] 
         - Card delay="delay-150" dll. juga diberi class "shrink-0" jika ditaruh dalam layout flex agar tidak tertekan.
       */}
-        {/* Row 2: Highlights */}
-        <Card delay="delay-150" className="mb-2 p-2 shrink-0">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-1">
-            {['Highlight', 'Risk', 'Achievement', 'Plan'].map(type => {
-              const hData = highlightsData?.find(h => h.type?.toLowerCase() === type.toLowerCase());
-              let borderColor = 'border-primary';
-              if (type === 'Highlight') borderColor = 'border-success';
-              else if (type === 'Risk') borderColor = 'border-danger';
-              else if (type === 'Plan') borderColor = 'border-warning';
-              
-              return (
-                <div key={type} className={`border-l-[3px] ${borderColor} pl-2`}>
-                  <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">{type}</p>
-                  <p className="text-[10px] font-medium text-boxdark leading-tight">
-                    {hData?.description || '-'}
-                  </p>
-                </div>
-              );
-            })}
+        {/* Row 2: Highlight & Plan */}
+        <Card delay="delay-150" className="mb-2 p-2.5 shrink-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="border-l-[3px] border-primary pl-3">
+              <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-0.5">Highlight</p>
+              <p className="text-xs font-medium text-boxdark leading-relaxed">
+                {highlightsData?.find(h => h.type?.toLowerCase() === 'highlight')?.description || '-'}
+              </p>
+            </div>
+            <div className="border-l-[3px] border-warning pl-3">
+              <p className="text-[9px] font-bold text-warning uppercase tracking-wider mb-0.5">Plan</p>
+              <p className="text-xs font-medium text-boxdark leading-relaxed">
+                {highlightsData?.find(h => h.type?.toLowerCase() === 'plan')?.description || '-'}
+              </p>
+            </div>
           </div>
         </Card>
 
         {/* Main Dashboard Layout (Row 2 + 3 combined) */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-1 mb-2 lg:h-[340px]">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 mb-2 lg:h-[380px]">
           <ChartContainer 
             title="IT Budget" 
             delay="delay-300" 
@@ -1155,60 +1217,33 @@ export default function ITSystem({ user }) {
           </ChartContainer>
 
           {/* Software & Ticketing (Stacked in 1 Column) */}
-          <div className="lg:col-span-1 flex flex-col gap-1 h-[600px] lg:h-full min-h-0">
+          <div className="lg:col-span-1 flex flex-col gap-2 h-[600px] lg:h-full min-h-0">
             {/* Software Develop */}
             <ChartContainer 
               title="Software Develop" 
               delay="delay-200" 
-              className="flex-1 !min-h-0"
+              className="flex-1 min-h-0"
               action={<button onClick={() => setModalType('software')} className="text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded transition flex items-center gap-1">View Details <ChevronRight size={12} /></button>}
             >
               {softwareData && softwareData.summary ? (
-                <div className="flex flex-col h-full items-center relative -mt-2">
-                  <div className="w-full h-[100%] relative">
+                <div className="flex h-full w-full items-center justify-between gap-2 overflow-hidden">
+                  {/* Donut Chart with HTML Centered Overlay */}
+                  <div className="relative flex-shrink-0 w-[44%] h-full flex items-center justify-center">
                     <Chart
                       options={{
-                        chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+                        chart: { type: 'donut', fontFamily: 'Inter, sans-serif', sparkline: { enabled: true } },
                         labels: ['Launched', 'In Development'],
                         colors: ['#10B981', '#3C50E0'],
                         dataLabels: { enabled: false },
+                        legend: { show: false },
                         plotOptions: { 
                           pie: { 
                             donut: { 
-                              size: '70%', 
-                              offsetY: 0,
-                              labels: {
-                                show: true,
-                                name: {
-                                  show: true,
-                                  fontSize: '9px',
-                                  fontWeight: 600,
-                                  color: '#64748B',
-                                  offsetY: 20
-                                },
-                                value: {
-                                  show: true,
-                                  fontSize: '26px',
-                                  fontWeight: 'bold',
-                                  color: '#1c2434',
-                                  offsetY: -16
-                                },
-                                total: {
-                                  show: true,
-                                  showAlways: true,
-                                  label: 'APPS',
-                                  fontSize: '9px',
-                                  fontWeight: 600,
-                                  color: '#64748B',
-                                  formatter: function (w) {
-                                    return w.globals.seriesTotals.reduce((a, b) => a + b, 0)
-                                  }
-                                }
-                              }
+                              size: '72%', 
+                              labels: { show: false }
                             } 
                           } 
                         },
-                        legend: { position: 'right', fontSize: '10px', offsetY: 0, formatter: function(val) { return val.length > 10 ? val.substring(0, 10) + '...' : val; } },
                         tooltip: { 
                           theme: 'light',
                           y: {
@@ -1224,9 +1259,34 @@ export default function ITSystem({ user }) {
                       }}
                       series={[softwareData.summary?.launched || 0, softwareData.summary?.development || 0]}
                       type="donut"
-                      height="100%"
+                      height="90%"
                       width="100%"
                     />
+                    {/* Non-Colliding HTML Center Label */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-base font-bold text-boxdark leading-none">
+                        {(softwareData.summary?.launched || 0) + (softwareData.summary?.development || 0)}
+                      </span>
+                      <span className="text-[8px] font-semibold text-gray-400 uppercase mt-1 tracking-wider">
+                        APPS
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Clean Legend Badges */}
+                  <div className="flex-1 flex flex-col justify-center gap-2 pr-1.5 min-w-0">
+                    <div className="flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5">
+                      <span className="flex items-center gap-1.5 text-gray-600 text-[11px] font-medium truncate">
+                        <span className="w-2 h-2 rounded-full bg-[#10B981] flex-shrink-0"></span> Launched
+                      </span>
+                      <span className="font-bold text-boxdark text-xs flex-shrink-0">{softwareData.summary?.launched || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5">
+                      <span className="flex items-center gap-1.5 text-gray-600 text-[11px] font-medium truncate">
+                        <span className="w-2 h-2 rounded-full bg-[#3C50E0] flex-shrink-0"></span> In Dev
+                      </span>
+                      <span className="font-bold text-boxdark text-xs flex-shrink-0">{softwareData.summary?.development || 0}</span>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1238,19 +1298,35 @@ export default function ITSystem({ user }) {
             <ChartContainer 
               title="IT Ticketing" 
               delay="delay-300" 
-              className="flex-1 !min-h-0"
+              className="flex-1 min-h-0"
               action={<button onClick={() => setModalType('ticketing')} className="text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded transition flex items-center gap-1">View Details <ChevronRight size={12} /></button>}
             >
+
               {ticketsData && ticketsData.categories ? (() => {
                 const TICKET_COLORS = ['#EF4444','#F97316','#EAB308','#3B82F6','#8B5CF6','#10B981','#6366F1','#EC4899','#14B8A6','#F43F5E'];
                 const total = ticketsData.categories.reduce((s, c) => s + parseInt(c.total), 0);
+
+                // Ambil Top 4 kategori, dan rangkum sisanya menjadi "Lainnya" agar pas dan tidak ada scrollbar
+                const topCategories = ticketsData.categories.slice(0, 4);
+                const remainingCategories = ticketsData.categories.slice(4);
+                const remainingTotal = remainingCategories.reduce((s, c) => s + parseInt(c.total), 0);
+
+                const displayCategories = [...topCategories];
+                if (remainingTotal > 0) {
+                  displayCategories.push({
+                    category: `${remainingCategories.length} Kategori Lainnya`,
+                    total: remainingTotal,
+                    isOther: true
+                  });
+                }
+
                 return (
-                  <div className="flex h-full min-h-0 gap-1 -mt-1">
-                    {/* Donut */}
-                    <div className="flex-shrink-0 w-[55%] h-full">
+                  <div className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden">
+                    {/* Donut with HTML Centered Overlay */}
+                    <div className="relative flex-shrink-0 w-[44%] h-full flex items-center justify-center">
                       <Chart
                         options={{
-                          chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+                          chart: { type: 'donut', fontFamily: 'Inter, sans-serif', sparkline: { enabled: true } },
                           labels: ticketsData.categories.map(c => c.category),
                           legend: { show: false },
                           dataLabels: { enabled: false },
@@ -1258,21 +1334,8 @@ export default function ITSystem({ user }) {
                           plotOptions: {
                             pie: {
                               donut: {
-                                size: '68%',
-                                labels: {
-                                  show: true,
-                                  name: { show: true, fontSize: '8px', fontWeight: 600, color: '#64748B', offsetY: 14 },
-                                  value: { show: true, fontSize: '18px', fontWeight: 'bold', color: '#1c2434', offsetY: -8 },
-                                  total: {
-                                    show: true,
-                                    showAlways: true,
-                                    label: 'RESOLVED',
-                                    fontSize: '8px',
-                                    fontWeight: 600,
-                                    color: '#64748B',
-                                    formatter: () => ticketsData.total_resolved
-                                  }
-                                }
+                                size: '72%',
+                                labels: { show: false }
                               }
                             }
                           },
@@ -1289,21 +1352,34 @@ export default function ITSystem({ user }) {
                         }}
                         series={ticketsData.categories.map(c => parseInt(c.total))}
                         type="donut"
-                        height="100%"
+                        height="90%"
                         width="100%"
                       />
+                      {/* Non-Colliding HTML Center Label */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-base font-bold text-boxdark leading-none">
+                          {ticketsData.total_resolved || 0}
+                        </span>
+                        <span className="text-[8px] font-semibold text-gray-400 uppercase mt-1 tracking-wider">
+                          RESOLVED
+                        </span>
+                      </div>
                     </div>
-                    {/* Custom scrollable legend */}
-                    <div className="flex-1 min-w-0 overflow-y-auto py-2 pr-1 flex flex-col gap-1.5">
-                      {ticketsData.categories.map((c, i) => {
+
+                    {/* Clean compact legend without scrollbar */}
+                    <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center gap-1.5 overflow-hidden">
+                      {displayCategories.map((c, i) => {
                         const pct = total > 0 ? ((parseInt(c.total) / total) * 100).toFixed(1) : 0;
+                        const color = c.isOther ? '#94A3B8' : TICKET_COLORS[i % TICKET_COLORS.length];
                         return (
-                          <div key={i} className="flex items-start gap-1.5 min-w-0">
-                            <span className="flex-shrink-0 mt-0.5 w-2 h-2 rounded-full" style={{ backgroundColor: TICKET_COLORS[i % TICKET_COLORS.length] }} />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[9px] leading-tight text-gray-600 break-words">{c.category}</p>
-                              <p className="text-[9px] font-bold text-boxdark">{c.total} <span className="font-normal text-gray-400">({pct}%)</span></p>
+                          <div key={i} className="flex items-center justify-between gap-1 text-[10px] leading-tight">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                              <span className="flex-shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                              <span className="text-gray-600 truncate font-medium text-[10px]" title={c.category}>{c.category}</span>
                             </div>
+                            <span className="font-bold text-boxdark flex-shrink-0 text-[10px]">
+                              {c.total} <span className="font-normal text-gray-400 text-[9px]">({pct}%)</span>
+                            </span>
                           </div>
                         );
                       })}
@@ -1316,6 +1392,8 @@ export default function ITSystem({ user }) {
             </ChartContainer>
           </div>
         </div>
+
+
       </div>
 
       {/* Asset Modal */}
@@ -1680,10 +1758,9 @@ export default function ITSystem({ user }) {
                       <span className="text-xs text-gray-500 truncate">{sw.description}</span>
                     </div>
                     <div className="flex flex-col items-end shrink-0 pl-2">
-                      <span className="text-xs font-bold text-success bg-success/10 px-2 py-1 rounded">
-                        {new Intl.NumberFormat('id-ID').format(sw.active_users || 0)}
+                      <span className="text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
+                        Launched
                       </span>
-                      <span className="text-[10px] text-gray-400 mt-1">Active Users</span>
                     </div>
                   </div>
                 ))}
@@ -1699,6 +1776,34 @@ export default function ITSystem({ user }) {
       <Modal isOpen={modalType === 'ticketing'} onClose={() => setModalType(null)} title="Rincian IT Ticketing" maxWidth="max-w-5xl">
         {ticketsData ? (
           <div className="space-y-6">
+            {/* Live API Status Banner */}
+            <div className="flex items-center justify-between bg-slate-50 border border-stroke rounded p-3 -mt-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${ticketsData.is_live ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                <span className="text-xs font-semibold text-boxdark">
+                  Sumber Tiket: {ticketsData.is_live ? 'Live Ticketing API Feed (v1/integrations/assets/tickets)' : 'Database Lokal (it_tickets)'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {ticketsData.is_live ? (
+                  <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-medium">
+                    Live Feed Active
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded font-medium">
+                    {ticketsData.has_token ? 'Mode Database Lokal' : 'Token Belum Dikonfigurasi'}
+                  </span>
+                )}
+                <button
+                  onClick={() => fetchTickets(true)}
+                  className="text-[10px] text-primary hover:underline font-medium ml-1 flex items-center gap-1"
+                  title="Refresh langsung dari API"
+                >
+                  <RefreshCw size={10} /> Refresh
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Ticket Volume (Tickets per Day) */}
               <div className="bg-white rounded border border-stroke p-4 h-72 flex flex-col">
@@ -1756,16 +1861,27 @@ export default function ITSystem({ user }) {
             <div className="bg-white rounded border border-stroke p-4">
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-bold text-boxdark">Daftar Ticket</h4>
-                {canEdit && (
-                  <div className="flex gap-1">
-                    <button onClick={() => handleImportModal('ticketing')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
-                      Import Excel
-                    </button>
-                    <button onClick={() => setIsAddingTicket(true)} disabled={isAddingTicket} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
-                      <Plus size={14} /> Add Ticket
-                    </button>
-                  </div>
-                )}
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={handleSyncTickets}
+                    disabled={isSyncingTickets}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 disabled:opacity-50 transition"
+                    title="Tarik tiket terbaru dari Ticketing API dan simpan ke database"
+                  >
+                    <RefreshCw size={12} className={isSyncingTickets ? 'animate-spin' : ''} />
+                    {isSyncingTickets ? 'Syncing...' : 'Sync Live API'}
+                  </button>
+                  {canEdit && (
+                    <>
+                      <button onClick={() => handleImportModal('ticketing')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                        Import Excel
+                      </button>
+                      <button onClick={() => setIsAddingTicket(true)} disabled={isAddingTicket} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
+                        <Plus size={14} /> Add Ticket
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="overflow-x-auto max-h-96">
                 <table className="w-full text-xs text-left">
@@ -1773,12 +1889,13 @@ export default function ITSystem({ user }) {
                     <tr>
                       <th className="px-3 py-2">No. Ticket</th>
                       <th className="px-3 py-2">Subject</th>
-                      <th className="px-3 py-2">Department</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Department / Lokasi</th>
+                      <th className="px-3 py-2">Status & Prioritas</th>
                       <th className="px-3 py-2">Assigned To</th>
                       {canEdit && <th className="px-3 py-2 text-right w-20">Actions</th>}
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-stroke">
                     {isAddingTicket && (
                       <TicketRow
