@@ -8,6 +8,7 @@ use App\Models\ItEmail;
 use App\Models\ItTicket;
 use App\Models\ItTicketKeyword;
 use App\Services\AccurateApiService;
+use App\Services\TicketingApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -16,10 +17,12 @@ use Carbon\Carbon;
 class ItDashboardController extends Controller
 {
     protected $accurateApi;
+    protected $ticketingApi;
 
-    public function __construct(AccurateApiService $accurateApi)
+    public function __construct(AccurateApiService $accurateApi, TicketingApiService $ticketingApi)
     {
         $this->accurateApi = $accurateApi;
+        $this->ticketingApi = $ticketingApi;
     }
 
     public function getAssets(Request $request)
@@ -66,7 +69,22 @@ class ItDashboardController extends Controller
     {
         $startDate = $request->query('start_date', date('Y-m-01'));
         $endDate = $request->query('end_date', date('Y-m-t'));
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
 
+        // 1. Jika API Ticketing sudah dikonfigurasi, gunakan data live dari endpoint API
+        if ($this->ticketingApi->isConfigured()) {
+            try {
+                $liveData = $this->ticketingApi->getDashboardTicketsData($startDate, $endDate, $isRefresh);
+                return response()->json([
+                    'status' => 'success',
+                    'data'   => $liveData,
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Ticketing API live fetch failed, fallback to local DB: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Fallback: Hitung dari database lokal (it_tickets)
         // Tickets by Category (for Donut Chart)
         $ticketsByCategory = ItTicket::select('category', DB::raw('count(*) as total'))
             ->whereBetween('created_at', [$startDate, $endDate])
@@ -168,18 +186,21 @@ class ItDashboardController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'avg_resolution_time' => $resolutionTimeStr,
-                'total_resolved' => $resolvedCount,
-                'categories' => $ticketsByCategory,
-                'workload' => $workload,
-                'status_breakdown' => $statusBreakdown,
-                'daily_resolution_time' => $dailyResolutionData,
+                'avg_resolution_time'    => $resolutionTimeStr,
+                'total_resolved'         => $resolvedCount,
+                'categories'             => $ticketsByCategory,
+                'workload'               => $workload,
+                'status_breakdown'       => $statusBreakdown,
+                'daily_resolution_time'   => $dailyResolutionData,
                 'daily_resolution_labels' => $dailyResolutionLabels,
-                'daily_ticket_volume' => $dailyVolumeData,
-                'raw_tickets' => $allTickets
+                'daily_ticket_volume'     => $dailyVolumeData,
+                'raw_tickets'            => $allTickets,
+                'is_live'                => false,
+                'has_token'              => $this->ticketingApi->isConfigured(),
             ]
         ]);
     }
+
     public function getBudget(Request $request)
     {
         $startDate = $request->query('start_date', date('Y-m-01'));
@@ -487,4 +508,39 @@ class ItDashboardController extends Controller
             ], 500);
         }
     }
+
+    public function syncTickets(Request $request)
+    {
+        if (!$this->ticketingApi->isConfigured()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'TICKETING_API_HOST atau TICKETING_INTEGRATION_TOKEN belum dikonfigurasi di .env.',
+            ], 400);
+        }
+
+        $startDate = $request->input('start_date', $request->query('start_date', date('Y-m-01')));
+        $endDate = $request->input('end_date', $request->query('end_date', date('Y-m-t')));
+
+        try {
+            $result = $this->ticketingApi->syncToDatabase([
+                'date_from' => $startDate,
+                'date_to'   => $endDate,
+            ]);
+
+            // Bersihkan cache agar request data tiket berikutnya langsung membaca data terupdate
+            Cache::forget('it_dashboard_live_tickets_' . md5($startDate . '_' . $endDate));
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => $result['message'],
+                'data'    => $result,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal menyinkronkan data tiket: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+

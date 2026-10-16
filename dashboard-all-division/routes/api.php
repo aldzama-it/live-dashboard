@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/it-dashboard/software', [ItDashboardController::class, 'getSoftware']);
     Route::get('/it-dashboard/highlights', [ItDashboardController::class, 'getHighlights']);
     Route::post('/it-dashboard/sync', [ItDashboardController::class, 'syncSynology']);
+    Route::post('/it-dashboard/sync-tickets', [ItDashboardController::class, 'syncTickets']);
 
     Route::apiResource('it-budget-expenses', \App\Http\Controllers\Api\ItBudgetExpenseController::class);
     Route::apiResource('it-softwares', \App\Http\Controllers\Api\ItSoftwareController::class);

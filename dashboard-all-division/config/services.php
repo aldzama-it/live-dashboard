@@ -49,4 +49,9 @@ return [
     'db_id' => env('ACCURATE_DB_ID'),
 ],
 
+'ticketing' => [
+    'host' => env('TICKETING_API_HOST'),
+    'token' => env('TICKETING_INTEGRATION_TOKEN'),
+],
+
 ];
