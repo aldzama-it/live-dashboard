@@ -12,8 +12,8 @@ class UserController extends Controller
 {
     public function index()
     {
-        // Return users with their roles and department
-        return response()->json(User::with(['roles', 'department'])->get());
+        // Return users with their roles, department, and division
+        return response()->json(User::with(['roles', 'department', 'division.department'])->get());
     }
 
     public function store(Request $request)
@@ -23,21 +23,36 @@ class UserController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:6',
             'role' => 'required|string|exists:roles,name',
-            'department_id' => 'nullable|exists:departments,id'
+            'department_id' => 'nullable|exists:departments,id',
+            'division_id' => 'nullable|exists:divisions,id'
         ]);
+
+        $departmentId = null;
+        $divisionId = null;
+
+        if ($request->role === 'Direktur') {
+            $departmentId = $request->department_id;
+        } elseif ($request->role === 'Division PIC' || $request->role === 'Staff') {
+            $divisionId = $request->division_id;
+            if ($divisionId) {
+                $div = \App\Models\Division::find($divisionId);
+                $departmentId = $div ? $div->department_id : null;
+            }
+        }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'department_id' => $request->department_id,
+            'department_id' => $departmentId,
+            'division_id' => $divisionId,
         ]);
 
         $user->assignRole($request->role);
 
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user->load(['roles', 'department'])
+            'user' => $user->load(['roles', 'department', 'division.department'])
         ]);
     }
 
@@ -50,12 +65,27 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:6',
             'role' => 'required|string|exists:roles,name',
-            'department_id' => 'nullable|exists:departments,id'
+            'department_id' => 'nullable|exists:departments,id',
+            'division_id' => 'nullable|exists:divisions,id'
         ]);
+
+        $departmentId = null;
+        $divisionId = null;
+
+        if ($request->role === 'Direktur') {
+            $departmentId = $request->department_id;
+        } elseif ($request->role === 'Division PIC' || $request->role === 'Staff') {
+            $divisionId = $request->division_id;
+            if ($divisionId) {
+                $div = \App\Models\Division::find($divisionId);
+                $departmentId = $div ? $div->department_id : null;
+            }
+        }
 
         $user->name = $request->name;
         $user->email = $request->email;
-        $user->department_id = $request->department_id;
+        $user->department_id = $departmentId;
+        $user->division_id = $divisionId;
         
         if ($request->filled('password')) {
             $user->password = Hash::make($request->password);
@@ -68,7 +98,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user->load(['roles', 'department'])
+            'user' => $user->load(['roles', 'department', 'division.department'])
         ]);
     }
 

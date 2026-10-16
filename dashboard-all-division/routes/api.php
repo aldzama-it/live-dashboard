@@ -31,8 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // IT Emails Routes
     Route::apiResource('it-emails', \App\Http\Controllers\Api\ItEmailController::class);
 
-    // Divisions
+    // Divisions and Departments
     Route::get('/divisions', [DivisionController::class, 'index']);
+    Route::get('/departments', [DivisionController::class, 'departments']);
 
     // IT Dashboard Routes
     Route::get('/it-dashboard/assets', [ItDashboardController::class, 'getAssets']);
@@ -42,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/it-dashboard/software', [ItDashboardController::class, 'getSoftware']);
     Route::get('/it-dashboard/highlights', [ItDashboardController::class, 'getHighlights']);
     Route::post('/it-dashboard/sync', [ItDashboardController::class, 'syncSynology']);
+    Route::post('/it-dashboard/sync-tickets', [ItDashboardController::class, 'syncTickets']);
 
     Route::apiResource('it-budget-expenses', \App\Http\Controllers\Api\ItBudgetExpenseController::class);
     Route::apiResource('it-softwares', \App\Http\Controllers\Api\ItSoftwareController::class);
@@ -61,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tax-dashboard/api-summary', [\App\Http\Controllers\Api\TaxController::class, 'getTaxDashboardApi']);
     Route::get('/tax-dashboard/spt-reports', [\App\Http\Controllers\Api\TaxController::class, 'getSptReports']);
     Route::post('/tax-dashboard/spt-reports', [\App\Http\Controllers\Api\TaxController::class, 'updateSptReport']);
+    Route::post('/tax-dashboard/spt-reports/bulk', [\App\Http\Controllers\Api\TaxController::class, 'bulkUpdateSptReports']);
     Route::post('/tax-dashboard/sync', [\App\Http\Controllers\Api\TaxController::class, 'syncSynology']);
 
     // Legal Dashboard Routes

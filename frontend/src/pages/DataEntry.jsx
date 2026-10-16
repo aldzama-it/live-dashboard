@@ -57,7 +57,8 @@ export default function DataEntry({ user }) {
 
     try {
       await api.post('/api/data-entries', {
-        department_id: user?.department?.id, // Use the user's assigned division
+        division_id: user?.division?.id,
+        department_id: user?.department?.id,
         period: selectedPeriod,
         payload: payloadData
       });

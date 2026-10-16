@@ -138,19 +138,39 @@ export default function Dashboard({ user, setUser }) {
   // RBAC logic for sidebar
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin'));
   const isTopManagement = user?.roles?.some(r => r.name === 'Top Management');
+  const isDirector = user?.roles?.some(r => r.name === 'Direktur');
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
+  const isStaff = user?.roles?.some(r => r.name === 'Staff');
+
+  const divMatches = (menuDivName, userDivName) => {
+    if (!menuDivName || !userDivName) return false;
+    const m = menuDivName.toLowerCase().trim();
+    const u = userDivName.toLowerCase().trim();
+    return m === u || m.includes(u) || u.includes(m);
+  };
 
   const filteredMenuData = menuData.map(dept => {
+    // 1. Admin & Top Management: Full system access
     if (isAdmin || isTopManagement) return dept;
-    if (isPIC && user?.department) {
-       const matchingDivisions = dept.divisions.filter(d => 
-         d.name.toLowerCase() === user.department.name.toLowerCase()
-       );
-       if (matchingDivisions.length > 0) {
-          return { ...dept, divisions: matchingDivisions };
-       }
-       return null;
+
+    // 2. Direktur: Only their Department (e.g. Finance & Administration), with all divisions in it
+    if (isDirector && user?.department) {
+      if (dept.name.toLowerCase() === user.department.name.toLowerCase()) {
+        return dept;
+      }
+      return null;
     }
+
+    // 3. Division PIC & Staff: Only their assigned Division (e.g. IT & System)
+    const targetDivName = user?.division?.name || user?.department?.name;
+    if ((isPIC || isStaff) && targetDivName) {
+      const matchingDivisions = dept.divisions.filter(d => divMatches(d.name, targetDivName));
+      if (matchingDivisions.length > 0) {
+        return { ...dept, divisions: matchingDivisions };
+      }
+      return null;
+    }
+
     // Fallback: if no role matches correctly, show nothing
     return null;
   }).filter(Boolean);
@@ -375,7 +395,11 @@ export default function Dashboard({ user, setUser }) {
             <div className="text-right hidden sm:block">
               <span className="block text-sm font-medium text-boxdark">{user?.name}</span>
               <span className="block text-xs text-body">
-                {user?.roles?.[0]?.name || 'User'} - {user?.department?.name || 'No Division'}
+                {user?.roles?.[0]?.name || 'User'} - {
+                  user?.roles?.[0]?.name === 'Direktur'
+                    ? (user?.department?.name || 'All Department')
+                    : (user?.division?.name || user?.department?.name || 'All Division')
+                }
               </span>
             </div>
 
@@ -426,11 +450,10 @@ export default function Dashboard({ user, setUser }) {
 
         {/* Main Body */}
         <main className="flex-1 overflow-auto px-6 pt-2 pb-6 bg-gray-50 min-w-0 flex flex-col">
-          {location.pathname !== '/' && (
+          {location.pathname !== '/' && !location.pathname.startsWith('/users') && (
             <PageHeader 
               title={(() => {
                 const parts = location.pathname.split('/').filter(Boolean);
-                if (location.pathname.startsWith('/users')) return "User Management";
                 const dept = menuData.find(d => d.pathPrefix === parts[0]);
                 if (dept) {
                   const div = dept.divisions.find(d => d.path === parts[1]);

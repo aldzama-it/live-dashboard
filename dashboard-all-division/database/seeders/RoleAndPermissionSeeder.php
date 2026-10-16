@@ -20,8 +20,10 @@ class RoleAndPermissionSeeder extends Seeder
 
         // Create roles
         $roleAdmin = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
-        $rolePic = Role::firstOrCreate(['name' => 'Division PIC', 'guard_name' => 'web']);
         $roleTopManagement = Role::firstOrCreate(['name' => 'Top Management', 'guard_name' => 'web']);
+        $roleDirektur = Role::firstOrCreate(['name' => 'Direktur', 'guard_name' => 'web']);
+        $rolePic = Role::firstOrCreate(['name' => 'Division PIC', 'guard_name' => 'web']);
+        $roleStaff = Role::firstOrCreate(['name' => 'Staff', 'guard_name' => 'web']);
 
         // Create or get the default Admin user
         $adminUser = User::firstOrCreate(

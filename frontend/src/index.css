@@ -88,28 +88,35 @@ input[type="password"]::-ms-clear {
 }
 
 /* Light Theme Tooltip */
-.apexcharts-theme-light {
+.apexcharts-tooltip.apexcharts-theme-light {
   border: 1px solid #e2e8f0 !important;
   background: #ffffff !important;
   color: #0f172a !important;
 }
-.apexcharts-theme-light .apexcharts-tooltip-title {
+.apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title {
   background: #f8fafc !important;
   color: #0f172a !important;
   border-bottom: 1px solid #e2e8f0 !important;
 }
 
 /* Dark Theme Tooltip (Fix White Header Box on Dark Tooltips) */
-.apexcharts-theme-dark {
+.apexcharts-tooltip.apexcharts-theme-dark {
   border: 1px solid #334155 !important;
   background: #0f172a !important;
   color: #f8fafc !important;
 }
-.apexcharts-theme-dark .apexcharts-tooltip-title {
+.apexcharts-tooltip.apexcharts-theme-dark .apexcharts-tooltip-title {
   background: #1e293b !important;
   color: #f8fafc !important;
   border-bottom: 1px solid #334155 !important;
 }
+
+/* Ensure ApexCharts canvas is never given unexpected border/background */
+.apexcharts-canvas {
+  background: transparent !important;
+  border: none !important;
+}
+
 
 .apexcharts-tooltip-series-group {
   padding: 2px 8px !important;

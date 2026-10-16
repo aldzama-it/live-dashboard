@@ -6,6 +6,7 @@ import Modal from '../components/ui/Modal';
 export default function UserManagement({ user }) {
   const [users, setUsers] = useState([]);
   const [divisions, setDivisions] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal State
@@ -16,7 +17,8 @@ export default function UserManagement({ user }) {
     name: '',
     email: '',
     password: '',
-    role: 'Division PIC',
+    role: 'Staff',
+    department_id: '',
     division_id: ''
   });
   const [formError, setFormError] = useState('');
@@ -28,12 +30,14 @@ export default function UserManagement({ user }) {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [usersRes, divRes] = await Promise.all([
+      const [usersRes, divRes, deptRes] = await Promise.all([
         api.get('/api/users'),
-        api.get('/api/divisions')
+        api.get('/api/divisions'),
+        api.get('/api/departments')
       ]);
       setUsers(usersRes.data);
       setDivisions(divRes.data);
+      setDepartments(deptRes.data);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -43,7 +47,7 @@ export default function UserManagement({ user }) {
 
   const openAddModal = () => {
     setModalMode('add');
-    setFormData({ name: '', email: '', password: '', role: 'Division PIC', department_id: '' });
+    setFormData({ name: '', email: '', password: '', role: 'Staff', department_id: '', division_id: '' });
     setFormError('');
     setIsModalOpen(true);
   };
@@ -55,8 +59,9 @@ export default function UserManagement({ user }) {
       name: u.name,
       email: u.email,
       password: '',
-      role: u.roles && u.roles.length > 0 ? u.roles[0].name : 'Division PIC',
-      department_id: u.department_id || ''
+      role: u.roles && u.roles.length > 0 ? u.roles[0].name : 'Staff',
+      department_id: u.department_id || '',
+      division_id: u.division_id || ''
     });
     setFormError('');
     setIsModalOpen(true);
@@ -89,80 +94,104 @@ export default function UserManagement({ user }) {
     }
   };
 
+  const getRoleBadgeClass = (roleName) => {
+    if (!roleName) return 'bg-gray-100 text-gray-700';
+    const lower = roleName.toLowerCase();
+    if (lower.includes('admin')) return 'bg-danger/10 text-danger border border-danger/20';
+    if (roleName === 'Top Management') return 'bg-amber-500/10 text-amber-600 border border-amber-500/20';
+    if (roleName === 'Direktur') return 'bg-purple-500/10 text-purple-600 border border-purple-500/20';
+    if (roleName === 'Division PIC') return 'bg-primary/10 text-primary border border-primary/20';
+    if (roleName === 'Staff') return 'bg-teal-500/10 text-teal-600 border border-teal-500/20';
+    return 'bg-primary/10 text-primary';
+  };
+
   return (
     <>
       <div className="animate-fade-in-up">
         <div className="flex justify-between items-center mb-3">
           <div>
-          <h2 className="text-2xl font-bold text-boxdark">User Management</h2>
-          <p className="text-sm text-body mt-1">Manage system users, roles, and division assignments.</p>
+            <h2 className="text-2xl font-bold text-boxdark">User Management</h2>
+            <p className="text-sm text-body mt-1">Manage system users, roles, and department/division assignments.</p>
+          </div>
+          <button onClick={openAddModal} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition">
+            <Plus size={18} />
+            <span>Add New User</span>
+          </button>
         </div>
-        <button onClick={openAddModal} className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded hover:bg-opacity-90 transition">
-          <Plus size={18} />
-          <span>Add New User</span>
-        </button>
-      </div>
 
-      <div className="bg-white rounded-sm border border-stroke shadow-default">
-        {loading ? (
-          <div className="flex justify-center p-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
-          </div>
-        ) : (
-          <div className="max-w-full overflow-x-auto">
-            <table className="w-full table-auto">
-              <thead>
-                <tr className="bg-gray-2 text-left bg-gray-100">
-                  <th className="min-w-[150px] py-4 px-4 font-medium text-black">Name</th>
-                  <th className="min-w-[150px] py-4 px-4 font-medium text-black">Email</th>
-                  <th className="min-w-[120px] py-4 px-4 font-medium text-black">Role</th>
-                  <th className="min-w-[120px] py-4 px-4 font-medium text-black">Division</th>
-                  <th className="py-4 px-4 font-medium text-black">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u, index) => (
-                  <tr key={u.id}>
-                    <td className="border-b border-[#eee] py-5 px-4">
-                      <p className="text-black font-medium">{u.name}</p>
-                    </td>
-                    <td className="border-b border-[#eee] py-5 px-4">
-                      <p className="text-black">{u.email}</p>
-                    </td>
-                    <td className="border-b border-[#eee] py-5 px-4">
-                      <span className={`inline-flex rounded-full py-1 px-3 text-sm font-medium ${
-                        u.roles?.[0]?.name.toLowerCase().includes('admin') ? 'bg-danger/10 text-danger' : 
-                        u.roles?.[0]?.name === 'Top Management' ? 'bg-warning/10 text-warning' : 
-                        'bg-primary/10 text-primary'
-                      }`}>
-                        {u.roles && u.roles.length > 0 ? u.roles[0].name : 'No Role'}
-                      </span>
-                    </td>
-                    <td className="border-b border-[#eee] py-5 px-4">
-                      <p className="text-black">{u.department?.name || '-'}</p>
-                    </td>
-                    <td className="border-b border-[#eee] py-5 px-4">
-                      <div className="flex items-center space-x-3.5">
-                        <button onClick={() => openEditModal(u)} className="hover:text-primary">
-                          <Pencil size={18} />
-                        </button>
-                        <button onClick={() => handleDelete(u.id)} className="hover:text-danger text-gray-500">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
+        <div className="bg-white rounded-sm border border-stroke shadow-default">
+          {loading ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-t-transparent"></div>
+            </div>
+          ) : (
+            <div className="max-w-full overflow-x-auto">
+              <table className="w-full table-auto">
+                <thead>
+                  <tr className="bg-gray-2 text-left bg-gray-100">
+                    <th className="min-w-[150px] py-4 px-4 font-medium text-black">Name</th>
+                    <th className="min-w-[150px] py-4 px-4 font-medium text-black">Email</th>
+                    <th className="min-w-[130px] py-4 px-4 font-medium text-black">Role</th>
+                    <th className="min-w-[160px] py-4 px-4 font-medium text-black">Departemen / Divisi</th>
+                    <th className="py-4 px-4 font-medium text-black">Actions</th>
                   </tr>
-                ))}
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="text-center py-5 text-gray-500">No users found.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {users.map((u) => {
+                    const roleName = u.roles?.[0]?.name;
+                    return (
+                      <tr key={u.id}>
+                        <td className="border-b border-[#eee] py-5 px-4">
+                          <p className="text-black font-medium">{u.name}</p>
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4">
+                          <p className="text-black">{u.email}</p>
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4">
+                          <span className={`inline-flex rounded-full py-1 px-3 text-xs font-semibold ${getRoleBadgeClass(roleName)}`}>
+                            {roleName || 'No Role'}
+                          </span>
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4">
+                          {roleName === 'Direktur' ? (
+                            <div>
+                              <p className="text-black font-medium">{u.department?.name || '-'}</p>
+                              <span className="text-xs text-gray-500 font-normal">Departemen</span>
+                            </div>
+                          ) : roleName === 'Division PIC' || roleName === 'Staff' ? (
+                            <div>
+                              <p className="text-black font-medium">{u.division?.name || '-'}</p>
+                              {u.department?.name && (
+                                <span className="text-xs text-gray-500 font-normal">{u.department.name}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Semua Departemen</span>
+                          )}
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4">
+                          <div className="flex items-center space-x-3.5">
+                            <button onClick={() => openEditModal(u)} className="hover:text-primary transition-colors" title="Edit User">
+                              <Pencil size={18} />
+                            </button>
+                            <button onClick={() => handleDelete(u.id)} className="hover:text-danger text-gray-500 transition-colors" title="Delete User">
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="text-center py-5 text-gray-500">No users found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* CRUD Modal */}
@@ -192,22 +221,66 @@ export default function UserManagement({ user }) {
           
           <div>
             <label className="mb-1.5 block text-sm font-medium text-boxdark">Role</label>
-            <select required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full rounded-md border border-stroke bg-gray-50 py-2.5 px-3 outline-none focus:border-primary focus:bg-white transition-colors">
+            <select
+              required
+              value={formData.role}
+              onChange={e => setFormData({
+                ...formData,
+                role: e.target.value,
+                department_id: '',
+                division_id: ''
+              })}
+              className="w-full rounded-md border border-stroke bg-gray-50 py-2.5 px-3 outline-none focus:border-primary focus:bg-white transition-colors"
+            >
               <option value="Admin">Admin</option>
-              <option value="Division PIC">Division PIC</option>
               <option value="Top Management">Top Management</option>
+              <option value="Direktur">Direktur</option>
+              <option value="Division PIC">Division PIC</option>
+              <option value="Staff">Staff</option>
             </select>
           </div>
 
-          {formData.role === 'Division PIC' && (
+          {/* If Direktur -> Assign Departemen */}
+          {formData.role === 'Direktur' && (
             <div className="animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
-              <label className="mb-1.5 block text-sm font-medium text-boxdark">Assign Division</label>
-              <select required={formData.role === 'Division PIC'} value={formData.department_id} onChange={e => setFormData({...formData, department_id: e.target.value})} className="w-full rounded-md border border-stroke bg-gray-50 py-2.5 px-3 outline-none focus:border-primary focus:bg-white transition-colors">
-                <option value="">-- Select Division --</option>
-                {divisions.map(div => (
-                  <option key={div.id} value={div.id}>{div.name}</option>
+              <label className="mb-1.5 block text-sm font-medium text-boxdark">Assign Departemen</label>
+              <select
+                required
+                value={formData.department_id}
+                onChange={e => setFormData({...formData, department_id: e.target.value})}
+                className="w-full rounded-md border border-stroke bg-gray-50 py-2.5 px-3 outline-none focus:border-primary focus:bg-white transition-colors"
+              >
+                <option value="">-- Pilih Departemen --</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>{dept.name}</option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">Direktur dapat melihat semua divisi di dalam departemen ini.</p>
+            </div>
+          )}
+
+          {/* If Division PIC or Staff -> Assign Divisi */}
+          {(formData.role === 'Division PIC' || formData.role === 'Staff') && (
+            <div className="animate-fade-in-up" style={{ animationDuration: '0.2s' }}>
+              <label className="mb-1.5 block text-sm font-medium text-boxdark">Assign Divisi</label>
+              <select
+                required
+                value={formData.division_id}
+                onChange={e => setFormData({...formData, division_id: e.target.value})}
+                className="w-full rounded-md border border-stroke bg-gray-50 py-2.5 px-3 outline-none focus:border-primary focus:bg-white transition-colors"
+              >
+                <option value="">-- Pilih Divisi --</option>
+                {divisions.map(div => (
+                  <option key={div.id} value={div.id}>
+                    {div.name} {div.department?.name ? `(${div.department.name})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.role === 'Staff' 
+                  ? 'Staff hanya dapat melihat divisi ini (read-only).' 
+                  : 'Division PIC dapat melihat dan mengedit data divisi ini.'}
+              </p>
             </div>
           )}
           

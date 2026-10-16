@@ -47,6 +47,10 @@ return [
             'file' => 'dashboard-data/it/ticketing.xlsx',
             'imports' => ['ticketing' => \App\Imports\ItTicketImport::class],
         ],
+        'IT_Highlight' => [
+            'file' => 'dashboard-data/it/highlight.xlsx',
+            'imports' => ['highlight' => \App\Imports\ItHighlightImport::class],
+        ],
         'Finance_AP_Invoices' => [
             'file' => 'dashboard-data/finance/ap_invoices.xlsx',
             'imports' => ['ap_invoices' => \App\Imports\Finance\ApInvoiceImport::class],
