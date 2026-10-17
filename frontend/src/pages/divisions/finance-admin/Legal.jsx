@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FileText,
   AlertTriangle,
@@ -39,12 +40,15 @@ import {
   Eye,
   Database,
   FileSpreadsheet,
-  Copy
+  Copy,
+  Scale,
+  BookOpen
 } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import Modal from '../../../components/ui/Modal';
 import ChartContainer from '../../../components/ui/ChartContainer';
+import DateRangeFilter from '../../../components/ui/DateRangeFilter';
 import api from '../../../axios';
 import Chart from 'react-apexcharts';
 
@@ -66,44 +70,44 @@ const MONTH_NAMES = [
 
 const DATA_SOURCE_MAPPING = {
   silo: {
-    folder: 'Z:\\dashboard-data\\legal\\',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MONITORING SILO\\',
     file: 'Monitoring SILO - Legal.xlsx',
     fullFile: 'Monitoring SILO - Legal.xlsx',
-    sheet: 'Monitoring',
-    label: 'Monitoring SILO (Alat Berat)',
-    desc: 'Surat Izin Layak Operasi Alat Berat, Genset & Crane'
+    sheet: 'Alat Berat & Equipment',
+    label: 'Monitoring SILO (Alat Berat & Equipment)',
+    desc: 'Surat Izin Layak Operasi (SILO) Alat Berat & Equipment Operasional'
   },
   permit: {
-    folder: 'Z:\\dashboard-data\\legal\\',
-    file: 'FRM-AZM-603-008.xlsx',
-    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project) (1).xlsx',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MONITORING KONTRAK - PERMIT\\',
+    file: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
+    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
     sheet: 'Permit',
     label: 'Monitoring Perizinan',
     desc: 'Izin Operasional, OSS, SBU, IUJK & Legalitas Usaha'
   },
   agreement: {
-    folder: 'Z:\\dashboard-data\\legal\\',
-    file: 'FRM-AZM-603-008.xlsx',
-    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project) (1).xlsx',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MONITORING KONTRAK - PERMIT\\',
+    file: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
+    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
     sheet: 'Agreement',
     label: 'Monitoring Perjanjian Kerjasama (PKS)',
     desc: 'Perjanjian Kerjasama Vendor, Supplier & Rekanan'
   },
   project_contract: {
-    folder: 'Z:\\dashboard-data\\legal\\',
-    file: 'FRM-AZM-603-008.xlsx',
-    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project) (1).xlsx',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MONITORING KONTRAK - PERMIT\\',
+    file: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
+    fullFile: 'FRM-AZM-603-008 (Rekap Masa Berlaku Dokumen Perizinan, Perjanjian, Kontrak Project).xlsx',
     sheet: 'Kontrak Project',
     label: 'Monitoring Kontrak Project',
     desc: 'Kontrak Induk Proyek (PTFI, Antam, IMIP, BAI)'
   },
   vehicle: {
-    folder: 'Z:\\dashboard-data\\legal\\',
-    file: 'FRM-AZM-603-016.xlsx',
-    fullFile: 'FRM-AZM-603-016 (Monitoring Izin Kendaraan) (1).xlsx',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MONITORING KENDARAAN\\',
+    file: 'FRM-AZM-603-016 (Monitoring Izin Kendaraan).xlsx',
+    fullFile: 'FRM-AZM-603-016 (Monitoring Izin Kendaraan).xlsx',
     sheet: 'Monitoring Kendaraan',
     label: 'Monitoring Izin Kendaraan',
-    desc: 'Pajak Tahunan, STNK 5 Tahun & Uji KIR Kendaraan'
+    desc: 'Pajak Tahunan, STNK 5 Tahun, Uji KIR & Legalitas Kendaraan/Alat'
   },
   manpower: {
     folder: 'Z:\\dashboard-data\\legal\\',
@@ -113,19 +117,19 @@ const DATA_SOURCE_MAPPING = {
     desc: 'Rekapitulasi Kontrak Tenaga Kerja PKWT (HR & PJO)'
   },
   kpi: {
-    folder: 'Z:\\dashboard-data\\legal\\',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\',
     file: 'Data KPI Divisi Legal 2026 .xlsx',
     sheet: '5 Sheet: Legal Review, Legal Advisory, Legal Drafting, Litigasi, Pelanggaran',
     label: 'KPI Kinerja Divisi Legal',
     desc: 'SLA Drafting, Review Kontrak, Advisory, Litigasi & Pelanggaran 2026'
   },
   budget: {
-    folder: 'Z:\\dashboard-data\\legal\\Dana Operasional\\',
-    file: 'Dana Operasional  Legal Januari 2026.xlsx',
-    fullFile: 'Dana Operasional  Legal [Bulan] 2026.xlsx (Folder 01. Januari s/d 07. Juli 2026)',
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\10. DANA OPERASIONAL\\2026\\',
+    file: 'Dana Operasional Divisi Legal - [Bulan] 2026.xlsx',
+    fullFile: 'Dana Operasional Divisi Legal - [Bulan] 2026.xlsx (Folder 01. Januari s/d 09. September 2026)',
     sheet: "'form pengajuan' (Budget) & 'form pertanggung jawaban' (Realisasi LPJ)",
     label: 'Form Pengajuan & LPJ Dana Operasional Legal',
-    desc: 'Formulir pengajuan anggaran kas bulanan (diisi oleh Admin Wahdah) beserta form pertanggungjawaban (LPJ pengeluaran riil) per bulan.'
+    desc: 'Formulir pengajuan anggaran kas bulanan beserta form pertanggungjawaban (LPJ pengeluaran riil) per bulan tahun 2026.'
   },
   downloads_permits: {
     folder: 'Z:\\dashboard-data\\legal\\',
@@ -140,6 +144,14 @@ const DATA_SOURCE_MAPPING = {
     sheet: 'Template Master DOCX',
     label: 'Template Perjanjian & PKWT',
     desc: 'Format Baku Kontrak Kerja, MoU & NDA Legal'
+  },
+  regulations: {
+    folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\11. DATABASE & MONITORING\\MATRIKS PER-UU\\',
+    file: 'FRM-AZM-603-012 (Matriks Peraturan Perundang-Undangan).xlsx',
+    fullFile: 'FRM-AZM-603-012 (Matriks Peraturan Perundang-Undangan).xlsx',
+    sheet: 'Sheet1',
+    label: 'Matriks Peraturan Perundang-Undangan',
+    desc: 'Evaluasi Kepatuhan Hukum, Relevansi, dan Tindak Lanjut Regulasi Perusahaan (PT AZM)'
   }
 };
 
@@ -320,10 +332,35 @@ function SearchableSelect({
 }
 
 export default function Legal({ user }) {
+  const [dateRange, setDateRange] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return {
+      startDate: `${yyyy}-01-01`,
+      endDate: `${yyyy}-${mm}-${dd}`,
+    };
+  });
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [summaryData, setSummaryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
+  const [headerActions, setHeaderActions] = useState(null);
+
+  // Mount action portal to navbar PageHeader
+  useEffect(() => {
+    const findHeader = () => {
+      setHeaderActions(document.getElementById('page-header-actions'));
+    };
+    findHeader();
+    const interval = setInterval(findHeader, 200);
+    const timeout = setTimeout(() => clearInterval(interval), 2000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   // Active Detailed Modals (Pop-ups for 1-Page non-scroll layout)
   const [activeDetailModal, setActiveDetailModal] = useState(null);
@@ -338,6 +375,7 @@ export default function Legal({ user }) {
   const [documentsList, setDocumentsList] = useState([]);
   const [docSearch, setDocSearch] = useState('');
   const [docUrgencyFilter, setDocUrgencyFilter] = useState('all');
+  const [docSiloTypeFilter, setDocSiloTypeFilter] = useState('all'); // 'all' | 'Alat Berat' | 'Equipment'
   const [selectedDocForDetail, setSelectedDocForDetail] = useState(null);
   const [selectedDocForPic, setSelectedDocForPic] = useState(null);
   const [picFormData, setPicFormData] = useState({
@@ -370,98 +408,78 @@ export default function Legal({ user }) {
   // Module 4 (Budget & Dana Operasional) Data
   const [budgetDetail, setBudgetDetail] = useState(null);
   const [budgetViewMode, setBudgetViewMode] = useState('filtered'); // 'filtered' | 'ytd'
+  const [budgetSelectedMonth, setBudgetSelectedMonth] = useState('9');
 
   // Module 5 & 6 (Downloads) Data
   const [downloadsList, setDownloadsList] = useState([]);
   const [downloadSearch, setDownloadSearch] = useState('');
   const [downloadPermissionModal, setDownloadPermissionModal] = useState(null);
+  const [downloadApplicantName, setDownloadApplicantName] = useState('');
+  const [downloadApplicantDivision, setDownloadApplicantDivision] = useState('');
   const [downloadReason, setDownloadReason] = useState('');
 
-  // SOP Reminders Trigger Modal
-  const [isSopModalOpen, setIsSopModalOpen] = useState(false);
-  const [sopType, setSopType] = useState('legal_docs'); // 'legal_docs' | 'mp_contracts'
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailForm, setEmailForm] = useState({
-    to: '',
-    cc: '',
-    subject: '',
-    notes: '',
-  });
+  // Module Regulations (Matriks Per-UU - FRM-AZM-603-012) Data
+  const [regulationsList, setRegulationsList] = useState([]);
+  const [regStatusFilter, setRegStatusFilter] = useState('all'); // 'all' | 'Comply' | 'Non-Comply'
+  const [regNatureFilter, setRegNatureFilter] = useState('all'); // 'all' | 'Wajib' | 'Conditional' | 'Opsional'
+  const [regPartyFilter, setRegPartyFilter] = useState('all');
+  const [regSearch, setRegSearch] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
+  const [selectedRegDetail, setSelectedRegDetail] = useState(null);
 
-  const sopMpDaysRange = 30; // Khusus 30 hari saja (H-30)
+  // Helper: Format text with numbered points (1), 2), 3)...) or newlines into separate lines (enter)
+  const renderMultiLinePoints = (text, className = 'text-[11px]') => {
+    if (!text) return '-';
+    // Normalize: ensure points like "1)", "2)", "3)" are on separate lines even if separated by commas or spaces
+    let normalized = String(text)
+      .replace(/,\s*(?=\d+\))/g, '\n')
+      .replace(/([^\n])\s+(?=\d+\))/g, '$1\n');
 
-  // Bersihkan riwayat email lama dari localStorage saat komponen dimuat
-  useEffect(() => {
-    try {
-      localStorage.removeItem('legal_dashboard_email_history');
-    } catch (e) { }
-  }, []);
+    const lines = normalized
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
 
-  // Filter khusus SOP Distribusi: Kontrak PKWT Jatuh Tempo Khusus 30 Hari Ke Depan (H-30, Exclude Permanen)
-  const sopMpExpiringList = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return (mpList || [])
-      .filter((emp) => {
-        const statusLower = (emp.status || '').toLowerCase();
-        if (statusLower.includes('permanen') || statusLower.includes('permanent')) return false;
-        if (!emp.end_date || emp.end_date === '-' || !emp.end_date.trim()) return false;
-
-        try {
-          const d = new Date(emp.end_date);
-          if (isNaN(d.getTime())) return false;
-          d.setHours(0, 0, 0, 0);
-          const diffDays = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          return diffDays >= 0 && diffDays <= 30;
-        } catch {
-          return false;
-        }
-      })
-      .map((emp) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const d = new Date(emp.end_date);
-        d.setHours(0, 0, 0, 0);
-        const diffDays = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return { ...emp, days_remaining: diffDays };
-      })
-      .sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
-  }, [mpList]);
-
-  // Filter khusus SOP Distribusi: Dokumen Legalitas & SILO yang Kritis / Expired / Warning
-  const sopUrgentDocsList = useMemo(() => {
-    return (documentsList || []).filter(d =>
-      d.urgency_status === 'critical' || d.urgency_status === 'expired' || d.urgency_status === 'warning'
-    );
-  }, [documentsList]);
-
-  const openSopModal = (type) => {
-    setSopType(type);
-    if (type === 'mp_contracts') {
-      if (!mpList || mpList.length === 0) {
-        fetchMpList();
-      }
-      setSopMpDaysRange(30);
-      setEmailForm({
-        to: 'shafira2784@gmail.com',
-        cc: '',
-        subject: '[SOP TGL 1-5] Rekapitulasi Kontrak Karyawan (PKWT) Jatuh Tempo 30 Hari Ke Depan (H-30)',
-        notes: 'Yth. Bapak/Ibu Departemen HR, Direksi, & PJO Site Terkait,\n\nBerikut terlampir rekapitulasi data tenaga kerja (PKWT) yang masa berlaku perjanjian kerjanya akan jatuh tempo dalam 30 hari ke depan (H-30) sesuai ketentuan SOP periode tanggal 1 - 5 bulan ini untuk dievaluasi dan ditindaklanjuti perpanjangannya.',
-      });
-    } else {
-      if (!documentsList || documentsList.length === 0) {
-        fetchDocumentsList();
-      }
-      setEmailForm({
-        to: 'shafira2784@gmail.com',
-        cc: '',
-        subject: '[SOP TGL 1-5] Rekapitulasi Reminder Masa Berlaku Dokumen Legalitas, SILO & Kendaraan',
-        notes: 'Yth. Seluruh Rekan PIC & Jajaran Manajemen,\n\nBerikut terlampir rekapitulasi dokumen legalitas perusahaan, izin operasional, SILO (H-60), dan kendaraan yang mendekati masa jatuh tempo sesuai SOP periode tanggal 1 - 5 bulan ini untuk segera diproses perpanjangannya.',
-      });
+    if (lines.length <= 1) {
+      return <div className={`leading-relaxed whitespace-pre-line break-words ${className}`}>{text}</div>;
     }
-    setIsSopModalOpen(true);
+
+    return (
+      <div className={`space-y-1.5 py-0.5 break-words ${className}`}>
+        {lines.map((line, idx) => (
+          <div key={idx} className="leading-snug">
+            {line}
+          </div>
+        ))}
+      </div>
+    );
   };
+
+  const fetchRegulationsList = async () => {
+    setRegLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (regStatusFilter !== 'all') params.append('compliance_status', regStatusFilter);
+      if (regNatureFilter !== 'all') params.append('nature', regNatureFilter);
+      if (regPartyFilter !== 'all') params.append('party', regPartyFilter);
+      if (regSearch) params.append('search', regSearch);
+
+      const res = await api.get(`/api/legal-dashboard/regulations?${params.toString()}`);
+      if (res.data?.status === 'success') {
+        setRegulationsList(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching regulations list:', err);
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeDetailModal === 'regulations') {
+      fetchRegulationsList();
+    }
+  }, [activeDetailModal, regStatusFilter, regNatureFilter, regPartyFilter, regSearch]);
 
   // Helper: Download Array to CSV / Excel File
   const downloadAsCsv = (filename, headers, rows) => {
@@ -483,10 +501,14 @@ export default function Legal({ user }) {
 
   // Fetch Executive Summary
   const fetchExecutiveSummary = async () => {
-
     setLoading(true);
     try {
-      const res = await api.get(`/api/legal-dashboard/summary?month=${selectedMonth}`);
+      const params = new URLSearchParams();
+      if (dateRange?.startDate) params.append('start_date', dateRange.startDate);
+      if (dateRange?.endDate) params.append('end_date', dateRange.endDate);
+      params.append('month', selectedMonth);
+
+      const res = await api.get(`/api/legal-dashboard/summary?${params.toString()}`);
       if (res.data?.status === 'success') {
         setSummaryData(res.data.data);
       }
@@ -498,8 +520,22 @@ export default function Legal({ user }) {
   };
 
   useEffect(() => {
+    if (dateRange?.startDate && dateRange?.endDate) {
+      try {
+        const startM = new Date(dateRange.startDate).getMonth() + 1;
+        const endM = new Date(dateRange.endDate).getMonth() + 1;
+        if (startM === endM) {
+          setSelectedMonth(String(startM));
+        } else {
+          setSelectedMonth('all');
+        }
+      } catch (e) {}
+    }
+  }, [dateRange]);
+
+  useEffect(() => {
     fetchExecutiveSummary();
-  }, [selectedMonth]);
+  }, [dateRange, selectedMonth]);
 
   // Fetch Documents List for Modal 1
   const fetchDocumentsList = async () => {
@@ -508,6 +544,9 @@ export default function Legal({ user }) {
       params.append('category', docCategoryTab);
       if (docSearch) params.append('search', docSearch);
       if (docUrgencyFilter !== 'all') params.append('urgency', docUrgencyFilter);
+      if (docCategoryTab === 'silo' && docSiloTypeFilter !== 'all') {
+        params.append('location', docSiloTypeFilter);
+      }
 
       const res = await api.get(`/api/legal-documents?${params.toString()}`);
       if (res.data?.status === 'success') {
@@ -519,10 +558,10 @@ export default function Legal({ user }) {
   };
 
   useEffect(() => {
-    if (activeDetailModal === 'documents' || isSopModalOpen) {
+    if (activeDetailModal === 'documents') {
       fetchDocumentsList();
     }
-  }, [activeDetailModal, isSopModalOpen, docCategoryTab, docUrgencyFilter, docSearch]);
+  }, [activeDetailModal, docCategoryTab, docUrgencyFilter, docSearch, docSiloTypeFilter]);
 
 
   // Fetch MP Baseline for Modal 2
@@ -551,10 +590,10 @@ export default function Legal({ user }) {
   };
 
   useEffect(() => {
-    if (activeDetailModal === 'manpower' || isSopModalOpen) {
+    if (activeDetailModal === 'manpower') {
       fetchMpList();
     }
-  }, [activeDetailModal, isSopModalOpen, mpFilter, mpStatusFilter, mpBranchFilter, mpSortOrder]);
+  }, [activeDetailModal, mpFilter, mpStatusFilter, mpBranchFilter, mpSortOrder]);
 
 
   // Fetch KPI detail for Modal 3
@@ -579,9 +618,9 @@ export default function Legal({ user }) {
   }, [activeDetailModal, kpiViewMode, kpiSelectedMonth, selectedMonth]);
 
   // Fetch Budget detail for Modal 4
-  const fetchBudgetDetail = async () => {
+  const fetchBudgetDetail = async (targetMonth = budgetSelectedMonth) => {
     try {
-      const res = await api.get(`/api/legal-dashboard/operational-budget?month=${selectedMonth}`);
+      const res = await api.get(`/api/legal-dashboard/operational-budget?month=${targetMonth}`);
       if (res.data?.status === 'success') {
         setBudgetDetail(res.data.data);
       }
@@ -592,10 +631,12 @@ export default function Legal({ user }) {
 
   useEffect(() => {
     if (activeDetailModal === 'budget') {
-      setBudgetViewMode(selectedMonth !== 'all' ? 'filtered' : 'ytd');
-      fetchBudgetDetail();
+      const targetMonth = budgetViewMode === 'filtered'
+        ? (budgetSelectedMonth !== 'all' ? budgetSelectedMonth : (selectedMonth !== 'all' ? selectedMonth : '9'))
+        : 'all';
+      fetchBudgetDetail(targetMonth);
     }
-  }, [activeDetailModal, selectedMonth]);
+  }, [activeDetailModal, budgetViewMode, budgetSelectedMonth, selectedMonth]);
 
   // Fetch Downloads for Modal 5 & 6
   const fetchDownloadsList = async (type = 'all') => {
@@ -622,6 +663,41 @@ export default function Legal({ user }) {
     }
   }, [activeDetailModal, downloadSearch]);
 
+  // Helper: Rumus Status Otomatis Excel Kolom I dari Kolom G (Expired Date)
+  // Formula Excel: =IF(G<TODAY(); "Expired"; IF(G-TODAY()<=30; "Segera Update"; "Masih Berlaku"))
+  const calculateSiloStatus = (expiredDateStr) => {
+    if (!expiredDateStr) return 'Masih Berlaku';
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const exp = new Date(expiredDateStr);
+      if (isNaN(exp.getTime())) return 'Masih Berlaku';
+      exp.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return 'Expired';
+      if (diffDays <= 30) return 'Segera Update';
+      return 'Masih Berlaku';
+    } catch (e) {
+      return 'Masih Berlaku';
+    }
+  };
+
+  const openPicModal = (doc) => {
+    setSelectedDocForPic(doc);
+    const effectiveExp = doc.expired_date ? doc.expired_date.substring(0, 10) : '';
+    const autoStatus = calculateSiloStatus(effectiveExp);
+
+    setPicFormData({
+      extension_submission_date: doc.extension_submission_date ? doc.extension_submission_date.substring(0, 10) : '',
+      extension_progress: '', // KOSONG: sebagai panduan di placeholder (tidak langsung tertulis)
+      status: autoStatus,     // Otomatis sesuai rumus Excel Kolom G
+      new_expired_date: '',
+      notes: '',              // KOSONG: sebagai panduan di placeholder (tidak langsung tertulis)
+      pic_name: '',           // KOSONG: sebagai panduan di placeholder (tidak langsung tertulis)
+      pic_email: doc.pic_email || '',
+    });
+  };
+
   // Handle Save PIC Progress
   const handleSavePicProgress = async (e) => {
     e.preventDefault();
@@ -639,49 +715,6 @@ export default function Legal({ user }) {
     }
   };
 
-  // Handle Trigger SOP Email Reminders
-  const handleTriggerSopEmail = async (e) => {
-    if (e) e.preventDefault();
-    if (!emailForm.to.trim()) {
-      alert('Alamat email tujuan (To) wajib diisi.');
-      return;
-    }
-    setSendingEmail(true);
-    try {
-      if (sopType === 'legal_docs') {
-        const res = await api.post('/api/legal-dashboard/send-reminder-email', {
-          type: 'batch_monthly',
-          to: emailForm.to,
-          cc: emailForm.cc,
-          subject: emailForm.subject,
-          notes: emailForm.notes,
-        });
-        setActionSuccessMsg(res.data.message || 'Reminder SOP Perizinan & SILO berhasil dikirimkan!');
-      } else {
-        const res = await api.post('/api/legal-dashboard/send-mp-reminder-email', {
-          audience: 'HR, Direksi, & PJO',
-          to: emailForm.to,
-          cc: emailForm.cc,
-          subject: emailForm.subject,
-          notes: emailForm.notes,
-        });
-        setActionSuccessMsg(res.data.message || 'Rekap Kontrak Karyawan berhasil didistribusikan!');
-      }
-
-      // Simpan alamat email ke riwayat agar otomatis muncul di autocomplete selanjutnya
-      saveEmailToHistory(emailForm.to);
-      saveEmailToHistory(emailForm.cc);
-      setKnownEmails(loadSavedEmails());
-
-      setIsSopModalOpen(false);
-      setTimeout(() => setActionSuccessMsg(''), 6000);
-    } catch (err) {
-      console.error('Error sending SOP email:', err);
-      alert('Gagal mengirim email reminder SOP.');
-    } finally {
-      setSendingEmail(false);
-    }
-  };
 
   // Handle Download Authorization Request
   const handleRequestDownloadPermission = async (e) => {
@@ -690,15 +723,16 @@ export default function Legal({ user }) {
     try {
       const res = await api.post('/api/legal-dashboard/request-download-permission', {
         filename: downloadPermissionModal.filename,
-        division: user?.division || 'Divisi Pemohon',
+        applicant_name: downloadApplicantName || user?.name || 'User',
+        division: downloadApplicantDivision || user?.division || 'Divisi Pemohon',
         reason: downloadReason,
       });
-      alert(res.data.message || 'Izin unduh berhasil disetujui. File mulai diunduh.');
+      alert(res.data.message || 'Permohonan unduh dokumen berhasil diproses.');
       setDownloadPermissionModal(null);
       setDownloadReason('');
     } catch (err) {
       console.error('Error requesting download permission:', err);
-      alert('Gagal memproses izin unduh.');
+      alert('Gagal memproses permohonan unduh.');
     }
   };
 
@@ -731,10 +765,26 @@ export default function Legal({ user }) {
         </span>
       );
     }
+    if (urgencyStatus === 'pending' || (category === 'silo' && urgencyStatus === 'no_expiry')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+          <Clock size={11} className="text-slate-500" />
+          Pending Update
+        </span>
+      );
+    }
+    if (urgencyStatus === 'no_expiry') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+          <CheckCircle2 size={11} className="text-sky-500" />
+          Permanen / No Expiry
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
         <CheckCircle2 size={11} className="text-emerald-600" />
-        Masih Berlaku ({daysRemaining} hr)
+        Masih Berlaku {daysRemaining !== null ? `(${daysRemaining} hr)` : ''}
       </span>
     );
   };
@@ -744,29 +794,122 @@ export default function Legal({ user }) {
   const kpi = summaryData?.kpi || {};
   const budget = summaryData?.budget || {};
   const downloadsCount = summaryData?.downloads_count || {};
+  const regulationsSummary = summaryData?.regulations || {
+    total: 65,
+    comply: 59,
+    non_comply: 6,
+    compliance_rate: 91,
+    by_nature: { Wajib: 56, Conditional: 8, Opsional: 1 },
+    by_party: { HSE: 25, Legal: 15, Finance: 8, HR: 7, Transport: 4, Operation: 3, Exim: 2, IT: 1 }
+  };
 
   // =========================================================================
   // APEXCHARTS CONFIGURATIONS FOR 1-PAGE EXECUTIVE VIEW
   // =========================================================================
   // APEXCHARTS & VISUAL CONFIGURATIONS (ROBUST & IMMUNE TO ZOOM 80%-120%)
   // =========================================================================
-  // 1. Chart Donut Status Dokumen (Aman vs Kritis vs Expired) - Zero Label Collisions
-  const docStatusChart = useMemo(() => {
-    const safe = Number(docs.total_safe ?? 180);
-    const critical = Number(docs.total_critical ?? 21);
-    const expired = Number(docs.total_expired ?? 89);
-    const warning = Number(docs.total_warning ?? 29);
+  // 1. Chart Donat / Pie Distribusi 5 Kategori Dokumen Legalitas (SILO, Perizinan, PKS, Proyek, Kendaraan)
+  const docCategoryDonutChart = useMemo(() => {
+    const silo = Number(docs.total_silo || 157);
+    const permit = Number(docs.total_permit || 69);
+    const agreement = Number(docs.total_agreement || 59);
+    const project = Number(docs.total_project_contract || 53);
+    const vehicle = Number(docs.total_vehicle || 83);
+    const total = Number(docs.total_documents || (silo + permit + agreement + project + vehicle));
 
-    const series = [safe, critical, expired, warning];
+    const series = [silo, permit, agreement, project, vehicle];
+    const labels = ['SILO', 'Perizinan', 'PKS', 'Kontrak Project', 'Izin Kendaraan'];
+    const colors = ['#F59E0B', '#2563EB', '#06B6D4', '#8B5CF6', '#10B981'];
+    const tabs = ['silo', 'permit', 'agreement', 'project_contract', 'vehicle'];
+
     const options = {
-      chart: { type: 'donut', sparkline: { enabled: true } },
-      labels: ['Aman / Valid', 'Kritis H-30/60', 'Expired', 'Mendekati Expired'],
-      colors: ['#10B981', '#F59E0B', '#EF4444', '#3B82F6'],
+      chart: {
+        type: 'donut',
+        fontFamily: 'Inter, sans-serif',
+        toolbar: { show: false },
+        events: {
+          dataPointSelection: (event, chartContext, config) => {
+            const targetTab = tabs[config.dataPointIndex];
+            if (targetTab) {
+              setDocCategoryTab(targetTab);
+              setActiveDetailModal('documents');
+            }
+          },
+        },
+      },
+      colors: colors,
+      labels: labels,
+      stroke: { width: 2, colors: ['#ffffff'] },
       plotOptions: {
         pie: {
           donut: {
-            size: '74%',
-            labels: { show: false }, // Avoid duplicate overlap inside circle
+            size: '64%',
+            labels: {
+              show: true,
+              name: {
+                show: true,
+                fontSize: '8.5px',
+                fontWeight: 700,
+                color: '#94a3b8',
+                offsetY: -3,
+              },
+              value: {
+                show: true,
+                fontSize: '14px',
+                fontWeight: 800,
+                color: '#0f172a',
+                offsetY: 2,
+                formatter: (val) => `${val}`,
+              },
+              total: {
+                show: true,
+                label: 'TOTAL',
+                fontSize: '8px',
+                fontWeight: 700,
+                color: '#94a3b8',
+                formatter: () => `${total}`,
+              },
+            },
+          },
+        },
+      },
+      dataLabels: { enabled: false },
+      legend: { show: false },
+      tooltip: {
+        theme: 'light',
+        y: {
+          formatter: (val) => `${val} Dokumen / Unit`,
+        },
+      },
+    };
+
+    const categories = labels.map((label, i) => ({
+      id: tabs[i],
+      label: label,
+      count: series[i],
+      color: colors[i],
+      percentage: total > 0 ? ((series[i] / total) * 100).toFixed(1) : 0,
+    }));
+
+    return { series, options, categories, total };
+  }, [docs.total_silo, docs.total_permit, docs.total_agreement, docs.total_project_contract, docs.total_vehicle, docs.total_documents]);
+
+  const docStatusChart = useMemo(() => {
+    const safe = Number(docs.total_safe ?? 141);
+    const permanent = Number(docs.total_no_expiry ?? 84);
+    const critical = Number(docs.total_critical ?? 25);
+    const expired = Number(docs.total_expired ?? 91);
+
+    const series = [safe, permanent, critical, expired];
+    const options = {
+      chart: { type: 'donut', sparkline: { enabled: true } },
+      labels: ['Aman / Valid', 'Permanen', 'Kritis H-30/60', 'Expired'],
+      colors: ['#10B981', '#06B6D4', '#F59E0B', '#EF4444'],
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '72%',
+            labels: { show: false },
           },
         },
       },
@@ -779,19 +922,9 @@ export default function Legal({ user }) {
     };
 
     return { series, options };
-  }, [docs.total_safe, docs.total_critical, docs.total_expired, docs.total_warning]);
+  }, [docs.total_safe, docs.total_no_expiry, docs.total_critical, docs.total_expired]);
 
-  // 2. Site Progress Distribution List for Manpower (Immune to label truncation)
-  const siteProgressList = useMemo(() => {
-    return [
-      { name: 'Hotmetal', expiring: 12, percent: 75, color: 'bg-amber-500' },
-      { name: 'Freeport', expiring: 6, percent: 50, color: 'bg-blue-500' },
-      { name: 'Antam', expiring: 4, percent: 35, color: 'bg-emerald-500' },
-      { name: 'Vale & BAI', expiring: 5, percent: 45, color: 'bg-purple-500' },
-    ];
-  }, []);
-
-  // 3. Gauge Chart Capaian KPI Legal (Circular Ring Gauge)
+  // 2. Gauge Chart Capaian KPI Legal (Circular Ring Gauge)
   const kpiGaugeChart = useMemo(() => {
     const rate = Math.min(100, Math.round(Number(kpi.achievement_rate ?? 100)));
     const series = [rate];
@@ -840,8 +973,8 @@ export default function Legal({ user }) {
           dataLabels: {
             name: { show: false },
             value: {
-              offsetY: 4,
-              fontSize: '14px',
+              offsetY: 6,
+              fontSize: '20px',
               fontWeight: 800,
               color: '#7E22CE',
               formatter: (val) => `${val}%`,
@@ -855,6 +988,37 @@ export default function Legal({ user }) {
 
     return { series, options };
   }, [budget.ytd_utilization_rate, budget.current_month_utilization, selectedMonth]);
+
+  // 5. Regulations Compliance Radial Gauge Chart (Circular Ring Gauge)
+  const regulationsGaugeChart = useMemo(() => {
+    const rate = Math.min(100, Math.round(Number(regulationsSummary.compliance_rate ?? 91)));
+    const series = [rate];
+    const options = {
+      chart: { type: 'radialBar', sparkline: { enabled: true } },
+      plotOptions: {
+        radialBar: {
+          startAngle: 0,
+          endAngle: 360,
+          hollow: { size: '64%' },
+          track: { background: '#ECFDF5', strokeWidth: '100%' },
+          dataLabels: {
+            name: { show: false },
+            value: {
+              offsetY: 6,
+              fontSize: '20px',
+              fontWeight: 800,
+              color: '#059669',
+              formatter: (val) => `${val}%`,
+            },
+          },
+        },
+      },
+      colors: ['#10B981'],
+      stroke: { lineCap: 'round' },
+    };
+
+    return { series, options };
+  }, [regulationsSummary.compliance_rate]);
 
 
   // Legal Monthly Workload Trend (Legal Review, Legal Drafting, Legal Advisory)
@@ -1017,60 +1181,47 @@ export default function Legal({ user }) {
     return { series, options };
   }, [kpi.monthly_trend]);
 
+  // Action buttons and period filter component for PageHeader Portal
+  const periodFilterContent = (
+    <div className="flex items-center gap-1.5">
+      <span className="hidden xl:flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        Monitoring Legalitas 2026
+      </span>
+      <DateRangeFilter
+        dateRange={dateRange}
+        onChange={setDateRange}
+        disablePortal={true}
+      />
+      <button
+        type="button"
+        onClick={fetchExecutiveSummary}
+        className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 bg-white rounded-lg transition cursor-pointer shadow-xs"
+        title="Sinkronkan & Muat Ulang Data"
+      >
+        <RefreshCw size={13} className={loading ? 'animate-spin text-blue-600' : ''} />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="w-full flex-1 flex flex-col gap-2 pb-1 text-xs min-w-0">
-      {/* 1. TOP COMPACT TOOLBAR */}
-      <div className="flex flex-wrap items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs gap-2">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-          <span className="text-xs font-semibold text-slate-700">
-            Monitoring Legalitas, Kontrak Kerja & Anggaran 2026
-          </span>
+    <div className="w-full h-full flex flex-col justify-between overflow-x-hidden min-h-0 text-xs pb-1">
+      {/* Portal action into page layout header */}
+      {headerActions && createPortal(periodFilterContent, headerActions)}
+
+      {/* Fallback header only if page-header-actions not available in DOM */}
+      {!headerActions && (
+        <div className="flex items-center justify-between pb-1 border-b border-slate-200 shrink-0 mb-1">
+          <span className="text-xs text-slate-600 font-semibold">Monitoring Legalitas, Kontrak Kerja & Anggaran 2026</span>
+          {periodFilterContent}
         </div>
-
-        {/* Filter & Action Buttons */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2 py-0.5 rounded-lg">
-            <Calendar size={13} className="text-slate-500" />
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
-            >
-              {MONTH_NAMES.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => openSopModal('legal_docs')}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-xs transition shadow-2xs cursor-pointer"
-            title="Kirim email reminder gabungan SOP tgl 1-5"
-          >
-            <Mail size={13} />
-            <span>Kirim Reminder SOP</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={fetchExecutiveSummary}
-            className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition cursor-pointer"
-            title="Muat Ulang Data"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin text-slate-800' : ''} />
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Success Banner */}
       {actionSuccessMsg && (
-        <div className="flex shrink-0 items-center justify-between px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg shadow-xs text-xs">
+        <div className="flex shrink-0 items-center justify-between px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg shadow-xs text-xs mb-1">
           <div className="flex items-center gap-1.5">
-            <CheckCircle2 size={14} className="text-emerald-600" />
+            <CheckCircle2 size={13} className="text-emerald-600" />
             <span>{actionSuccessMsg}</span>
           </div>
           <button onClick={() => setActionSuccessMsg('')} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
@@ -1080,165 +1231,248 @@ export default function Legal({ user }) {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. ROW 1: MONITORING KEPATUHAN & RISIKO (POIN 1 & POIN 2) - 2 BALANCED CARDS */}
+      {/* 2. 2x2 GRID: DOKUMEN & PERIZINAN, KPI, BUDGET, REGULASI (EQUAL SIZING)     */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 w-full flex-1 min-h-[175px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 auto-rows-fr gap-2 w-full flex-1 min-h-0">
 
-        {/* CARD 1: DOKUMEN & PERIZINAN LEGALITAS (POIN 1) */}
+        {/* CARD 1: DOKUMEN & PERIZINAN (POIN 1) */}
         <div
           onClick={() => setActiveDetailModal('documents')}
-          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
         >
-          <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2 min-w-0 pr-1">
-              <div className="p-1.5 bg-amber-50 text-amber-700 rounded-md shrink-0">
-                <Wrench size={15} />
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+            <div className="flex items-center gap-1.5 min-w-0 pr-1">
+              <div className="p-1 bg-amber-50 text-amber-700 rounded-md shrink-0">
+                <Wrench size={13} />
               </div>
-              <div className="truncate">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                    Dokumen & Perizinan
-                  </h3>
-                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
-                    Poin 1: Monitoring Legalitas
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-400 truncate">SILO &bull; Perizinan Usaha &bull; Perjanjian PKS &bull; Kontrak Proyek &bull; Kendaraan</p>
+              <div className="flex items-center gap-1 truncate">
+                <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                  Dokumen & Perizinan
+                </h3>
               </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <DatasetBadgeButton source={DATA_SOURCE_MAPPING.silo} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 my-auto py-1.5 border-y border-slate-100 flex-1">
-            <div className="w-[84px] h-[84px] flex items-center justify-center shrink-0">
+          {/* Main Body: 3-Section Executive Layout */}
+          <div className="flex items-center justify-between gap-3 my-auto py-1.5 border-y border-slate-100/90 flex-1 px-1 min-h-0">
+            {/* 1. KIRI: Donut Chart Proporsional */}
+            <div className="w-[115px] sm:w-[122px] flex items-center justify-center shrink-0">
               <Chart
-                options={docStatusChart.options}
-                series={docStatusChart.series}
+                options={docCategoryDonutChart.options}
+                series={docCategoryDonutChart.series}
                 type="donut"
-                height={84}
-                width={84}
+                height={122}
+                width={122}
               />
             </div>
-            <div className="flex-1 grid grid-cols-4 gap-1.5 text-center">
-              <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="text-base font-bold text-slate-800">{docs.total_documents || 319}</div>
-                <div className="text-[9px] text-slate-500 font-medium">Total Terdaftar</div>
+
+            {/* 2. TENGAH: Distribusi Kategori Dokumen */}
+            <div className="flex-1 min-w-[145px] max-w-[210px] bg-slate-50/70 rounded-xl p-2 border border-slate-200/70 flex flex-col justify-between h-[128px]">
+              <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-200/50">
+                <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
+                  Kategori Dokumen
+                </span>
+                <span className="text-[9px] font-semibold text-slate-400">
+                  5 Jenis
+                </span>
               </div>
-              <div className="p-1.5 rounded-lg bg-orange-50 border border-orange-200">
-                <div className="text-base font-bold text-orange-700">{docs.total_critical || 21}</div>
-                <div className="text-[9px] text-orange-700 font-bold">Kritis (H-30/60)</div>
-              </div>
-              <div className="p-1.5 rounded-lg bg-amber-50 border border-amber-200">
-                <div className="text-base font-bold text-amber-700">{docs.total_warning || 29}</div>
-                <div className="text-[9px] text-amber-700 font-semibold">Mendekati</div>
-              </div>
-              <div className="p-1.5 rounded-lg bg-rose-50 border border-rose-200">
-                <div className="text-base font-bold text-rose-600">{docs.total_expired || 89}</div>
-                <div className="text-[9px] text-rose-700 font-semibold">Expired</div>
+              <div className="space-y-0.5">
+                {docCategoryDonutChart.categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDocCategoryTab(cat.id);
+                      setActiveDetailModal('documents');
+                    }}
+                    className="w-full flex items-center justify-between py-0.5 pl-2 pr-1.5 rounded-md hover:bg-white hover:shadow-2xs transition text-[10px] group cursor-pointer text-left"
+                    title={`Klik untuk melihat data ${cat.label} (${cat.count} unit)`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-1">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0 ring-1 ring-black/5"
+                        style={{ backgroundColor: cat.color }}
+                      ></span>
+                      <span className="text-slate-600 font-medium truncate group-hover:text-slate-900">
+                        {cat.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                      <span className="text-[9px] text-slate-400 font-mono">
+                        {cat.percentage}%
+                      </span>
+                      <span className="font-bold text-slate-800 font-mono text-[10.5px]">
+                        {cat.count}
+                      </span>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center justify-between text-[10.5px] text-slate-500 shrink-0 pt-0.5">
-            <span className="font-medium text-slate-700">{docs.total_documents || 319} Dokumen Terdaftar &bull; <strong className="text-emerald-600">{docs.total_safe || 180} Masih Berlaku</strong></span>
-            <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
-              Buka 5 Tab Monitoring & Update PIC <ChevronRight size={11} />
-            </span>
-          </div>
-        </div>
-
-        {/* CARD 2: KONTRAK KARYAWAN PKWT (POIN 2) */}
-        <div
-          onClick={() => setActiveDetailModal('manpower')}
-          className="group relative flex flex-col justify-between p-3 bg-white border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer h-full"
-        >
-          <div className="flex items-start justify-between shrink-0">
-            <div className="flex items-center gap-2 min-w-0 pr-1">
-              <div className="p-1.5 bg-blue-50 text-blue-700 rounded-md shrink-0">
-                <Users size={15} />
+            {/* 3. KANAN: Kartu Status Validitas (5 Status: Berlaku, Permanen, Kritis, Expired, Pending) */}
+            <div className="w-[180px] sm:w-[205px] bg-slate-50/70 rounded-xl p-2 border border-slate-200/70 flex flex-col justify-between h-[128px] shrink-0">
+              <div className="flex items-center justify-between px-0.5 pb-1 border-b border-slate-200/50">
+                <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
+                  Status Validitas
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDocUrgencyFilter('all');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="text-[9px] font-bold text-slate-600 hover:text-blue-600 transition cursor-pointer"
+                  title="Lihat semua dokumen tanpa filter status"
+                >
+                  Total: <strong className="text-slate-800 font-mono">{docs.total_documents ?? 421}</strong>
+                </button>
               </div>
-              <div className="truncate">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
-                    Kontrak Karyawan (PKWT)
-                  </h3>
-                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
-                    Poin 2: MP Baseline
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-400 truncate">Reminder Durasi Kontrak Habis (Kirim Gabungan Excel ke HR, Direksi & PJO)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.manpower} onClick={setSelectedDataSourceModal} />
-              <Maximize2 size={12} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between gap-3 my-auto py-1.5 border-y border-slate-100 flex-1">
-            <div className="flex-1 space-y-1.5 min-w-0 pr-2">
-              <div className="text-[9.5px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Sebaran Proyek Site:</div>
-              {siteProgressList.slice(0, 3).map((site) => (
-                <div key={site.name} className="flex items-center justify-between text-[10px]">
-                  <span className="font-medium text-slate-600 w-16 truncate">{site.name}</span>
-                  <div className="flex-1 mx-2 bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div className={`${site.color} h-2 rounded-full`} style={{ width: `${site.percent}%` }} />
+              {/* Row 1: Dokumen Aktif / Valid (2 Kolom: Berlaku & Permanen) */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {/* 1. Berlaku */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDocUrgencyFilter('safe');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="p-1 sm:p-1.5 rounded-lg border border-emerald-200/80 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition cursor-pointer flex flex-col justify-between shadow-2xs"
+                  title="Dokumen Berjangka yang Masih Berlaku Aman (>30/60 hari)"
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="text-[9px] font-bold text-emerald-800 truncate">Berlaku</span>
                   </div>
-                  <span className="font-bold text-slate-700 text-[10.5px] w-6 text-right">{site.expiring}</span>
+                  <div className="mt-0.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-emerald-700 font-mono">
+                      {docs.total_safe ?? 141}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="w-[110px] grid grid-cols-1 gap-1 text-center shrink-0">
-              <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 border border-slate-100">
-                <span className="text-[9.5px] text-slate-500">Total Karyawan:</span>
-                <span className="text-xs font-bold text-slate-900">{mp.total_employees || 802}</span>
+                {/* 2. Permanen */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (docCategoryTab === 'silo') setDocCategoryTab('permit');
+                    setDocUrgencyFilter('no_expiry');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="p-1 sm:p-1.5 rounded-lg border border-sky-200/80 bg-white hover:bg-sky-50 hover:border-sky-300 transition cursor-pointer flex flex-col justify-between shadow-2xs"
+                  title="Dokumen Berlaku Tetap / Tanpa Batas Waktu (Non-Expiry)"
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"></span>
+                    <span className="text-[9px] font-bold text-sky-800 truncate">Permanen</span>
+                  </div>
+                  <div className="mt-0.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-sky-700 font-mono">
+                      {docs.total_no_expiry ?? 84}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between px-2 py-1 rounded bg-amber-50 border border-amber-200">
-                <span className="text-[9.5px] text-amber-800 font-semibold">&le; 30 Hari:</span>
-                <span className="text-xs font-bold text-amber-700">{mp.expiring_30_days || 68}</span>
-              </div>
-              <div className="flex items-center justify-between px-2 py-1 rounded bg-blue-50 border border-blue-200">
-                <span className="text-[9.5px] text-blue-800 font-semibold">Bulan Ini:</span>
-                <span className="text-xs font-bold text-blue-700">{mp.expiring_this_month || 14}</span>
+
+              {/* Row 2: Status Perlu Tindak Lanjut (3 Kolom: Kritis, Expired, Pending Update) */}
+              <div className="grid grid-cols-3 gap-1">
+                {/* 3. Kritis */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDocUrgencyFilter('critical');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="p-1 rounded-lg border border-amber-200/80 bg-white hover:bg-amber-50 hover:border-amber-300 transition cursor-pointer flex flex-col justify-between shadow-2xs"
+                  title="Dokumen Mendekati Jatuh Tempo (H-30, SILO H-60)"
+                >
+                  <div className="flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse"></span>
+                    <span className="text-[8px] sm:text-[8.5px] font-bold text-amber-800 truncate">Kritis</span>
+                  </div>
+                  <div className="mt-0.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-amber-700 font-mono">
+                      {docs.total_critical ?? 25}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Expired */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDocUrgencyFilter('expired');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="p-1 rounded-lg border border-rose-200/80 bg-white hover:bg-rose-50 hover:border-rose-300 transition cursor-pointer flex flex-col justify-between shadow-2xs"
+                  title="Dokumen Sudah Melewati Masa Berlaku"
+                >
+                  <div className="flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                    <span className="text-[8px] sm:text-[8.5px] font-bold text-rose-800 truncate">Expired</span>
+                  </div>
+                  <div className="mt-0.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-rose-600 font-mono">
+                      {docs.total_expired ?? 91}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. Pending Update */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDocCategoryTab('silo');
+                    setDocUrgencyFilter('pending');
+                    setActiveDetailModal('documents');
+                  }}
+                  className="p-1 rounded-lg border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-slate-300 transition cursor-pointer flex flex-col justify-between shadow-2xs"
+                  title="Dokumen / Unit Menunggu Pengisian Tanggal atau Jadwal Update (80 Unit SILO)"
+                >
+                  <div className="flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                    <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-700 truncate" title="Pending Update">Pending</span>
+                  </div>
+                  <div className="mt-0.5">
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-700 font-mono">
+                      {docs.total_pending ?? 80}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10.5px] text-slate-500 shrink-0 pt-0.5">
-            <span className="text-amber-700 font-medium"><strong className="text-amber-800">{mp.expiring_30_days || 68} Jatuh Tempo</strong> &bull; Total {mp.total_employees || 802} Karyawan</span>
+          {/* Footer: Sederhana, Bersih & Elegan */}
+          <div className="pt-2 pb-0.5 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
+            <span className="text-slate-600">
+              <strong className="text-amber-700">{docs.total_critical ?? 25} Kritis</strong> &bull; Total {docs.total_documents ?? 421} Dokumen
+            </span>
             <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
-              Lihat Rekap Baseline MP <ChevronRight size={11} />
+              Lihat Detail & Tabel <ChevronRight size={10} />
             </span>
           </div>
         </div>
 
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 3. ROW 2: KINERJA (POIN 5), BUDGET (POIN 6) & PUSAT UNDUHAN (POIN 3 & 4)    */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full flex-1 min-h-[185px]">
-
-        {/* KOLOM 1 (5 COLS): KINERJA & TREN BEBAN KERJA LEGAL (POIN 5) */}
-        <div className="lg:col-span-5 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between h-full min-h-0">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+        {/* CARD 2: KINERJA & TREN BEBAN KERJA LEGAL (POIN 5) */}
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between h-full min-h-0">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md">
                 <TrendingUp size={13} />
               </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  <h3 className="font-bold text-slate-900 text-xs">
-                    Kinerja & Beban Kerja (KPI)
-                  </h3>
-                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Poin 5
-                  </span>
-                </div>
+              <div className="flex items-center gap-1">
+                <h3 className="font-bold text-slate-900 text-xs">
+                  Kinerja & Beban Kerja (KPI)
+                </h3>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
@@ -1250,37 +1484,77 @@ export default function Legal({ user }) {
                   setKpiSelectedMonth(selectedMonth);
                   setActiveDetailModal('kpi');
                 }}
-                className="text-[10.5px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition"
+                className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition"
               >
                 <span>Detail KPI</span>
-                <ChevronRight size={11} />
+                <ChevronRight size={10} />
               </button>
             </div>
           </div>
 
           {/* KPI Mini Scorecard Summary */}
-          <div className="grid grid-cols-4 gap-1.5 pt-1.5 text-center">
-            <div className="p-1 rounded bg-emerald-50 border border-emerald-200">
-              <div className="text-xs font-bold text-emerald-700">100%</div>
-              <div className="text-[8.5px] text-emerald-800 font-semibold">SLA</div>
+          <div className="grid grid-cols-4 gap-1 pt-1 text-center">
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setKpiCategoryTab('all');
+                setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                setKpiSelectedMonth(selectedMonth);
+                setActiveDetailModal('kpi');
+              }}
+              className="p-1 rounded bg-emerald-50 border border-emerald-200 hover:bg-emerald-100/80 hover:shadow-2xs cursor-pointer transition group/box"
+              title="Klik untuk melihat semua daftar beban kerja KPI"
+            >
+              <div className="text-xs font-bold text-emerald-700 group-hover/box:scale-105 transition-transform">100%</div>
+              <div className="text-[8px] text-emerald-800 font-semibold">Targeted</div>
             </div>
-            <div className="p-1 rounded bg-blue-50 border border-blue-100">
-              <div className="text-xs font-bold text-blue-700">{kpi.review_count ?? (kpi.total_review_ytd ?? 40)}</div>
-              <div className="text-[8.5px] text-blue-800 font-semibold">Review</div>
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setKpiCategoryTab('review');
+                setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                setKpiSelectedMonth(selectedMonth);
+                setActiveDetailModal('kpi');
+              }}
+              className="p-1 rounded bg-blue-50 border border-blue-100 hover:bg-blue-100/80 hover:shadow-2xs cursor-pointer transition group/box"
+              title="Klik untuk melihat rincian dokumen Legal Review"
+            >
+              <div className="text-xs font-bold text-blue-700 group-hover/box:scale-105 transition-transform">{kpi.review_count ?? (kpi.total_review_ytd ?? 40)}</div>
+              <div className="text-[8px] text-blue-800 font-semibold">Review</div>
             </div>
-            <div className="p-1 rounded bg-amber-50 border border-amber-100">
-              <div className="text-xs font-bold text-amber-700">{kpi.drafting_count ?? (kpi.total_drafting_ytd ?? 49)}</div>
-              <div className="text-[8.5px] text-amber-800 font-semibold">Drafting</div>
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setKpiCategoryTab('drafting');
+                setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                setKpiSelectedMonth(selectedMonth);
+                setActiveDetailModal('kpi');
+              }}
+              className="p-1 rounded bg-amber-50 border border-amber-100 hover:bg-amber-100/80 hover:shadow-2xs cursor-pointer transition group/box"
+              title="Klik untuk melihat rincian dokumen Legal Drafting"
+            >
+              <div className="text-xs font-bold text-amber-700 group-hover/box:scale-105 transition-transform">{kpi.drafting_count ?? (kpi.total_drafting_ytd ?? 49)}</div>
+              <div className="text-[8px] text-amber-800 font-semibold">Drafting</div>
             </div>
-            <div className="p-1 rounded bg-purple-50 border border-purple-100">
-              <div className="text-xs font-bold text-purple-700">{kpi.advisory_count ?? (kpi.total_advisory_ytd ?? 12)}</div>
-              <div className="text-[8.5px] text-purple-800 font-semibold">Advisory</div>
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setKpiCategoryTab('advisory');
+                setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                setKpiSelectedMonth(selectedMonth);
+                setActiveDetailModal('kpi');
+              }}
+              className="p-1 rounded bg-purple-50 border border-purple-100 hover:bg-purple-100/80 hover:shadow-2xs cursor-pointer transition group/box"
+              title="Klik untuk melihat rincian konsultasi Legal Advisory"
+            >
+              <div className="text-xs font-bold text-purple-700 group-hover/box:scale-105 transition-transform">{kpi.advisory_count ?? (kpi.total_advisory_ytd ?? 12)}</div>
+              <div className="text-[8px] text-purple-800 font-semibold">Advisory</div>
             </div>
           </div>
 
           {/* Area Chart: Monthly Trend */}
-          <div className="w-full flex-1 min-h-[110px] my-auto py-1 relative flex items-center justify-center">
-            <div className="w-full h-full min-h-[110px]">
+          <div className="w-full flex-1 min-h-[80px] my-auto py-0.5 relative flex items-center justify-center">
+            <div className="w-full h-full min-h-[80px]">
               <Chart
                 options={workloadTrendChart.options}
                 series={workloadTrendChart.series}
@@ -1291,20 +1565,53 @@ export default function Legal({ user }) {
             </div>
           </div>
 
-          <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
+          <div className="pt-2 pb-0.5 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
             <span>Rata-rata Durasi: <strong className="text-slate-700">{kpi.avg_duration_days ?? 2.3} Hari</strong></span>
-            <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
-              <CheckCircle2 size={10} /> 0 Sengketa &bull; 0 Litigasi
-            </span>
+            {(() => {
+              const litCount = Number(kpi.litigasi ?? (kpi.total_litigasi ?? 0));
+              const pelCount = Number(kpi.pelanggaran ?? (kpi.total_pelanggaran ?? 0));
+              const hasCases = litCount > 0 || pelCount > 0;
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setKpiCategoryTab(litCount > 0 ? 'litigasi' : (pelCount > 0 ? 'pelanggaran' : 'litigasi'));
+                    setKpiViewMode(selectedMonth !== 'all' ? 'monthly' : 'ytd');
+                    setKpiSelectedMonth(selectedMonth);
+                    setActiveDetailModal('kpi');
+                  }}
+                  className={`font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] border transition cursor-pointer shadow-2xs ${
+                    hasCases
+                      ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                  title="Klik untuk membuka pop-up Detail Litigasi & Sengketa"
+                >
+                  {hasCases ? (
+                    <AlertTriangle size={10} className="text-rose-600 animate-pulse shrink-0" />
+                  ) : (
+                    <CheckCircle2 size={10} className="text-emerald-600 shrink-0" />
+                  )}
+                  <span className="font-mono">{pelCount}</span> Sengketa &bull; <span className="font-mono">{litCount}</span> Litigasi
+                </button>
+              );
+            })()}
           </div>
         </div>
 
-        {/* KOLOM 2 (4 COLS): BUDGET OPERASIONAL (POIN 6) */}
+        {/* CARD 3: BUDGET OPERASIONAL (POIN 6) */}
         <div
-          onClick={() => setActiveDetailModal('budget')}
-          className="lg:col-span-4 bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs rounded-xl transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
+          onClick={() => {
+            setActiveDetailModal('budget');
+            if (selectedMonth !== 'all') {
+              setBudgetSelectedMonth(selectedMonth);
+              setBudgetViewMode('filtered');
+            }
+          }}
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
         >
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
             <div className="flex items-center gap-1.5 min-w-0 pr-1">
               <div className="p-1 bg-purple-50 text-purple-700 rounded-md shrink-0">
                 <DollarSign size={13} />
@@ -1313,10 +1620,7 @@ export default function Legal({ user }) {
                 <h3 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
                   Budget Operasional
                 </h3>
-                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200 shrink-0">
-                  Poin 6
-                </span>
-                <span className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
                   {selectedMonth !== 'all' ? (MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || `Bulan ${selectedMonth}`) : 'YTD'}
                 </span>
               </div>
@@ -1327,20 +1631,20 @@ export default function Legal({ user }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2.5 my-auto py-2 border-y border-slate-100 flex-1">
-            <div className="w-[74px] h-[74px] flex items-center justify-center shrink-0">
+          <div className="flex items-center justify-between sm:justify-around gap-3 sm:gap-6 my-auto py-1 border-y border-slate-100 flex-1 px-1">
+            <div className="w-[112px] h-[112px] flex items-center justify-center shrink-0">
               <Chart
                 options={budgetGaugeChart.options}
                 series={budgetGaugeChart.series}
                 type="radialBar"
-                height={74}
-                width={74}
+                height={112}
+                width={112}
               />
             </div>
-            <div className="flex-1 space-y-1.5 min-w-0">
-              <div className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                <span className="text-[9.5px] text-slate-500">Anggaran:</span>
-                <span className="text-[11px] font-bold text-slate-900 truncate">
+            <div className="flex-1 max-w-[280px] sm:max-w-[310px] space-y-1.5 min-w-0">
+              <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/70">
+                <span className="text-[10px] text-slate-500 font-medium">Anggaran:</span>
+                <span className="text-[11.5px] font-bold text-slate-900 truncate">
                   {formatCurrency(
                     selectedMonth !== 'all'
                       ? (budget.current_month_budget ?? 0)
@@ -1348,9 +1652,9 @@ export default function Legal({ user }) {
                   )}
                 </span>
               </div>
-              <div className="flex items-center justify-between bg-purple-50 px-2 py-1 rounded border border-purple-200">
-                <span className="text-[9.5px] text-purple-800">Realisasi:</span>
-                <span className="text-[11px] font-bold text-purple-700 truncate">
+              <div className="flex items-center justify-between bg-purple-50/80 px-2.5 py-1 rounded-lg border border-purple-200">
+                <span className="text-[10px] text-purple-800 font-medium">Realisasi:</span>
+                <span className="text-[11.5px] font-bold text-purple-700 truncate">
                   {formatCurrency(
                     selectedMonth !== 'all'
                       ? (budget.current_month_actual ?? 0)
@@ -1358,9 +1662,9 @@ export default function Legal({ user }) {
                   )}
                 </span>
               </div>
-              <div className="flex items-center justify-between bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                <span className="text-[9px] text-emerald-800 font-medium">Sisa:</span>
-                <span className="text-[10px] font-bold text-emerald-700 truncate">
+              <div className="flex items-center justify-between bg-emerald-50/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <span className="text-[10px] text-emerald-800 font-medium">Sisa:</span>
+                <span className="text-[11.5px] font-bold text-emerald-700 truncate">
                   {formatCurrency(
                     selectedMonth !== 'all'
                       ? ((budget.current_month_budget ?? 0) - (budget.current_month_actual ?? 0))
@@ -1371,7 +1675,7 @@ export default function Legal({ user }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-500 shrink-0 pt-0.5">
+          <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-2 pb-0.5 border-t border-slate-100">
             <span className="text-purple-700 font-semibold">
               {selectedMonth !== 'all'
                 ? (Number(budget.current_month_budget) > 0 ? `Utilisasi: ${budget.current_month_utilization ?? 0}%` : 'Belum Ada Anggaran')
@@ -1383,62 +1687,68 @@ export default function Legal({ user }) {
           </div>
         </div>
 
-        {/* KOLOM 3 (3 COLS): PUSAT BERKAS & UNDUHAN RESMI (POIN 3 & POIN 4) */}
-        <div className="lg:col-span-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between h-full min-h-0">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-            <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-              <FileSpreadsheet size={13} className="text-slate-500" />
-              <span>Pusat Unduhan</span>
-            </h3>
-          </div>
-
-          <div className="space-y-1.5 flex-1 flex flex-col justify-center py-1">
-            {/* Box 1: Arsip Perizinan (Poin 3) */}
-            <div
-              onClick={() => setActiveDetailModal('downloads_permits')}
-              className="p-2 flex-1 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 hover:border-indigo-300 transition cursor-pointer group"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-slate-800 text-[10.5px] group-hover:text-indigo-600 transition flex items-center gap-1">
-                    <ShieldCheck size={13} className="text-indigo-600 shrink-0" /> Dokumen Perizinan
-                  </span>
-                  <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8.5px] font-bold">16 File</span>
-                </div>
-                <p className="text-[9px] text-slate-500 truncate">Izin Usaha, SBU, PKP, SKT & BPJS</p>
+        {/* CARD 4: MATRIKS PERATURAN PERUNDANG-UNDANGAN (STATUS KEPATUHAN) */}
+        <div
+          onClick={() => setActiveDetailModal('regulations')}
+          className="bg-white p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition cursor-pointer flex flex-col justify-between h-full min-h-0 group"
+        >
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+            <div className="flex items-center gap-1.5 min-w-0 pr-1">
+              <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                <Scale size={13} />
               </div>
-              <div className="flex justify-end mt-1">
-                <span className="text-[9.5px] font-semibold text-indigo-600 flex items-center gap-0.5">
-                  Unduh Dokumen <ChevronRight size={9} />
-                </span>
+              <div className="flex items-center gap-1 truncate">
+                <h3 className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition truncate">
+                  Kepatuhan Regulasi & UU
+                </h3>
               </div>
             </div>
-
-            {/* Box 2: Template Kontrak (Poin 4) */}
-            <div
-              onClick={() => setActiveDetailModal('downloads_templates')}
-              className="p-2 flex-1 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50/50 hover:border-teal-300 transition cursor-pointer group"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-slate-800 text-[10.5px] group-hover:text-teal-600 transition flex items-center gap-1">
-                    <FileText size={13} className="text-teal-600 shrink-0" /> Template MoU & Kontrak
-                  </span>
-                  <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8.5px] font-bold">10 Draft</span>
-                </div>
-                <p className="text-[9px] text-slate-500 truncate">Format PTFI, Antam, Vale, HO</p>
-              </div>
-              <div className="flex justify-end mt-1">
-                <span className="text-[9.5px] font-semibold text-teal-600 flex items-center gap-0.5">
-                  Unduh Template <ChevronRight size={9} />
-                </span>
-              </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.regulations} onClick={setSelectedDataSourceModal} />
+              <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
             </div>
           </div>
 
-          <div className="pt-1 border-t border-slate-100 text-[9px] text-slate-400 flex items-center justify-between">
-            <span>Akses Izin Terverifikasi</span>
-            <span className="text-slate-600 font-medium">Standar Legal PT AZM</span>
+          <div className="flex items-center justify-between sm:justify-around gap-3 sm:gap-6 my-auto py-1 border-y border-slate-100 flex-1 px-1">
+            <div className="w-[112px] h-[112px] flex items-center justify-center shrink-0">
+              <Chart
+                options={regulationsGaugeChart.options}
+                series={regulationsGaugeChart.series}
+                type="radialBar"
+                height={112}
+                width={112}
+              />
+            </div>
+            <div className="flex-1 max-w-[280px] sm:max-w-[310px] space-y-1.5 min-w-0">
+              <div className="flex items-center justify-between bg-emerald-50/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <span className="text-[10px] text-emerald-800 font-medium">Terpenuhi:</span>
+                <span className="text-[11.5px] font-bold text-emerald-700 truncate">
+                  {regulationsSummary.comply ?? 59} Regulasi
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-rose-50/80 px-2.5 py-1 rounded-lg border border-rose-200">
+                <span className="text-[10px] text-rose-800 font-medium">Belum Terpenuhi:</span>
+                <span className="text-[11.5px] font-bold text-rose-700 truncate">
+                  {regulationsSummary.non_comply ?? 6} Regulasi
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/70">
+                <span className="text-[10px] text-slate-500 font-medium">Total Klausul:</span>
+                <span className="text-[11.5px] font-bold text-slate-700 truncate">
+                  {regulationsSummary.total ?? 65} Regulasi
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-2 pb-0.5 border-t border-slate-100">
+            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+              <CheckCircle2 size={11} className="text-emerald-600" />
+              Tingkat Kepatuhan: {regulationsSummary.compliance_rate ?? 91}%
+            </span>
+            <span className="text-emerald-700 font-semibold group-hover:underline flex items-center gap-0.5">
+              Lihat Detail <ChevronRight size={10} />
+            </span>
           </div>
         </div>
 
@@ -1502,17 +1812,34 @@ export default function Legal({ user }) {
               )}
             </div>
 
-            <select
-              value={docUrgencyFilter}
-              onChange={(e) => setDocUrgencyFilter(e.target.value)}
-              className="py-1.5 px-2.5 bg-gray-50 border border-stroke rounded-lg text-xs font-medium text-gray-700 cursor-pointer"
-            >
-              <option value="all">Semua Status Expiry</option>
-              <option value="critical">🟠 Kritis (H-30 / H-60)</option>
-              <option value="warning">🟡 Mendekati Expired</option>
-              <option value="expired">🔴 Expired</option>
-              <option value="safe">🟢 Masih Berlaku</option>
-            </select>
+            <div className="flex items-center gap-2">
+              {docCategoryTab === 'silo' && (
+                <select
+                  value={docSiloTypeFilter}
+                  onChange={(e) => setDocSiloTypeFilter(e.target.value)}
+                  className="py-1.5 px-2.5 bg-gray-50 border border-stroke rounded-lg text-xs font-medium text-gray-700 cursor-pointer"
+                >
+                  <option value="all">Semua Kategori SILO</option>
+                  <option value="Alat Berat">🚜 Alat Berat Saja</option>
+                  <option value="Equipment">⚙️ Equipment Saja</option>
+                </select>
+              )}
+
+              <select
+                value={docUrgencyFilter}
+                onChange={(e) => setDocUrgencyFilter(e.target.value)}
+                className="py-1.5 px-2.5 bg-gray-50 border border-stroke rounded-lg text-xs font-medium text-gray-700 cursor-pointer"
+              >
+                <option value="all">Semua Status Expiry</option>
+                <option value="safe">🟢 Masih Berlaku</option>
+                <option value="critical">🟠 Kritis (H-30 / H-60)</option>
+                <option value="expired">🔴 Expired</option>
+                <option value="pending">⚪ Pending Update</option>
+                {docCategoryTab !== 'silo' && (
+                  <option value="no_expiry">🔵 Permanen / Non-Expiry</option>
+                )}
+              </select>
+            </div>
           </div>
 
 
@@ -1530,18 +1857,71 @@ export default function Legal({ user }) {
                     <th className="p-2">Jatuh Tempo STNK (5 Th)</th>
                     <th className="p-2">Jatuh Tempo KIR</th>
                     <th className="p-2">Status & Countdown</th>
-                    <th className="p-2">Progress PIC</th>
                     <th className="p-2 text-center">Aksi</th>
+                  </tr>
+                ) : docCategoryTab === 'permit' ? (
+                  <tr>
+                    <th className="p-2 w-8 text-center">No</th>
+                    <th className="p-2">Topic</th>
+                    <th className="p-2">Deskripsi Dokumen</th>
+                    <th className="p-2">Pihak Terkait</th>
+                    <th className="p-2">Tanggal Mulai</th>
+                    <th className="p-2">Tanggal Selesai</th>
+                    <th className="p-2">Keterangan</th>
+                    <th className="p-2">Status & Countdown</th>
+                    <th className="p-2 text-center">Hard File</th>
+                    <th className="p-2 text-center">Aksi</th>
+                  </tr>
+                ) : docCategoryTab === 'agreement' ? (
+                  <tr>
+                    <th className="p-2 w-8 text-center">No</th>
+                    <th className="p-2">Topic</th>
+                    <th className="p-2">Deskripsi Dokumen</th>
+                    <th className="p-2">Pihak / Rekanan</th>
+                    <th className="p-2">Tanggal Mulai</th>
+                    <th className="p-2">Tanggal Selesai</th>
+                    <th className="p-2">Keterangan</th>
+                    <th className="p-2">Status & Countdown</th>
+                    <th className="p-2 text-center">Hard File</th>
+                    <th className="p-2 text-center">Aksi</th>
+                  </tr>
+                ) : docCategoryTab === 'project_contract' ? (
+                  <tr>
+                    <th className="p-2 w-8 text-center">No</th>
+                    <th className="p-2">Topic</th>
+                    <th className="p-2">No. Regist Project</th>
+                    <th className="p-2">Deskripsi Dokumen / Project</th>
+                    <th className="p-2">Pihak Pemberi Kerja</th>
+                    <th className="p-2">Mulai Kontrak</th>
+                    <th className="p-2">Akhir Kontrak</th>
+                    <th className="p-2">Keterangan</th>
+                    <th className="p-2">Status & Countdown</th>
+                    <th className="p-2 text-center">Hard File</th>
+                    <th className="p-2 text-center">Aksi</th>
+                  </tr>
+                ) : docCategoryTab === 'silo' ? (
+                  <tr>
+                    <th className="p-2 w-8 text-center">No</th>
+                    <th className="p-2 whitespace-nowrap">ID Asset</th>
+                    <th className="p-2 whitespace-nowrap">Kategori SILO</th>
+                    <th className="p-2 whitespace-nowrap">Jenis Equipment</th>
+                    <th className="p-2 min-w-[160px]">Nama Asset</th>
+                    <th className="p-2 whitespace-nowrap">Serial Number</th>
+                    <th className="p-2 whitespace-nowrap text-center">Tahun Produksi</th>
+                    <th className="p-2 whitespace-nowrap">Expired Date</th>
+                    <th className="p-2 whitespace-nowrap">Status & Countdown</th>
+                    <th className="p-2 min-w-[160px]">Keterangan</th>
+                    <th className="p-2 text-center whitespace-nowrap">Hard File</th>
+                    <th className="p-2 text-center whitespace-nowrap">Aksi</th>
                   </tr>
                 ) : (
                   <tr>
-                    <th className="p-2 w-10 text-center">No</th>
-                    <th className="p-2">Identitas / No Reg</th>
-                    <th className="p-2">Nama Dokumen / Item</th>
-                    <th className="p-2">Pihak / Lokasi</th>
+                    <th className="p-2 w-8 text-center">No</th>
+                    <th className="p-2">Identitas Dokumen</th>
+                    <th className="p-2">Nama Dokumen</th>
+                    <th className="p-2">Pihak Terkait / Lokasi</th>
                     <th className="p-2">Expired Date</th>
                     <th className="p-2">Status & Countdown</th>
-                    <th className="p-2">Progress PIC</th>
                     <th className="p-2 text-center">Aksi</th>
                   </tr>
                 )}
@@ -1549,7 +1929,15 @@ export default function Legal({ user }) {
               <tbody className="divide-y divide-stroke">
                 {documentsList.length === 0 ? (
                   <tr>
-                    <td colSpan={docCategoryTab === 'vehicle' ? 10 : 8} className="p-8 text-center text-gray-400">
+                    <td
+                      colSpan={
+                        docCategoryTab === 'silo' ? 12 :
+                        docCategoryTab === 'project_contract' ? 11 :
+                        (docCategoryTab === 'permit' || docCategoryTab === 'agreement') ? 10 :
+                        docCategoryTab === 'vehicle' ? 9 : 7
+                      }
+                      className="p-8 text-center text-gray-400"
+                    >
                       Tidak ada data dokumen atau kendaraan yang sesuai dengan filter.
                     </td>
                   </tr>
@@ -1595,48 +1983,222 @@ export default function Legal({ user }) {
                             )}
                           </td>
                           <td className="p-2 whitespace-nowrap">{getUrgencyBadge(doc.urgency_status, doc.days_remaining, 'vehicle')}</td>
-                          <td className="p-2 max-w-[150px] text-[11px] text-gray-600">
-                            {doc.extension_progress ? (
-                              <span className="p-1 bg-amber-50 text-amber-800 rounded border border-amber-200 block truncate" title={doc.extension_progress}>
-                                {doc.extension_progress}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 italic">-</span>
-                            )}
-                          </td>
                           <td className="p-2 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => setSelectedDocForDetail(doc)}
-                                className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] flex items-center gap-1 cursor-pointer transition"
-                                title="Lihat Detail & Asal File Excel"
-                              >
-                                <Eye size={11} />
-                                <span>Detail</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedDocForPic(doc);
-                                  setPicFormData({
-                                    extension_submission_date: doc.extension_submission_date ? doc.extension_submission_date.substring(0, 10) : '',
-                                    extension_progress: doc.extension_progress || '',
-                                    status: doc.status || 'Masih Berlaku',
-                                    new_expired_date: '',
-                                    notes: doc.notes || '',
-                                    pic_name: doc.pic_name || user?.name || '',
-                                    pic_email: doc.pic_email || '',
-                                  });
-                                }}
-                                className="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 rounded font-semibold text-[10px] cursor-pointer transition"
-                              >
-                                Update PIC
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer transition"
+                              title="Lihat Detail & Asal File Excel"
+                            >
+                              <Eye size={11} />
+                              <span>Detail</span>
+                            </button>
                           </td>
                         </tr>
                       );
                     }
 
+                    if (docCategoryTab === 'permit' || docCategoryTab === 'agreement') {
+                      return (
+                        <tr key={doc.id} className="hover:bg-gray-50">
+                          <td className="p-2 text-center text-gray-400">{idx + 1}</td>
+                          <td className="p-2 whitespace-nowrap">
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold rounded text-[11px] border border-slate-200">
+                              {doc.topic || '-'}
+                            </span>
+                          </td>
+                          <td className="p-2">
+                            <div
+                              className="font-semibold text-boxdark hover:text-primary cursor-pointer transition flex items-center gap-1.5"
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              title="Klik untuk melihat rincian & asal sumber file dokumen ini"
+                            >
+                              <span>{doc.document_name}</span>
+                              <Eye size={11} className="text-gray-400 opacity-60 flex-shrink-0" />
+                            </div>
+                          </td>
+                          <td className="p-2 text-gray-600">{doc.related_party || doc.location || '-'}</td>
+                          <td className="p-2 whitespace-nowrap text-gray-700 font-medium">
+                            {doc.start_date ? doc.start_date.substring(0, 10) : '-'}
+                          </td>
+                          <td className="p-2 whitespace-nowrap font-medium text-boxdark">
+                            {doc.expired_date ? doc.expired_date.substring(0, 10) : (doc.status?.toLowerCase().includes('permanent') ? 'Permanent' : '-')}
+                          </td>
+                          <td className="p-2 min-w-[140px] max-w-[260px] text-[11px] text-gray-700">
+                            <span className="block whitespace-normal break-words leading-relaxed" title={doc.status || '-'}>{doc.status || '-'}</span>
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {getUrgencyBadge(doc.urgency_status, doc.days_remaining, doc.category)}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            {doc.has_hard_file ? (
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-semibold">
+                                Ada
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-gray-50 text-gray-400 border border-gray-200 rounded text-[10px]">
+                                Tidak
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer transition"
+                              title="Lihat Detail & Asal File Excel"
+                            >
+                              <Eye size={11} />
+                              <span>Detail</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (docCategoryTab === 'project_contract') {
+                      return (
+                        <tr key={doc.id} className="hover:bg-gray-50">
+                          <td className="p-2 text-center text-gray-400">{idx + 1}</td>
+                          <td className="p-2 whitespace-nowrap">
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded text-[11px] border border-indigo-200">
+                              {doc.topic || '-'}
+                            </span>
+                          </td>
+                          <td className="p-2 font-mono font-bold text-boxdark whitespace-nowrap">
+                            {doc.identifier || '-'}
+                          </td>
+                          <td className="p-2">
+                            <div
+                              className="font-semibold text-boxdark hover:text-primary cursor-pointer transition flex items-center gap-1.5"
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              title="Klik untuk melihat rincian & asal sumber file dokumen ini"
+                            >
+                              <span>{doc.document_name}</span>
+                              <Eye size={11} className="text-gray-400 opacity-60 flex-shrink-0" />
+                            </div>
+                          </td>
+                          <td className="p-2 text-gray-700 font-medium">{doc.related_party || '-'}</td>
+                          <td className="p-2 whitespace-nowrap text-gray-700 font-medium">
+                            {doc.start_date ? doc.start_date.substring(0, 10) : '-'}
+                          </td>
+                          <td className="p-2 whitespace-nowrap font-medium text-boxdark">
+                            {doc.expired_date ? doc.expired_date.substring(0, 10) : '-'}
+                          </td>
+                          <td className="p-2 min-w-[140px] max-w-[260px] text-[11px] text-gray-700">
+                            <span className="block whitespace-normal break-words leading-relaxed" title={doc.status || '-'}>{doc.status || '-'}</span>
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {getUrgencyBadge(doc.urgency_status, doc.days_remaining, doc.category)}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            {doc.has_hard_file ? (
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-semibold">
+                                Ada
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-gray-50 text-gray-400 border border-gray-200 rounded text-[10px]">
+                                Tidak
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer transition"
+                              title="Lihat Detail & Asal File Excel"
+                            >
+                              <Eye size={11} />
+                              <span>Detail</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Tab SILO (Alat Berat & Equipment)
+                    if (docCategoryTab === 'silo') {
+                      const tahunProd = doc.notes?.match(/Tahun Produksi:\s*([^\s|]+)/i)?.[1] || '-';
+                      const cleanNotes = doc.notes
+                        ? doc.notes.replace(/\s*\|\s*Tahun Produksi:\s*[^\s|]+/gi, '').replace(/Tahun Produksi:\s*[^\s|]+(\s*\|\s*)?/gi, '').trim()
+                        : '';
+
+                      return (
+                        <tr key={doc.id} className="hover:bg-gray-50 transition">
+                          <td className="p-2 text-center text-gray-400">{idx + 1}</td>
+                          <td className="p-2 font-mono font-bold text-slate-800 text-[11px] whitespace-nowrap">
+                            {doc.identifier || '-'}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {doc.location === 'Alat Berat' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                Alat Berat
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                Equipment
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              {doc.topic || '-'}
+                            </span>
+                          </td>
+                          <td className="p-2 min-w-[160px]">
+                            <div
+                              className="font-semibold text-boxdark hover:text-primary cursor-pointer transition flex items-center gap-1.5"
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              title="Klik untuk melihat rincian & asal sumber file dokumen ini"
+                            >
+                              <span className="whitespace-normal break-words">{doc.document_name}</span>
+                              <Eye size={11} className="text-gray-400 opacity-60 flex-shrink-0" />
+                            </div>
+                          </td>
+                          <td className="p-2 font-mono text-gray-600 whitespace-nowrap text-[11px]">
+                            {doc.related_party || '-'}
+                          </td>
+                          <td className="p-2 text-center font-mono text-gray-700 whitespace-nowrap text-[11px]">
+                            {tahunProd}
+                          </td>
+                          <td className="p-2 whitespace-nowrap font-mono text-slate-700 font-medium">
+                            {doc.expired_date ? doc.expired_date.substring(0, 10) : <span className="text-gray-400 italic">-</span>}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {getUrgencyBadge(doc.urgency_status, doc.days_remaining, doc.category)}
+                          </td>
+                          <td className="p-2 min-w-[160px] max-w-[280px] text-[11px] text-gray-700 whitespace-normal break-words leading-relaxed">
+                            {cleanNotes ? (
+                              <span className="block">{cleanNotes}</span>
+                            ) : (
+                              <span className="text-gray-300 italic">-</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            {doc.has_hard_file ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 text-[10px] font-semibold" title="Map Fisik SILO Tersedia">
+                                <CheckCircle2 size={11} className="text-emerald-600" />
+                                <span>Ada</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-[10px] font-medium">-</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedDocForDetail(doc)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer transition"
+                              title="Lihat Detail & Asal File Excel"
+                            >
+                              <Eye size={11} />
+                              <span>Detail</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Fallback jika ada kategori umum lainnya
                     return (
                       <tr key={doc.id} className="hover:bg-gray-50">
                         <td className="p-2 text-center text-gray-400">{idx + 1}</td>
@@ -1653,45 +2215,17 @@ export default function Legal({ user }) {
                           <div className="text-[10px] text-gray-400">{doc.topic}</div>
                         </td>
                         <td className="p-2 text-gray-600">{doc.location || doc.related_party || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{doc.expired_date ? doc.expired_date.substring(0, 10) : '-'}</td>
+                        <td className="p-2 whitespace-nowrap font-medium text-boxdark">{doc.expired_date ? doc.expired_date.substring(0, 10) : '-'}</td>
                         <td className="p-2 whitespace-nowrap">{getUrgencyBadge(doc.urgency_status, doc.days_remaining, doc.category)}</td>
-                        <td className="p-2 max-w-[180px] text-[11px] text-gray-600">
-                          {doc.extension_progress ? (
-                            <span className="p-1 bg-amber-50 text-amber-800 rounded border border-amber-200 block truncate" title={doc.extension_progress}>
-                              {doc.extension_progress}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 italic">-</span>
-                          )}
-                        </td>
                         <td className="p-2 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => setSelectedDocForDetail(doc)}
-                              className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] flex items-center gap-1 cursor-pointer transition"
-                              title="Lihat Detail & Asal File Excel"
-                            >
-                              <Eye size={11} />
-                              <span>Detail</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedDocForPic(doc);
-                                setPicFormData({
-                                  extension_submission_date: doc.extension_submission_date ? doc.extension_submission_date.substring(0, 10) : '',
-                                  extension_progress: doc.extension_progress || '',
-                                  status: doc.status || 'Masih Berlaku',
-                                  new_expired_date: '',
-                                  notes: doc.notes || '',
-                                  pic_name: doc.pic_name || user?.name || '',
-                                  pic_email: doc.pic_email || '',
-                                });
-                              }}
-                              className="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 rounded font-semibold text-[10px] cursor-pointer transition"
-                            >
-                              Update PIC
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => setSelectedDocForDetail(doc)}
+                            className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded font-semibold text-[10px] inline-flex items-center gap-1 cursor-pointer transition"
+                            title="Lihat Detail & Asal File Excel"
+                          >
+                            <Eye size={11} />
+                            <span>Detail</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1738,14 +2272,6 @@ export default function Legal({ user }) {
               >
                 <Download size={13} className="text-slate-500" />
                 <span>Export CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openSopModal('mp_contracts')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Send size={13} />
-                <span>Kirim Notifikasi</span>
               </button>
             </div>
           </div>
@@ -2076,7 +2602,7 @@ export default function Legal({ user }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="text-xl font-bold text-emerald-600">100%</div>
-                  <div className="text-xs text-slate-600 font-medium mt-0.5">Capaian SLA</div>
+                  <div className="text-xs text-slate-600 font-medium mt-0.5">Targeted (Capaian)</div>
                 </div>
 
                 <div
@@ -2476,35 +3002,56 @@ export default function Legal({ user }) {
           {/* Asal Sumber Data File (Clean & Structured) */}
           <DataSourceCard source={DATA_SOURCE_MAPPING.budget} onOpenDetail={setSelectedDataSourceModal} />
 
-          {/* Toggle View: Filter Bulan vs Akumulasi YTD */}
+          {/* Toggle View: Filter Bulan vs Akumulasi YTD & Dropdown Tiap Bulan */}
           <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
-              {selectedMonth !== 'all' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setBudgetViewMode('filtered')}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'filtered'
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'filtered'
                     ? 'bg-white text-purple-700 shadow-xs border border-slate-200'
                     : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
-                  Bulan {MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || `Bulan ${selectedMonth}`}
+                  Bulanan
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setBudgetViewMode('ytd')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'ytd'
+                    ? 'bg-white text-purple-700 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                  Akumulasi YTD 2026
+                </button>
+              </div>
+
+              {budgetViewMode === 'filtered' && (
+                <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-lg shadow-2xs">
+                  <Calendar size={13} className="text-purple-600" />
+                  <select
+                    value={budgetSelectedMonth}
+                    onChange={(e) => {
+                      setBudgetSelectedMonth(e.target.value);
+                      setBudgetViewMode('filtered');
+                    }}
+                    className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {MONTH_NAMES.filter(m => m.id !== 'all').map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-              <button
-                type="button"
-                onClick={() => setBudgetViewMode('ytd')}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${budgetViewMode === 'ytd' || selectedMonth === 'all'
-                  ? 'bg-white text-purple-700 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                Akumulasi YTD 2026
-              </button>
             </div>
+
             <span className="text-[11px] text-slate-500 font-medium">
-              {budgetViewMode === 'filtered' && selectedMonth !== 'all'
-                ? `Periode ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label || ''}`
+              {budgetViewMode === 'filtered'
+                ? `Periode ${MONTH_NAMES.find(m => m.id === budgetSelectedMonth)?.label || `Bulan ${budgetSelectedMonth}`}`
                 : 'Periode Akumulatif YTD (Januari - Juli 2026)'}
             </span>
           </div>
@@ -2513,42 +3060,42 @@ export default function Legal({ user }) {
             <div className="p-3 bg-gray-50 border border-stroke rounded-lg">
               <div className="text-lg font-bold text-boxdark">
                 {formatCurrency(
-                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  budgetViewMode === 'filtered'
                     ? (budgetDetail?.summary?.current_month_budget ?? 0)
                     : (budgetDetail?.summary?.ytd_budget ?? 49000000)
                 )}
               </div>
               <div className="text-gray-400 text-[10px]">
-                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
-                  ? `Pengajuan Anggaran ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                {budgetViewMode === 'filtered'
+                  ? `Pengajuan Anggaran ${MONTH_NAMES.find(m => m.id === budgetSelectedMonth)?.label?.split(' ')[0] || ''}`
                   : 'Total Anggaran Pengajuan YTD'}
               </div>
             </div>
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <div className="text-lg font-bold text-purple-700">
                 {formatCurrency(
-                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  budgetViewMode === 'filtered'
                     ? (budgetDetail?.summary?.current_month_actual ?? 0)
                     : (budgetDetail?.summary?.ytd_actual ?? 30615407)
                 )}
               </div>
               <div className="text-purple-600 text-[10px] font-medium">
-                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
-                  ? `Realisasi LPJ ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                {budgetViewMode === 'filtered'
+                  ? `Realisasi LPJ ${MONTH_NAMES.find(m => m.id === budgetSelectedMonth)?.label?.split(' ')[0] || ''}`
                   : 'Realisasi LPJ YTD'}
               </div>
             </div>
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
               <div className="text-lg font-bold text-emerald-700">
                 {formatCurrency(
-                  budgetViewMode === 'filtered' && selectedMonth !== 'all'
+                  budgetViewMode === 'filtered'
                     ? ((budgetDetail?.summary?.current_month_budget ?? 0) - (budgetDetail?.summary?.current_month_actual ?? 0))
                     : ((budgetDetail?.summary?.ytd_budget ?? 49000000) - (budgetDetail?.summary?.ytd_actual ?? 30615407))
                 )}
               </div>
               <div className="text-emerald-600 text-[10px] font-medium">
-                {budgetViewMode === 'filtered' && selectedMonth !== 'all'
-                  ? `Sisa / Efisiensi ${MONTH_NAMES.find(m => m.id === selectedMonth)?.label?.split(' ')[0] || ''}`
+                {budgetViewMode === 'filtered'
+                  ? `Sisa / Efisiensi ${MONTH_NAMES.find(m => m.id === budgetSelectedMonth)?.label?.split(' ')[0] || ''}`
                   : 'Sisa / Efisiensi Anggaran YTD'}
               </div>
             </div>
@@ -2567,11 +3114,15 @@ export default function Legal({ user }) {
               </thead>
               <tbody className="divide-y divide-stroke">
                 {Object.entries(budgetDetail?.monthly_trend || {}).map(([mId, item]) => {
-                  const isSelected = String(mId) === String(selectedMonth);
+                  const isSelected = budgetViewMode === 'filtered' && String(mId) === String(budgetSelectedMonth);
                   return (
                     <tr
                       key={mId}
-                      className={`transition ${isSelected ? 'bg-purple-50/80 font-bold border-l-4 border-l-purple-600' : 'hover:bg-gray-50'}`}
+                      onClick={() => {
+                        setBudgetSelectedMonth(String(mId));
+                        setBudgetViewMode('filtered');
+                      }}
+                      className={`transition cursor-pointer ${isSelected ? 'bg-purple-50/80 font-bold border-l-4 border-l-purple-600' : 'hover:bg-gray-50'}`}
                     >
                       <td className="p-2.5 text-boxdark flex items-center gap-1.5">
                         <span>{item.month_name}</span>
@@ -2599,79 +3150,364 @@ export default function Legal({ user }) {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* FULL MODAL 5 & 6: Pusat Unduh Dokumen / Template                         */}
+      {/* FULL MODAL: Matriks Peraturan Perundang-Undangan (FRM-AZM-603-012)        */}
       {/* ========================================================================= */}
       <Modal
-        isOpen={activeDetailModal === 'downloads_permits' || activeDetailModal === 'downloads_templates'}
+        isOpen={activeDetailModal === 'regulations'}
         onClose={() => setActiveDetailModal(null)}
-        title={activeDetailModal === 'downloads_permits' ? 'Pusat Unduh Dokumen Perizinan & SBU' : 'Pusat Unduh Template Kontrak & MoU'}
-        maxWidth="max-w-3xl"
+        title="Matriks Peraturan Perundang-Undangan (FRM-AZM-603-012)"
+        maxWidth="max-w-6xl"
       >
-        <div className="space-y-3 text-xs">
+        <div className="space-y-3.5 text-xs">
+          {/* Top Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10.5px] font-medium">Total Klausul</span>
+                <Scale size={14} className="text-slate-400" />
+              </div>
+              <div className="text-xl font-bold text-slate-900">{regulationsSummary.total ?? 65}</div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+              <div className="flex items-center justify-between text-emerald-800 mb-1">
+                <span className="text-[10.5px] font-bold">Terpenuhi (Comply)</span>
+                <CheckCircle2 size={14} className="text-emerald-600" />
+              </div>
+              <div className="text-xl font-bold text-emerald-700">{regulationsSummary.comply ?? 59}</div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200">
+              <div className="flex items-center justify-between text-rose-800 mb-1">
+                <span className="text-[10.5px] font-bold">Belum Terpenuhi (Non-Comply)</span>
+                <AlertTriangle size={14} className="text-rose-600" />
+              </div>
+              <div className="text-xl font-bold text-rose-700">{regulationsSummary.non_comply ?? 6}</div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+              <div className="flex items-center justify-between text-blue-800 mb-1">
+                <span className="text-[10.5px] font-bold">Tingkat Kepatuhan</span>
+                <TrendingUp size={14} className="text-blue-600" />
+              </div>
+              <div className="text-xl font-bold text-blue-700">{regulationsSummary.compliance_rate ?? 91}%</div>
+            </div>
+          </div>
+
           {/* Asal Sumber Data File (Clean & Structured) */}
           <DataSourceCard
-            source={activeDetailModal === 'downloads_permits' ? DATA_SOURCE_MAPPING.downloads_permits : DATA_SOURCE_MAPPING.downloads_templates}
+            source={DATA_SOURCE_MAPPING.regulations}
             onOpenDetail={setSelectedDataSourceModal}
           />
 
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={downloadSearch}
-              onChange={(e) => setDownloadSearch(e.target.value)}
-              placeholder="Cari file dokumen yang ingin diunduh..."
-              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-stroke rounded-lg text-xs"
-            />
+          {/* Filter Toolbar & Actions */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto bg-white p-1 rounded-lg border border-slate-200 shrink-0">
+              {[
+                { id: 'all', label: `Semua (${regulationsSummary.total ?? 65})` },
+                { id: 'Comply', label: `Terpenuhi (${regulationsSummary.comply ?? 59})`, color: 'text-emerald-700' },
+                { id: 'Non-Comply', label: `Belum Terpenuhi (${regulationsSummary.non_comply ?? 6})`, color: 'text-rose-700' },
+              ].map((tab) => {
+                const isActive = regStatusFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setRegStatusFilter(tab.id)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filter Dropdowns & Search */}
+            <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+              {/* Filter Sifat Penerapan */}
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                <span className="text-[10.5px] text-slate-400 font-medium">Sifat:</span>
+                <select
+                  value={regNatureFilter}
+                  onChange={(e) => setRegNatureFilter(e.target.value)}
+                  className="text-xs bg-transparent border-none text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Semua Sifat</option>
+                  <option value="Wajib">Wajib</option>
+                  <option value="Conditional">Conditional</option>
+                  <option value="Opsional">Opsional</option>
+                </select>
+              </div>
+
+              {/* Filter Pihak Terkait */}
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                <span className="text-[10.5px] text-slate-400 font-medium">Pihak:</span>
+                <select
+                  value={regPartyFilter}
+                  onChange={(e) => setRegPartyFilter(e.target.value)}
+                  className="text-xs bg-transparent border-none text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Semua Pihak</option>
+                  <option value="Legal">Legal</option>
+                  <option value="HSE">HSE</option>
+                  <option value="HR">HR</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Operation">Operation</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Exim">Exim</option>
+                  <option value="IT">IT</option>
+                  <option value="GA">GA</option>
+                </select>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={regSearch}
+                  onChange={(e) => setRegSearch(e.target.value)}
+                  placeholder="Cari nomor UU, relevansi, tindak lanjut..."
+                  className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Export CSV Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = [
+                    'No',
+                    'Peraturan Perundang-Undangan',
+                    'Status Keberlakuan',
+                    'Relevansi',
+                    'Tindak Lanjut',
+                    'Sifat Penerapan',
+                    'Pihak Terkait',
+                    'Status Kepatuhan'
+                  ];
+                  const rows = (regulationsList || []).map((r) => [
+                    r.no,
+                    r.regulation_name,
+                    r.validity_status,
+                    r.relevance,
+                    r.follow_up,
+                    r.nature_of_compliance,
+                    r.related_party,
+                    r.compliance_status
+                  ]);
+                  downloadAsCsv(`FRM-AZM-603-012_Matriks_Peraturan_Perundang_Undangan_${new Date().toISOString().substring(0, 10)}.csv`, headers, rows);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer shadow-2xs"
+                title="Unduh data tabel dalam format CSV"
+              >
+                <Download size={13} className="text-slate-500" />
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
 
-          <div className="border border-stroke rounded-lg overflow-x-auto max-h-[50vh]">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-gray-50 sticky top-0 border-b border-stroke text-gray-500 font-semibold">
-                <tr>
-                  <th className="p-2.5 w-10 text-center">No</th>
-                  <th className="p-2.5">Kategori / Folder</th>
-                  <th className="p-2.5">Nama File</th>
-                  <th className="p-2.5 text-right">Ukuran</th>
-                  <th className="p-2.5 text-center">Aksi Unduh</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stroke">
-                {downloadsList.length === 0 ? (
+          {/* Regulations Table */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div className="max-h-[52vh] overflow-y-auto overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-slate-600 font-bold">
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400">
-                      <FileText size={28} className="mx-auto mb-2 text-gray-300 opacity-60" />
-                      <p className="font-semibold text-gray-500">Tidak ada file yang ditemukan</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Memuat atau coba kata kunci pencarian yang lain.</p>
-                    </td>
+                    <th className="p-2.5 w-10 text-center">No</th>
+                    <th className="p-2.5 min-w-[220px]">Peraturan Perundang-Undangan</th>
+                    <th className="p-2.5 min-w-[130px]">Status Keberlakuan</th>
+                    <th className="p-2.5 min-w-[260px]">Relevansi & Ketentuan</th>
+                    <th className="p-2.5 min-w-[240px]">Tindak Lanjut Perusahaan</th>
+                    <th className="p-2.5 min-w-[80px] text-center">Sifat</th>
+                    <th className="p-2.5 min-w-[90px] text-center">Pihak Terkait</th>
+                    <th className="p-2.5 min-w-[110px] text-center">Status Kepatuhan</th>
                   </tr>
-                ) : (
-                  downloadsList.map((file, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="p-2.5 text-center text-gray-400">{idx + 1}</td>
-                      <td className="p-2.5 text-gray-600 font-medium">
-                        <span className="px-2 py-0.5 bg-gray-100 rounded text-[10px]">{file.category}</span>
-                        {file.subfolder && <span className="text-gray-400 ml-1">/ {file.subfolder}</span>}
-                      </td>
-                      <td className="p-2.5 font-semibold text-boxdark">{file.filename}</td>
-                      <td className="p-2.5 text-right text-gray-400">{file.filesize_kb} KB</td>
-                      <td className="p-2.5 text-center">
-                        <button
-                          onClick={() => setDownloadPermissionModal(file)}
-                          className="flex items-center gap-1 mx-auto px-2.5 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded font-semibold transition cursor-pointer"
-                        >
-                          <Download size={12} />
-                          <span>Unduh File</span>
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {regLoading ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        <RefreshCw size={24} className="mx-auto mb-2 text-slate-400 animate-spin" />
+                        <p className="font-semibold text-slate-600">Memuat Data Matriks Regulasi...</p>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : regulationsList.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        <Scale size={28} className="mx-auto mb-2 text-slate-300 opacity-60" />
+                        <p className="font-semibold text-slate-600">Tidak ada regulasi yang sesuai filter</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Coba ubah kata kunci pencarian atau reset filter di atas.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    regulationsList.map((item) => {
+                      const isComply = item.compliance_status === 'Comply';
+                      return (
+                        <tr
+                          key={item.id || item.no}
+                          onClick={() => setSelectedRegDetail(item)}
+                          className="hover:bg-blue-50/40 transition cursor-pointer group"
+                        >
+                          <td className="p-2.5 text-center font-bold text-slate-400 group-hover:text-slate-700 align-top">
+                            {item.no}
+                          </td>
+                          <td className="p-2.5 font-semibold text-slate-800 leading-snug align-top whitespace-normal break-words">
+                            {item.regulation_name}
+                          </td>
+                          <td className="p-2.5 align-top whitespace-normal break-words">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              {item.validity_status || 'Berlaku'}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-slate-700 align-top">
+                            {renderMultiLinePoints(item.relevance, 'text-[11px]')}
+                          </td>
+                          <td className="p-2.5 text-slate-700 align-top">
+                            {renderMultiLinePoints(item.follow_up, 'text-[11px]')}
+                          </td>
+                          <td className="p-2.5 text-center align-top">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                item.nature_of_compliance === 'Wajib'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : item.nature_of_compliance === 'Conditional'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              {item.nature_of_compliance || 'Wajib'}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center align-top">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              {item.related_party || 'Legal'}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center align-top">
+                            {isComply ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                                <CheckCircle2 size={11} className="text-emerald-600" />
+                                Comply
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
+                                <AlertTriangle size={11} className="text-rose-600" />
+                                Non-Comply
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {/* Table Footer */}
+            <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-[11px] text-slate-500">
+              <span>Menampilkan {regulationsList.length} dari {regulationsSummary.total ?? 65} regulasi (Klik baris tabel untuk melihat rincian penuh)</span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Terpenuhi: {regulationsSummary.comply ?? 59}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> Belum Terpenuhi: {regulationsSummary.non_comply ?? 6}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveDetailModal(null)}
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs transition cursor-pointer shadow-2xs"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       </Modal>
+
+      {/* ========================================================================= */}
+      {/* SUB MODAL: Detail Rincian Regulasi & Tindak Lanjut                        */}
+      {/* ========================================================================= */}
+      {selectedRegDetail && (
+        <Modal
+          isOpen={Boolean(selectedRegDetail)}
+          onClose={() => setSelectedRegDetail(null)}
+          title={`Detail Klausul No. ${selectedRegDetail.no}`}
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-3 text-xs">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Peraturan Perundang-Undangan</div>
+              <h4 className="text-sm font-bold text-slate-900 leading-snug">{selectedRegDetail.regulation_name}</h4>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-semibold text-[10px]">
+                  {selectedRegDetail.validity_status || 'Berlaku'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
+                  Sifat: {selectedRegDetail.nature_of_compliance || 'Wajib'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">
+                  Pihak: {selectedRegDetail.related_party || 'Legal'}
+                </span>
+                {selectedRegDetail.compliance_status === 'Comply' ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] inline-flex items-center gap-1">
+                    <CheckCircle2 size={11} className="text-emerald-600" /> Terpenuhi (Comply)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px] inline-flex items-center gap-1">
+                    <AlertTriangle size={11} className="text-rose-600" /> Belum Terpenuhi (Non-Comply)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+              <div className="font-bold text-slate-800 text-[11.5px] flex items-center gap-1.5">
+                <BookOpen size={13} className="text-blue-600" />
+                <span>Relevansi & Ketentuan Regulasi</span>
+              </div>
+              <div className="text-slate-700">
+                {renderMultiLinePoints(selectedRegDetail.relevance || 'Tidak ada catatan relevansi khusus.', 'text-xs')}
+              </div>
+            </div>
+
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+              <div className="font-bold text-slate-800 text-[11.5px] flex items-center gap-1.5">
+                <CheckCircle2 size={13} className="text-emerald-600" />
+                <span>Tindak Lanjut & Pemenuhan Perusahaan (PT AZM)</span>
+              </div>
+              <div className="text-slate-700">
+                {renderMultiLinePoints(selectedRegDetail.follow_up || 'Tidak ada catatan tindak lanjut khusus.', 'text-xs')}
+              </div>
+            </div>
+
+            {selectedRegDetail.notes && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs">
+                <span className="font-bold">Catatan Tambahan:</span> {selectedRegDetail.notes}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedRegDetail(null)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                Tutup Rincian
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* ========================================================================= */}
       {/* SUB MODAL: Izin Unduh Approval Form                                       */}
@@ -2679,182 +3515,71 @@ export default function Legal({ user }) {
       <Modal
         isOpen={Boolean(downloadPermissionModal)}
         onClose={() => setDownloadPermissionModal(null)}
-        title="Form Izin Unduh Dokumen Legalitas"
+        title="Form Unduh Dokumen"
         maxWidth="max-w-md"
       >
-        <form onSubmit={handleRequestDownloadPermission} className="space-y-3 text-xs">
-          <div className="p-3 bg-gray-50 border border-stroke rounded-lg space-y-1">
-            <div className="text-gray-500">File yang Diminta:</div>
-            <div className="font-semibold text-boxdark">{downloadPermissionModal?.filename}</div>
-            <div className="text-[10px] text-gray-400">{downloadPermissionModal?.category}</div>
+        <form onSubmit={handleRequestDownloadPermission} className="space-y-3.5 text-xs">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="text-[11px] text-slate-500 mb-0.5">Dokumen:</div>
+            <div className="font-semibold text-slate-800 text-xs break-all">{downloadPermissionModal?.filename}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">{downloadPermissionModal?.category}</div>
           </div>
 
           <div>
-            <label className="block font-medium text-gray-700 mb-1">Divisi Pemohon</label>
+            <label className="block font-medium text-slate-700 mb-1">Nama Pemohon</label>
             <input
               type="text"
-              defaultValue={user?.division || 'Divisi Pemohon'}
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-gray-100 text-gray-600 text-xs"
-              readOnly
+              required
+              value={downloadApplicantName}
+              onChange={(e) => setDownloadApplicantName(e.target.value)}
+              placeholder="Masukkan nama pemohon"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:border-blue-600"
             />
           </div>
 
           <div>
-            <label className="block font-medium text-gray-700 mb-1">Keperluan / Alasan Pengunduhan *</label>
+            <label className="block font-medium text-slate-700 mb-1">Divisi Pemohon</label>
+            <input
+              type="text"
+              required
+              value={downloadApplicantDivision}
+              onChange={(e) => setDownloadApplicantDivision(e.target.value)}
+              placeholder="Masukkan divisi pemohon"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:border-blue-600"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Keperluan Pengunduhan</label>
             <textarea
               rows={2}
               required
               value={downloadReason}
               onChange={(e) => setDownloadReason(e.target.value)}
-              placeholder="Contoh: Persyaratan Tender Proyek PTFI / Audit Klien..."
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs focus:outline-none focus:border-primary"
+              placeholder="Contoh: Kebutuhan tender proyek / audit..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:border-blue-600 resize-none"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stroke">
+          <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setDownloadPermissionModal(null)}
-              className="px-3 py-1.5 border border-stroke text-gray-600 rounded-lg hover:bg-gray-50"
+              className="px-3.5 py-1.5 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition font-medium"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-3.5 py-1.5 bg-primary text-white font-semibold rounded-lg shadow-xs"
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-xs transition"
             >
-              Setujui & Unduh
+              Unduh Dokumen
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* ========================================================================= */}
-      {/* SUB MODAL: PIC Progress Update                                            */}
-      {/* ========================================================================= */}
-      <Modal
-        isOpen={Boolean(selectedDocForPic)}
-        onClose={() => setSelectedDocForPic(null)}
-        title={`Update Progress PIC: ${selectedDocForPic?.document_name || ''}`}
-        maxWidth="max-w-md"
-      >
-        <form onSubmit={handleSavePicProgress} className="space-y-3 text-xs">
-          {/* Asal Sumber Data File (Clean & Structured) */}
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1 shadow-2xs">
-            <div className="font-semibold text-slate-800 text-xs flex items-center justify-between">
-              <span className="truncate" title={selectedDocForPic?.document_name}>{selectedDocForPic?.document_name}</span>
-              <span className="font-mono text-[10px] text-gray-400">ID #{selectedDocForPic?.id}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-600 flex-wrap pt-0.5">
-              <FileSpreadsheet size={13} className="text-emerald-700 flex-shrink-0" />
-              <span className="text-gray-500 font-medium">File Sumber:</span>
-              <span className="font-mono font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs text-[10px]">
-                {DATA_SOURCE_MAPPING[selectedDocForPic?.category || docCategoryTab]?.file}
-              </span>
-              <span>•</span>
-              <span>Sheet: <strong>{DATA_SOURCE_MAPPING[selectedDocForPic?.category || docCategoryTab]?.sheet}</strong></span>
-              <span>•</span>
-              <span className="text-gray-500">Folder: <code className="font-mono text-slate-700 bg-white px-1 py-0.5 rounded border border-slate-200 text-[10px]">{DATA_SOURCE_MAPPING[selectedDocForPic?.category || docCategoryTab]?.folder}</code></span>
-            </div>
-          </div>
 
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Tanggal Pengajuan Perpanjangan</label>
-            <input
-              type="date"
-              value={picFormData.extension_submission_date}
-              onChange={(e) => setPicFormData({ ...picFormData, extension_submission_date: e.target.value })}
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Progress / Tindak Lanjut</label>
-            <input
-              type="text"
-              value={picFormData.extension_progress}
-              onChange={(e) => setPicFormData({ ...picFormData, extension_progress: e.target.value })}
-              placeholder="Contoh: PJK3 release, submit Disnaker, dll."
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={picFormData.status}
-              onChange={(e) => setPicFormData({ ...picFormData, status: e.target.value })}
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-            >
-              <option value="Masih Berlaku">Masih Berlaku</option>
-              <option value="On Progress">On Progress / Dalam Perpanjangan</option>
-              <option value="Expired">Expired</option>
-              <option value="Done">Done / Selesai</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block font-medium text-gray-700 mb-1">Nama PIC</label>
-              <input
-                type="text"
-                value={picFormData.pic_name}
-                onChange={(e) => setPicFormData({ ...picFormData, pic_name: e.target.value })}
-                placeholder="Nama PIC penanggung jawab"
-                className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-              />
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 mb-1">Email PIC (Notifikasi)</label>
-              <input
-                type="email"
-                value={picFormData.pic_email}
-                onChange={(e) => setPicFormData({ ...picFormData, pic_email: e.target.value })}
-                placeholder="pic.email@aldzama.com"
-                className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Tanggal Expired Baru (Jika Terbit)</label>
-            <input
-              type="date"
-              value={picFormData.new_expired_date}
-              onChange={(e) => setPicFormData({ ...picFormData, new_expired_date: e.target.value })}
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Catatan / Keterangan</label>
-            <textarea
-              rows={2}
-              value={picFormData.notes}
-              onChange={(e) => setPicFormData({ ...picFormData, notes: e.target.value })}
-              placeholder="Catatan tambahan untuk dokumen ini..."
-              className="w-full px-3 py-1.5 border border-stroke rounded-lg bg-white text-xs"
-            />
-          </div>
-
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stroke">
-            <button
-              type="button"
-              onClick={() => setSelectedDocForPic(null)}
-              className="px-3 py-1.5 border border-stroke text-gray-600 rounded-lg hover:bg-gray-50"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="px-3.5 py-1.5 bg-primary text-white font-semibold rounded-lg shadow-xs"
-            >
-              Simpan Progress
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       {/* ========================================================================= */}
       {/* SUB MODAL: Detail Dokumen & Verifikasi Sumber Data Asal (Pop-up Detail)   */}
@@ -2879,23 +3604,39 @@ export default function Legal({ user }) {
 
               <div className="grid grid-cols-2 gap-2.5 text-[11px]">
                 <div>
-                  <div className="text-gray-400">Identitas / No. Registrasi:</div>
+                  <div className="text-gray-400">
+                    {selectedDocForDetail.category === 'silo' ? 'ID Asset:' : 'Identitas / No. Registrasi:'}
+                  </div>
                   <div className="font-mono font-bold text-boxdark mt-0.5">{selectedDocForDetail.identifier || '-'}</div>
                 </div>
                 <div>
-                  <div className="text-gray-400">Kategori / Modul:</div>
+                  <div className="text-gray-400">
+                    {selectedDocForDetail.category === 'silo' ? 'Jenis Equipment:' : 'Kategori / Modul:'}
+                  </div>
                   <div className="font-semibold text-primary mt-0.5">
-                    {DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab]?.label}
+                    {selectedDocForDetail.category === 'silo'
+                      ? (selectedDocForDetail.topic || 'Alat Berat')
+                      : DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab]?.label}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-gray-400">Pihak Terkait / Rekanan:</div>
-                  <div className="font-medium text-boxdark mt-0.5">{selectedDocForDetail.related_party || '-'}</div>
+                  <div className="text-gray-400">
+                    {selectedDocForDetail.category === 'silo' ? 'Serial Number Unit:' : 'Pihak Terkait / Rekanan:'}
+                  </div>
+                  <div className="font-medium text-boxdark mt-0.5 font-mono">
+                    {selectedDocForDetail.related_party || '-'}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-gray-400">Lokasi / Project Site:</div>
-                  <div className="font-medium text-boxdark mt-0.5">{selectedDocForDetail.location || '-'}</div>
+                  <div className="text-gray-400">
+                    {selectedDocForDetail.category === 'silo' ? 'Lembar Sheet Excel:' : 'Lokasi / Project Site:'}
+                  </div>
+                  <div className="font-medium text-boxdark mt-0.5">
+                    {selectedDocForDetail.category === 'silo' 
+                      ? (selectedDocForDetail.location || 'Alat Berat') 
+                      : (selectedDocForDetail.location || '-')}
+                  </div>
                 </div>
 
                 <div>
@@ -2940,39 +3681,6 @@ export default function Legal({ user }) {
                 </div>
               )}
 
-              {/* Progress PIC */}
-              <div className="pt-2 border-t border-stroke text-[11px]">
-                <div className="text-gray-400 mb-1 font-medium">Status Tindak Lanjut PIC:</div>
-                <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-amber-900">
-                      PIC: {selectedDocForDetail.pic_name || 'Belum Ditugaskan'} {selectedDocForDetail.pic_email && `(${selectedDocForDetail.pic_email})`}
-                    </div>
-                    <div className="text-gray-600 text-[10px] mt-0.5">
-                      Progress: {selectedDocForDetail.extension_progress || 'Belum ada catatan tindak lanjut'}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const doc = selectedDocForDetail;
-                      setSelectedDocForDetail(null);
-                      setSelectedDocForPic(doc);
-                      setPicFormData({
-                        extension_submission_date: doc.extension_submission_date ? doc.extension_submission_date.substring(0, 10) : '',
-                        extension_progress: doc.extension_progress || '',
-                        status: doc.status || 'Masih Berlaku',
-                        new_expired_date: '',
-                        notes: doc.notes || '',
-                        pic_name: doc.pic_name || user?.name || '',
-                        pic_email: doc.pic_email || '',
-                      });
-                    }}
-                    className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-[10px] transition cursor-pointer flex-shrink-0"
-                  >
-                    Update Progress &rarr;
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div className="flex justify-end pt-1">
@@ -3130,301 +3838,6 @@ export default function Legal({ user }) {
         )}
       </Modal>
 
-      {/* ========================================================================= */}
-      {/* SUB MODAL: SOP Email Reminders Trigger & Live Preview / Download Excel    */}
-      {/* ========================================================================= */}
-      <Modal
-        isOpen={isSopModalOpen}
-        onClose={() => setIsSopModalOpen(false)}
-        title={sopType === 'legal_docs' ? 'Pengaturan & Distribusi Reminder SOP Perizinan & SILO' : 'Pengaturan & Distribusi Notifikasi Kontrak Karyawan ke HR & PJO'}
-        maxWidth="max-w-4xl"
-      >
-        <div className="space-y-3.5 text-xs">
-          {/* Ketentuan SOP Info & Excel Download */}
-          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-            <div>
-              <div className="font-semibold text-xs">Ketentuan SOP Periode Tanggal 1 – 5 Setiap Bulan:</div>
-              <p className="text-[11px] leading-relaxed text-amber-800">
-                {sopType === 'legal_docs'
-                  ? 'Rekapitulasi dokumen legalitas, perizinan, SILO (H-60), dan kendaraan yang mendekati jatuh tempo didistribusikan kepada seluruh PIC terkait.'
-                  : 'Rekapitulasi tenaga kerja yang masa berlaku perjanjian kerjanya (PKWT) mendekati jatuh tempo didistribusikan kepada Departemen HR, Direksi, dan PJO.'}
-              </p>
-            </div>
-
-            {/* Download Excel Button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (sopType === 'mp_contracts') {
-                  const headers = ['No', 'Nama Karyawan', 'Status', 'Project / Branch Site', 'Tanggal Berakhir Kontrak', 'Sisa Hari Menuju Jatuh Tempo'];
-                  const rows = sopMpExpiringList.map((emp, i) => [
-                    i + 1,
-                    emp.nama,
-                    emp.status || 'Contract',
-                    emp.branch,
-                    emp.end_date || '-',
-                    `${emp.days_remaining} hari`
-                  ]);
-                  downloadAsCsv(`Rekapitulasi_Kontrak_PKWT_Jatuh_Tempo_H-${sopMpDaysRange}_SOP_Tgl_1-5_${new Date().toISOString().substring(0, 10)}.csv`, headers, rows);
-                } else {
-                  const headers = ['No', 'Kategori', 'Identitas / No Reg', 'Nama Dokumen / Item', 'Pihak / Lokasi', 'Expired Date', 'Status Urgensi', 'PIC'];
-                  const rows = sopUrgentDocsList.map((doc, i) => [
-                    i + 1,
-                    doc.category,
-                    doc.identifier || '-',
-                    doc.document_name,
-                    doc.location || doc.related_party || '-',
-                    doc.expired_date ? doc.expired_date.substring(0, 10) : '-',
-                    doc.urgency_status,
-                    doc.pic_name || 'Legal'
-                  ]);
-                  downloadAsCsv(`Rekapitulasi_Dokumen_Legalitas_SILO_SOP_Tgl_1-5_${new Date().toISOString().substring(0, 10)}.csv`, headers, rows);
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-xs transition whitespace-nowrap self-start md:self-center cursor-pointer"
-              title="Unduh file Excel untuk diperiksa sebelum didistribusikan"
-            >
-              <Download size={13} />
-              <span>Unduh File Excel Rekap</span>
-            </button>
-          </div>
-
-          {/* Batas Jatuh Tempo Kontrak (H-30 Saja) */}
-          {sopType === 'mp_contracts' && (
-            <div className="flex items-center justify-between p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-1.5 text-blue-900 font-semibold text-xs">
-                <Clock size={14} className="text-blue-600" />
-                <span>Batas Jatuh Tempo Kontrak (SOP Tanggal 1-5):</span>
-              </div>
-              <span className="px-3 py-1 bg-blue-600 text-white rounded-md text-xs font-bold shadow-xs">
-                30 Hari Ke Depan (H-30)
-              </span>
-            </div>
-          )}
-
-          {/* Pengaturan Distribusi Email Form */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
-            {/* Safety Notice Mode Uji Coba */}
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-[11px] flex items-center gap-2">
-              <ShieldAlert size={15} className="text-amber-600 shrink-0" />
-              <span>
-                <strong>Mode Uji Coba Terproteksi:</strong> Pengiriman saat ini dikunci hanya ke <strong>shafira2784@gmail.com</strong>. Email kantor/divisi lain otomatis dicegat dan tidak akan dikirim selama tahap pengembangan.
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                <Mail size={14} className="text-primary" />
-                <span>Pengaturan Distribusi Email Notifikasi</span>
-              </div>
-              <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                Tujuan uji coba: shafira2784@gmail.com
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {/* TO Field - Hard-locked to shafira2784@gmail.com */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Kepada / Penerima (To) <span className="text-emerald-600 font-bold">(Terkunci Khusus Uji Coba)</span>
-                </label>
-                <input
-                  type="email"
-                  value="shafira2784@gmail.com"
-                  readOnly
-                  className="w-full px-2.5 py-1.5 bg-emerald-50/80 border border-emerald-300 rounded-lg text-xs font-bold text-emerald-900 cursor-not-allowed select-none"
-                />
-                <span className="text-[10px] text-emerald-700 font-medium mt-0.5 block">
-                  Email hanya akan dikirimkan ke <strong>shafira2784@gmail.com</strong>
-                </span>
-              </div>
-
-              {/* CC Field - Hard-disabled */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Tembusan (CC) <span className="text-rose-500 font-bold">(Dinonaktifkan)</span>
-                </label>
-                <input
-                  type="text"
-                  value=""
-                  disabled
-                  placeholder="CC Dinonaktifkan (Tidak ada email tembusan)"
-                  className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed select-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Semua tembusan ke HRD, Ismaya, Syahrul, Legal, dll telah dimatikan total.
-                </span>
-              </div>
-            </div>
-
-            {/* SUBJECT Field */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Subjek Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={emailForm.subject}
-                onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
-                placeholder="Subjek email..."
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-              />
-            </div>
-
-            {/* NOTES / BODY Field */}
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Catatan / Pesan Pengantar (Isi Badan Email)
-              </label>
-              <textarea
-                rows={5}
-                value={emailForm.notes}
-                onChange={(e) => setEmailForm({ ...emailForm, notes: e.target.value })}
-                placeholder="Tuliskan catatan khusus atau instruksi yang akan disertakan dalam badan email..."
-                className="w-full min-h-[120px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 resize-y font-sans leading-relaxed shadow-2xs"
-              />
-            </div>
-          </div>
-
-          {/* Live Data Preview Section (Posisi lebih ke bawah & teratur) */}
-          <div className="pt-2 border-t border-stroke">
-            <div className="flex items-center justify-between pb-1.5 text-gray-700 font-semibold">
-              <div className="flex items-center gap-1.5">
-                <FileSpreadsheet size={13} className="text-emerald-600" />
-                <span>Preview Data Rekapitulasi yang Dilampirkan:</span>
-              </div>
-              <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold">
-                {sopType === 'mp_contracts'
-                  ? `${sopMpExpiringList.length} Kontrak PKWT Jatuh Tempo (H-${sopMpDaysRange})`
-                  : `${sopUrgentDocsList.length} Dokumen Kritis & Warning Termonitor`}
-              </span>
-            </div>
-
-            <div className="border border-stroke rounded-lg overflow-x-auto max-h-[18vh]">
-              {sopType === 'mp_contracts' ? (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-gray-50 sticky top-0 border-b border-stroke text-gray-500 font-semibold">
-                    <tr>
-                      <th className="p-2 w-10 text-center">No</th>
-                      <th className="p-2">Nama Karyawan</th>
-                      <th className="p-2">Status</th>
-                      <th className="p-2">Project / Branch Site</th>
-                      <th className="p-2">Tanggal Berakhir Kontrak</th>
-                      <th className="p-2 text-center">Sisa Waktu</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stroke">
-                    {sopMpExpiringList.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-4 text-center text-gray-400">
-                          Tidak ada kontrak PKWT yang jatuh tempo dalam {sopMpDaysRange} hari ke depan.
-                        </td>
-                      </tr>
-                    ) : (
-                      sopMpExpiringList.slice(0, 25).map((emp, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="p-1.5 text-center text-gray-400">{idx + 1}</td>
-                          <td className="p-1.5 font-semibold text-boxdark">{emp.nama}</td>
-                          <td className="p-1.5">{emp.status || 'Contract'}</td>
-                          <td className="p-1.5 text-gray-600">{emp.branch}</td>
-                          <td className="p-1.5 text-danger font-semibold">{emp.end_date || '-'}</td>
-                          <td className="p-1.5 text-center">
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              {emp.days_remaining} hr lagi
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                    {sopMpExpiringList.length > 25 && (
-                      <tr>
-                        <td colSpan={6} className="p-2 text-center text-gray-400 bg-gray-50/50 italic">
-                          ... dan {sopMpExpiringList.length - 25} data karyawan lainnya (dapat dilihat lengkap di file unduhan Excel).
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-gray-50 sticky top-0 border-b border-stroke text-gray-500 font-semibold">
-                    <tr>
-                      <th className="p-2 w-10 text-center">No</th>
-                      <th className="p-2">Kategori</th>
-                      <th className="p-2">Nama Dokumen / Item</th>
-                      <th className="p-2">Expired Date</th>
-                      <th className="p-2">Status Urgensi</th>
-                      <th className="p-2">PIC Terkait</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stroke">
-                    {sopUrgentDocsList.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-4 text-center text-gray-400">
-                          Tidak ada dokumen yang kritis atau expired saat ini.
-                        </td>
-                      </tr>
-                    ) : (
-                      sopUrgentDocsList.slice(0, 25).map((doc, idx) => (
-                        <tr key={doc.id} className="hover:bg-gray-50">
-                          <td className="p-1.5 text-center text-gray-400">{idx + 1}</td>
-                          <td className="p-1.5 font-medium uppercase text-[10px] text-gray-500">{doc.category}</td>
-                          <td className="p-1.5 font-semibold text-boxdark">{doc.document_name}</td>
-                          <td className="p-1.5 text-gray-600">{doc.expired_date ? doc.expired_date.substring(0, 10) : '-'}</td>
-                          <td className="p-1.5">{getUrgencyBadge(doc.urgency_status, doc.days_remaining, doc.category)}</td>
-                          <td className="p-1.5 text-gray-600">{doc.pic_name || 'PIC Legal'}</td>
-                        </tr>
-                      ))
-                    )}
-                    {sopUrgentDocsList.length > 25 && (
-                      <tr>
-                        <td colSpan={6} className="p-2 text-center text-gray-400 bg-gray-50/50 italic">
-                          ... dan {sopUrgentDocsList.length - 25} dokumen lainnya (dapat dilihat lengkap di file unduhan Excel).
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-2 border-t border-stroke">
-            <div className="text-[11px] text-gray-400 hidden sm:block">
-              * Rekap file Excel akan otomatis disertakan sebagai lampiran email.
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsSopModalOpen(false)}
-                disabled={sendingEmail}
-                className="px-3.5 py-1.5 border border-stroke text-gray-600 rounded-lg hover:bg-gray-50 transition"
-              >
-                Tutup / Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleTriggerSopEmail}
-                disabled={sendingEmail}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold rounded-lg shadow-xs transition disabled:opacity-50 cursor-pointer"
-              >
-                {sendingEmail ? (
-                  <>
-                    <RefreshCw size={13} className="animate-spin" />
-                    <span>Mengirim Email...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send size={13} />
-                    <span>Kirim Notifikasi via Email</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Modal>
 
 
     </div>
