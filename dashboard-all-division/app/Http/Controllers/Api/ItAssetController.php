@@ -4,12 +4,30 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ItAsset;
+use App\Services\AssetApiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ItAssetController extends Controller
 {
-    public function index()
+    public function index(Request $request, AssetApiService $assetApi)
     {
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
+
+        if ($assetApi->isConfigured()) {
+            try {
+                $live = $assetApi->getDashboardAssetsData($isRefresh);
+                return response()->json([
+                    'general'    => $live['general'],
+                    'individual' => $live['individual'],
+                    'total'      => $live['total'],
+                    'is_live'    => true,
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Asset API live fetch failed in ItAssetController: ' . $e->getMessage());
+            }
+        }
+
         return response()->json([
             'general' => ItAsset::where('type', 'general')->get(),
             'individual' => ItAsset::where('type', 'individual')->get(),

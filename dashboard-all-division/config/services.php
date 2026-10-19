@@ -54,4 +54,9 @@ return [
     'token' => env('TICKETING_INTEGRATION_TOKEN'),
 ],
 
+'asset_api' => [
+    'host' => env('ASSET_API_HOST'),
+    'token' => env('ASSET_API_V1_TOKEN'),
+],
+
 ];

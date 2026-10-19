@@ -609,5 +609,17 @@ When adding a new division or dashboard that needs to connect to the Synology NA
 
 * **Jangan Pernah membuka scratchpad** atau membuat file scratchpad yang tidak perlu.
 * **Jangan Pernah membuka browser atau browser subagent lain** secara otomatis kecuali jika diminta secara eksplisit oleh user.
- 
- 
+
+# 18. Unified Asset API v1 Standards
+
+When developing or integrating endpoints related to Unified Asset API v1 (`/api/v1/assets`):
+
+1. **Strictly Read-Only**: Do not implement write/mutation operations (POST, PUT, DELETE) on the remote API v1.
+2. **Server-to-Server Only**: The `ASSET_API_V1_TOKEN` must NEVER be exposed to the browser or frontend client. It is strictly for server-to-server requests via `App\Services\AssetApiService`.
+3. **Composite Identity**: Always identify assets using the composite key `(group, category, id)` (e.g., `physical:laptop:303` or `digital:email:178`). Never assume `asset_code` is unique or non-null.
+4. **Category Groups**:
+   - `physical`: `camera`, `cctv`, `dashcam`, `ht`, `laptop`, `general-inventory`, `network-device`, `printer`, `starlink`, `tablet`, `general-asset`
+   - `digital`: `email`, `vpn`, `synology`, `external-app`, `admin-software`, `infrastructure`, `office-phone`
+5. **Deduplication Logic**: For repeated handover categories (`camera`, `ht`, `laptop`, `general-inventory`, `tablet`), prioritize record with `return_date = null`; otherwise pick the latest record.
+6. **Data Privacy & Security**: Always use explicit column selection. Never expose credentials, passwords, access tokens, login usernames, or freeform text notes in responses.
+7. **Fallback & Caching**: Always implement caching (e.g., 5 minutes) and a local database fallback (`it_assets` / `it_emails`) so dashboards remain resilient if the remote server is unreachable.
