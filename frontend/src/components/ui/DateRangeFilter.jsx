@@ -6,7 +6,8 @@ export default function DateRangeFilter({
   dateRange, 
   onChange, 
   disablePortal = false, 
-  className = "" 
+  className = "",
+  placeholder = "Semua Tanggal (Overtime)"
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [startDate, setStartDate] = useState(dateRange?.startDate || '');
@@ -40,7 +41,7 @@ export default function DateRangeFilter({
     if (dateRange?.startDate && dateRange?.endDate) {
       return `${dateRange.startDate} s/d ${dateRange.endDate}`;
     }
-    return 'Pilih Range Tanggal';
+    return placeholder;
   };
 
   const filterContent = (
@@ -77,13 +78,30 @@ export default function DateRangeFilter({
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
-            <button 
-              type="button"
-              onClick={handleApply}
-              className="mt-2 w-full bg-primary text-white py-1.5 rounded text-sm font-semibold hover:bg-opacity-90 transition-colors cursor-pointer shadow-xs"
-            >
-              Terapkan
-            </button>
+            <div className="flex items-center gap-2 mt-2">
+              <button 
+                type="button"
+                onClick={handleApply}
+                className="flex-1 bg-primary text-white py-1.5 rounded text-sm font-semibold hover:bg-opacity-90 transition-colors cursor-pointer shadow-xs"
+              >
+                Terapkan
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  if (onChange) {
+                    onChange({ startDate: '', endDate: '' });
+                  }
+                  setIsOpen(false);
+                }}
+                className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded text-xs font-medium transition-colors cursor-pointer"
+                title="Tampilkan semua range tanggal (Overtime)"
+              >
+                Semua
+              </button>
+            </div>
           </div>
         </div>
       )}
