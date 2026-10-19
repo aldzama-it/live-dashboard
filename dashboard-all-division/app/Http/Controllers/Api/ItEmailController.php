@@ -4,12 +4,25 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ItEmail;
+use App\Services\AssetApiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ItEmailController extends Controller
 {
-    public function index()
+    public function index(Request $request, AssetApiService $assetApi)
     {
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
+
+        if ($assetApi->isConfigured()) {
+            try {
+                $live = $assetApi->getDashboardEmailsData($isRefresh);
+                return response()->json($live);
+            } catch (\Exception $e) {
+                Log::warning('Asset API live fetch failed in ItEmailController: ' . $e->getMessage());
+            }
+        }
+
         return response()->json(ItEmail::orderBy('id', 'desc')->get());
     }
 

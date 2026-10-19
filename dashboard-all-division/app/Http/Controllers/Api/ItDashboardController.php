@@ -8,25 +8,45 @@ use App\Models\ItEmail;
 use App\Models\ItTicket;
 use App\Models\ItTicketKeyword;
 use App\Services\AccurateApiService;
+use App\Services\AssetApiService;
 use App\Services\TicketingApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class ItDashboardController extends Controller
 {
     protected $accurateApi;
     protected $ticketingApi;
+    protected $assetApi;
 
-    public function __construct(AccurateApiService $accurateApi, TicketingApiService $ticketingApi)
+    public function __construct(AccurateApiService $accurateApi, TicketingApiService $ticketingApi, AssetApiService $assetApi)
     {
         $this->accurateApi = $accurateApi;
         $this->ticketingApi = $ticketingApi;
+        $this->assetApi = $assetApi;
     }
 
     public function getAssets(Request $request)
     {
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
+
+        // 1. Jika API Asset terkonfigurasi, ambil data live
+        if ($this->assetApi->isConfigured()) {
+            try {
+                $liveData = $this->assetApi->getDashboardAssetsData($isRefresh);
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $liveData,
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Asset API live fetch failed, fallback to local DB: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Fallback: Hitung dari database lokal (it_assets)
         $generalAssets = ItAsset::where('type', 'general')->get();
         $individualAssets = ItAsset::where('type', 'individual')->get();
 
@@ -40,6 +60,8 @@ class ItDashboardController extends Controller
                 'total' => $totalAssets,
                 'total_general' => $totalGeneral,
                 'total_individual' => $totalIndividual,
+                'general' => $generalAssets,
+                'individual' => $individualAssets,
                 'general_assets' => $generalAssets,
                 'individual_assets' => $individualAssets,
             ]
@@ -48,6 +70,37 @@ class ItDashboardController extends Controller
 
     public function getEmails(Request $request)
     {
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
+
+        // 1. Jika API Asset terkonfigurasi, ambil data live email
+        if ($this->assetApi->isConfigured()) {
+            try {
+                $liveEmails = $this->assetApi->getDashboardEmailsData($isRefresh);
+                $domainCounts = [];
+                foreach ($liveEmails as $e) {
+                    $d = $e['domain'] ?? 'Unknown';
+                    $domainCounts[$d] = ($domainCounts[$d] ?? 0) + 1;
+                }
+                $distribution = [];
+                foreach ($domainCounts as $dom => $cnt) {
+                    $distribution[] = ['domain' => $dom, 'total' => $cnt];
+                }
+
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [
+                        'total' => count($liveEmails),
+                        'distribution' => $distribution,
+                        'details' => $liveEmails,
+                        'emails' => $liveEmails,
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Asset API live fetch emails failed, fallback to local DB: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Fallback: Hitung dari database lokal (it_emails)
         $emails = ItEmail::all();
         $totalEmails = $emails->count();
         
@@ -60,15 +113,16 @@ class ItDashboardController extends Controller
             'data' => [
                 'total' => $totalEmails,
                 'distribution' => $domainDistribution,
-                'details' => $emails
+                'details' => $emails,
+                'emails' => $emails,
             ]
         ]);
     }
 
     public function getTickets(Request $request)
     {
-        $startDate = $request->query('start_date', date('Y-m-01'));
-        $endDate = $request->query('end_date', date('Y-m-t'));
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
         $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
 
         // 1. Jika API Ticketing sudah dikonfigurasi, gunakan data live dari endpoint API
@@ -85,24 +139,31 @@ class ItDashboardController extends Controller
         }
 
         // 2. Fallback: Hitung dari database lokal (it_tickets)
+        $applyDateFilter = function ($query) use ($startDate, $endDate) {
+            if (!empty($startDate) && !empty($endDate)) {
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+            }
+            return $query;
+        };
+
         // Tickets by Category (for Donut Chart)
-        $ticketsByCategory = ItTicket::select('category', DB::raw('count(*) as total'))
-            ->whereBetween('created_at', [$startDate, $endDate])
+        $ticketsByCategory = $applyDateFilter(ItTicket::query())
+            ->select('category', DB::raw('count(*) as total'))
             ->whereNotNull('category')
             ->groupBy('category')
             ->orderBy('total', 'desc')
             ->get();
 
         // Workload Calculation
-        $workload = ItTicket::select('assigned_to', DB::raw('count(*) as total_tickets'))
-            ->whereBetween('created_at', [$startDate, $endDate])
+        $workload = $applyDateFilter(ItTicket::query())
+            ->select('assigned_to', DB::raw('count(*) as total_tickets'))
             ->whereNotNull('assigned_to')
             ->groupBy('assigned_to')
             ->orderBy('total_tickets', 'desc')
             ->get();
 
         // Resolution Time (Simple Avg calculation - usually you'd do DB level timediff but keeping it basic for now)
-        $tickets = ItTicket::whereBetween('created_at', [$startDate, $endDate])
+        $tickets = $applyDateFilter(ItTicket::query())
             ->whereNotNull('resolved_at')
             ->get();
         
@@ -121,8 +182,8 @@ class ItDashboardController extends Controller
         $avgMins = $avgMinutes % 60;
         $resolutionTimeStr = "{$avgHours}h {$avgMins}m";
 
-        $statusBreakdown = ItTicket::select('status', DB::raw('count(*) as total'))
-            ->whereBetween('created_at', [$startDate, $endDate])
+        $statusBreakdown = $applyDateFilter(ItTicket::query())
+            ->select('status', DB::raw('count(*) as total'))
             ->groupBy('status')
             ->get();
 
@@ -159,8 +220,13 @@ class ItDashboardController extends Controller
 
         $dailyResolutionData = [];
         $dailyResolutionLabels = [];
-        $start = \Carbon\Carbon::parse($startDate);
-        $end = \Carbon\Carbon::parse($endDate);
+        if (empty($startDate) || empty($endDate)) {
+            $end = \Carbon\Carbon::now();
+            $start = \Carbon\Carbon::now()->subDays(13);
+        } else {
+            $start = \Carbon\Carbon::parse($startDate);
+            $end = \Carbon\Carbon::parse($endDate);
+        }
         
         // Loop from start day to end day
         for($date = $start->copy(); $date->lte($end); $date->addDay()) {
@@ -181,7 +247,7 @@ class ItDashboardController extends Controller
             $dailyVolumeData[] = $weeklyVolume[$i];
         }
 
-        $allTickets = ItTicket::whereBetween('created_at', [$startDate, $endDate])->orderBy('created_at', 'desc')->get();
+        $allTickets = $applyDateFilter(ItTicket::query())->orderBy('created_at', 'desc')->get();
 
         return response()->json([
             'status' => 'success',
@@ -203,15 +269,15 @@ class ItDashboardController extends Controller
 
     public function getBudget(Request $request)
     {
-        $startDate = $request->query('start_date', date('Y-m-01'));
-        $endDate = $request->query('end_date', date('Y-m-t'));
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
         $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
 
-        $start = Carbon::parse($startDate);
-        $end = Carbon::parse($endDate);
-        $year = $start->year;
+        $year = $startDate ? Carbon::parse($startDate)->year : (int)date('Y');
+        $start = $startDate ? Carbon::parse($startDate) : Carbon::create($year, 1, 1);
+        $end = $endDate ? Carbon::parse($endDate) : Carbon::create($year, 12, 31);
 
-        $cacheKey = 'it_budget_accurate_6211_' . md5($startDate . '_' . $endDate . '_' . $year);
+        $cacheKey = 'it_budget_accurate_6211_' . md5(($startDate ?: 'overtime') . '_' . ($endDate ?: 'overtime') . '_' . $year);
         if ($isRefresh) {
             Cache::forget($cacheKey);
         }
@@ -495,16 +561,78 @@ class ItDashboardController extends Controller
     public function syncSynology()
     {
         try {
+            // 1. Sinkronisasi Synology
             \Illuminate\Support\Facades\Artisan::call('synology:sync');
+            
+            // 2. Sinkronisasi Asset API v1 (Aset Fisik & Email)
+            $assetSyncResult = null;
+            if ($this->assetApi->isConfigured()) {
+                try {
+                    $assetSyncResult = $this->assetApi->syncToDatabase();
+                } catch (\Exception $ae) {
+                    Log::warning('Asset sync during All sync failed: ' . $ae->getMessage());
+                }
+            }
+
+            // 3. Sinkronisasi Ticketing API
+            $ticketSyncResult = null;
+            if ($this->ticketingApi->isConfigured()) {
+                try {
+                    $startDate = date('Y-m-01');
+                    $endDate = date('Y-m-t');
+                    $ticketSyncResult = $this->ticketingApi->syncToDatabase([
+                        'date_from' => $startDate,
+                        'date_to'   => $endDate,
+                    ]);
+                    Cache::forget('it_dashboard_live_tickets_' . md5($startDate . '_' . $endDate));
+                } catch (\Exception $te) {
+                    Log::warning('Ticket sync during All sync failed: ' . $te->getMessage());
+                }
+            }
+
+            $messages = ['Data Synology disinkronkan'];
+            if ($assetSyncResult) {
+                $messages[] = "{$assetSyncResult['synced_assets']} aset fisik & {$assetSyncResult['synced_emails']} email disinkronkan";
+            }
+            if ($ticketSyncResult && isset($ticketSyncResult['synced'])) {
+                $messages[] = "{$ticketSyncResult['synced']} tiket disinkronkan";
+            }
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Sync triggered successfully',
-                'output' => \Illuminate\Support\Facades\Artisan::output()
+                'message' => 'Sinkronisasi berhasil! (' . implode(', ', $messages) . ')',
+                'output' => \Illuminate\Support\Facades\Artisan::output(),
+                'asset_sync' => $assetSyncResult,
+                'ticket_sync' => $ticketSyncResult,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Sync failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function syncAssets(Request $request)
+    {
+        if (!$this->assetApi->isConfigured()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'ASSET_API_HOST atau ASSET_API_V1_TOKEN belum dikonfigurasi di .env.',
+            ], 400);
+        }
+
+        try {
+            $result = $this->assetApi->syncToDatabase();
+            return response()->json([
+                'status'  => 'success',
+                'message' => "Sinkronisasi berhasil! {$result['synced_assets']} aset fisik dan {$result['synced_emails']} email telah disinkronkan ke database lokal.",
+                'data'    => $result,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal menyinkronkan data aset: ' . $e->getMessage(),
             ], 500);
         }
     }

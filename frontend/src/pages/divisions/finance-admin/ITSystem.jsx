@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, Plus, Pencil, Trash2, Check, X, RefreshCw, ExternalLink } from 'lucide-react';
+import { Monitor, Mail, Terminal, DollarSign, Star, Network, ChevronRight, ChevronDown, ChevronLeft, Plus, Pencil, Trash2, Check, X, RefreshCw, ExternalLink, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Card from '../../../components/ui/Card';
 import KpiCard from '../../../components/ui/KpiCard';
 import ChartContainer from '../../../components/ui/ChartContainer';
@@ -10,7 +10,7 @@ import api from '../../../axios';
 import Chart from 'react-apexcharts';
 import Select from 'react-select';
 import CreatableSelect from 'react-select/creatable';
-import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, getPaginationRowModel, flexRender } from '@tanstack/react-table';
 
 const selectStyles = {
   control: (base) => ({
@@ -583,12 +583,8 @@ const formatSimpleMoney = (amount) => {
 export default function ITSystem({ user }) {
   const [modalType, setModalType] = useState(null);
 
-  // Default to current month range
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-
-  const [dateRange, setDateRange] = useState({ startDate: firstDay, endDate: lastDay });
+  // Default to all-time / overtime
+  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
   const isPIC = user?.roles?.some(r => r.name === 'Division PIC');
   const isAdmin = user?.roles?.some(r => r.name.toLowerCase().includes('admin')) || user?.roles?.some(r => r.name === 'Super Admin') || (user?.role && user.role.toLowerCase().includes('admin')) || false;
   const canSync = isPIC || isAdmin;
@@ -597,6 +593,7 @@ export default function ITSystem({ user }) {
   const [assetsData, setAssetsData] = useState({ general: [], individual: [], total: 0 });
   const [departmentsData, setDepartmentsData] = useState([]);
   const [newAssetType, setNewAssetType] = useState(null); // 'general' or 'individual'
+  const [selectedAssetTab, setSelectedAssetTab] = useState('general'); // 'general' or 'individual'
   const [emailsData, setEmailsData] = useState([]);
   const [isAddingEmail, setIsAddingEmail] = useState(false);
   const [showSoftwareDetails, setShowSoftwareDetails] = useState(false);
@@ -610,18 +607,18 @@ export default function ITSystem({ user }) {
   const [highlightsData, setHighlightsData] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const fetchAssets = async () => {
+  const fetchAssets = async (isRefresh = false) => {
     try {
-      const res = await api.get('/api/it-assets');
+      const res = await api.get(`/api/it-assets${isRefresh ? '?refresh=true' : ''}`);
       setAssetsData(res.data);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const fetchEmails = async () => {
+  const fetchEmails = async (isRefresh = false) => {
     try {
-      const res = await api.get('/api/it-emails');
+      const res = await api.get(`/api/it-emails${isRefresh ? '?refresh=true' : ''}`);
       setEmailsData(res.data);
     } catch (err) {
       console.error(err);
@@ -708,17 +705,19 @@ export default function ITSystem({ user }) {
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      await api.post('/api/it-dashboard/sync');
-      fetchAssets();
-      fetchEmails();
-      fetchTickets();
-      fetchBudget();
-      fetchSoftware();
-      fetchHighlights();
-      alert('Data successfully synced from Synology!');
+      const res = await api.post('/api/it-dashboard/sync');
+      await Promise.all([
+        fetchAssets(true),
+        fetchEmails(true),
+        fetchTickets(true),
+        fetchBudget(),
+        fetchSoftware(),
+        fetchHighlights()
+      ]);
+      alert(res.data?.message || 'Data IT System berhasil disinkronkan!');
     } catch (err) {
       console.error(err);
-      alert('Failed to sync data: ' + (err.response?.data?.message || err.message));
+      alert('Gagal menyinkronkan data: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsSyncing(false);
     }
@@ -874,19 +873,58 @@ export default function ITSystem({ user }) {
       { name: 'Individual', value: assetsData.individual.length }
     ];
 
-    const itemCounts = {};
+    const categoryCounts = {};
     const locCounts = {};
 
-    [...assetsData.general, ...assetsData.individual].forEach(a => {
-      const name = a.asset_name || 'Unknown';
-      itemCounts[name] = (itemCounts[name] || 0) + 1;
+    const formatCategoryName = (cat) => {
+      if (!cat) return 'Other';
+      const map = {
+        'laptop': 'Laptop',
+        'ht': 'HT',
+        'printer': 'Printer',
+        'camera': 'Camera',
+        'cctv': 'CCTV',
+        'dashcam': 'Dashcam',
+        'network-device': 'Network Device',
+        'starlink': 'Starlink',
+        'tablet': 'Tablet',
+        'general-inventory': 'General Inventory',
+        'general-asset': 'General Asset'
+      };
+      return map[cat.toLowerCase()] || (cat.charAt(0).toUpperCase() + cat.slice(1).replace(/-/g, ' '));
+    };
 
-      const loc = a.type === 'general' ? (a.location || 'Unknown Loc') : (a.department || 'Unknown Dept');
+    [...assetsData.general, ...assetsData.individual].forEach(a => {
+      let cat = a.category;
+      if (!cat) {
+        const text = ((a.asset_name || '') + ' ' + (a.brand_description || '') + ' ' + (a.specification || '')).toLowerCase();
+        if (text.includes('laptop') || text.includes('lpt') || text.includes('notebook') || text.includes('vivobook') || text.includes('thinkpad')) cat = 'laptop';
+        else if (text.includes('ht') || text.includes('handy talky') || text.includes('motorola')) cat = 'ht';
+        else if (text.includes('printer') || text.includes('prn') || text.includes('epson') || text.includes('canon')) cat = 'printer';
+        else if (text.includes('camera') || text.includes('kamera')) cat = 'camera';
+        else if (text.includes('cctv')) cat = 'cctv';
+        else if (text.includes('dashcam')) cat = 'dashcam';
+        else if (text.includes('starlink')) cat = 'starlink';
+        else if (text.includes('tablet') || text.includes('ipad')) cat = 'tablet';
+        else if (text.includes('network') || text.includes('switch') || text.includes('router') || text.includes('mikrotik')) cat = 'network-device';
+        else cat = a.type === 'individual' ? 'General Asset' : 'General Inventory';
+      }
+
+      const catLabel = formatCategoryName(cat);
+      categoryCounts[catLabel] = (categoryCounts[catLabel] || 0) + 1;
+
+      const rawLoc = a.type === 'general' ? a.location : (a.department || a.division_project);
+      const loc = (rawLoc && String(rawLoc).trim() && String(rawLoc).trim() !== '-') ? String(rawLoc).trim() : 'Unknown';
       locCounts[loc] = (locCounts[loc] || 0) + 1;
     });
 
-    const itemData = Object.keys(itemCounts).map(k => ({ name: k, count: itemCounts[k] })).sort((a, b) => b.count - a.count);
-    const locData = Object.keys(locCounts).map(k => ({ name: k, count: locCounts[k] })).sort((a, b) => b.count - a.count);
+    const itemData = Object.keys(categoryCounts)
+      .map(k => ({ name: k, count: categoryCounts[k] }))
+      .sort((a, b) => b.count - a.count);
+
+    const locData = Object.keys(locCounts)
+      .map(k => ({ name: k, count: locCounts[k] }))
+      .sort((a, b) => b.count - a.count);
 
     return { pieData, itemData, locData };
   };
@@ -914,6 +952,10 @@ export default function ITSystem({ user }) {
   const COLORS = ['#3C50E0', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
 
   const [sorting, setSorting] = useState([]);
+  const [assetSorting, setAssetSorting] = useState([]);
+  const [assetSearch, setAssetSearch] = useState('');
+  const [assetConditionFilter, setAssetConditionFilter] = useState('all');
+  const [assetPagination, setAssetPagination] = useState({ pageIndex: 0, pageSize: 10 });
 
   const generalColumns = React.useMemo(() => [
     { accessorKey: 'asset_name', header: 'Asset' },
@@ -932,22 +974,68 @@ export default function ITSystem({ user }) {
     { accessorKey: 'condition', header: 'Kondisi' },
   ], []);
 
+  const filteredGeneralData = useMemo(() => {
+    let list = assetsData.general || [];
+    if (assetConditionFilter !== 'all') {
+      list = list.filter(item => (item.condition || '').toLowerCase() === assetConditionFilter.toLowerCase());
+    }
+    if (assetSearch.trim()) {
+      const q = assetSearch.toLowerCase();
+      list = list.filter(item =>
+        (item.asset_name || '').toLowerCase().includes(q) ||
+        (item.brand_description || '').toLowerCase().includes(q) ||
+        (item.location || '').toLowerCase().includes(q) ||
+        (item.condition || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [assetsData.general, assetConditionFilter, assetSearch]);
+
+  const filteredIndividualData = useMemo(() => {
+    let list = assetsData.individual || [];
+    if (assetConditionFilter !== 'all') {
+      list = list.filter(item => (item.condition || '').toLowerCase() === assetConditionFilter.toLowerCase());
+    }
+    if (assetSearch.trim()) {
+      const q = assetSearch.toLowerCase();
+      list = list.filter(item =>
+        (item.asset_name || '').toLowerCase().includes(q) ||
+        (item.receiver_name || '').toLowerCase().includes(q) ||
+        (item.department || '').toLowerCase().includes(q) ||
+        (item.division_project || '').toLowerCase().includes(q) ||
+        (item.specification || '').toLowerCase().includes(q) ||
+        (item.condition || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [assetsData.individual, assetConditionFilter, assetSearch]);
+
   const generalTable = useReactTable({
-    data: assetsData.general,
+    data: filteredGeneralData,
     columns: generalColumns,
-    state: { sorting },
-    onSortingChange: setSorting,
+    state: {
+      sorting: assetSorting,
+      pagination: assetPagination,
+    },
+    onSortingChange: setAssetSorting,
+    onPaginationChange: setAssetPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const individualTable = useReactTable({
-    data: assetsData.individual,
+    data: filteredIndividualData,
     columns: individualColumns,
-    state: { sorting },
-    onSortingChange: setSorting,
+    state: {
+      sorting: assetSorting,
+      pagination: assetPagination,
+    },
+    onSortingChange: setAssetSorting,
+    onPaginationChange: setAssetPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const emailColumns = React.useMemo(() => [
@@ -1023,6 +1111,40 @@ export default function ITSystem({ user }) {
     tooltip: { theme: 'light' }
   });
 
+  const getHorizontalBarOptions = (categories, color) => ({
+    chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'inherit' },
+    plotOptions: {
+      bar: {
+        horizontal: true,
+        borderRadius: 3,
+        barHeight: '65%',
+        distributed: false
+      }
+    },
+    dataLabels: {
+      enabled: true,
+      textAnchor: 'start',
+      style: { fontSize: '10px', fontWeight: 'bold' },
+      offsetX: 4,
+      formatter: (val) => val
+    },
+    xaxis: {
+      categories: categories || [],
+      labels: { style: { fontSize: '10px', colors: '#64748B' } },
+      axisBorder: { show: false },
+      axisTicks: { show: false }
+    },
+    yaxis: {
+      labels: {
+        style: { fontSize: '10px', colors: '#334155', fontWeight: 500 },
+        maxWidth: 160
+      }
+    },
+    grid: { borderColor: '#E2E8F0', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    colors: [color],
+    tooltip: { theme: 'light' }
+  });
+
   return (
     <>
       {/* 
@@ -1037,6 +1159,7 @@ export default function ITSystem({ user }) {
             <button 
               onClick={handleManualSync} 
               disabled={isSyncing}
+              title="Sinkronisasi seluruh data IT System (Synology, Asset API, & Tiket)"
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded shadow-sm transition-colors ${isSyncing ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}
             >
               <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
@@ -1195,21 +1318,25 @@ export default function ITSystem({ user }) {
               options={{
                 chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'inherit' },
                 plotOptions: {
-                  bar: { horizontal: true, borderRadius: 2, barHeight: '70%' }
+                  bar: { horizontal: true, borderRadius: 3, barHeight: '65%' }
                 },
                 colors: ['#3C50E0'],
-                dataLabels: { enabled: false },
+                dataLabels: { 
+                  enabled: true, 
+                  style: { fontSize: '10px', fontWeight: 'bold' },
+                  offsetX: 5
+                },
                 xaxis: {
-                  categories: itemData.slice(0, 10).map(d => d.name),
+                  categories: itemData.map(d => d.name),
                   labels: { style: { fontSize: '10px' } }
                 },
                 yaxis: {
-                  labels: { style: { fontSize: '9px' }, maxWidth: 100 }
+                  labels: { style: { fontSize: '10px' }, maxWidth: 110 }
                 },
                 grid: { borderColor: '#E2E8F0', strokeDashArray: 4 },
                 tooltip: { theme: 'light' }
               }}
-              series={[{ name: 'Jumlah', data: itemData.slice(0, 10).map(d => d.count) }]}
+              series={[{ name: 'Jumlah', data: itemData.map(d => d.count) }]}
               type="bar"
               height="100%"
               width="100%"
@@ -1399,7 +1526,7 @@ export default function ITSystem({ user }) {
       {/* Asset Modal */}
       <Modal isOpen={modalType === 'asset'} onClose={() => setModalType(null)} title="Rincian Total Asset Fisik" maxWidth="max-w-6xl">
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-y-1 gap-x-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
               <h5 className="text-sm font-bold text-boxdark mb-2">Tipe Aset</h5>
               <div className="flex-1 w-full min-h-0">
@@ -1408,23 +1535,11 @@ export default function ITSystem({ user }) {
             </div>
 
             <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
-              <h5 className="text-sm font-bold text-boxdark mb-2">Distribusi Item Aset</h5>
+              <h5 className="text-sm font-bold text-boxdark mb-2">Top 10 Lokasi / Departemen</h5>
               <div className="flex-1 w-full min-h-0 -ml-2 mt-2">
                 <Chart
-                  options={getBarOptions(itemData.map(d => d.name), '#3C50E0')}
-                  series={[{ name: 'Jumlah', data: itemData.map(d => d.count) }]}
-                  type="bar"
-                  height="100%"
-                />
-              </div>
-            </div>
-
-            <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
-              <h5 className="text-sm font-bold text-boxdark mb-2">Distribusi Lokasi / Dept</h5>
-              <div className="flex-1 w-full min-h-0 -ml-2 mt-2">
-                <Chart
-                  options={getBarOptions(locData.map(d => d.name), '#10B981')}
-                  series={[{ name: 'Jumlah', data: locData.map(d => d.count) }]}
+                  options={getHorizontalBarOptions(locData.slice(0, 10).map(d => d.name), '#10B981')}
+                  series={[{ name: 'Jumlah', data: locData.slice(0, 10).map(d => d.count) }]}
                   type="bar"
                   height="100%"
                 />
@@ -1432,104 +1547,279 @@ export default function ITSystem({ user }) {
             </div>
           </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-bold text-boxdark">General Assets</h4>
-              {canEdit && (
-                <div className="flex gap-1">
-                  <button onClick={() => handleImportModal('asset')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
-                    Import
-                  </button>
-                  <button onClick={() => handleAddAsset('general')} disabled={newAssetType === 'general'} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
-                    <Plus size={14} /> Add Asset
-                  </button>
+          <div className="border border-stroke rounded-lg p-4 bg-white shadow-sm">
+            {/* Filter and Dropdown Bar */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 mb-4 pb-3 border-b border-stroke">
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                {/* Asset Type Dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipe Aset:</label>
+                  <div className="relative">
+                    <select
+                      value={selectedAssetTab}
+                      onChange={(e) => {
+                        setSelectedAssetTab(e.target.value);
+                        setAssetPagination(p => ({ ...p, pageIndex: 0 }));
+                      }}
+                      className="appearance-none bg-white border border-stroke rounded-lg pl-3 pr-8 py-1.5 text-sm font-semibold text-boxdark shadow-sm hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary outline-none cursor-pointer transition-all"
+                    >
+                      <option value="general">General Assets ({assetsData.general?.length || 0})</option>
+                      <option value="individual">Individual Assets ({assetsData.individual?.length || 0})</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={15} />
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-500">
-                  {generalTable.getHeaderGroups().map(headerGroup => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, i) => (
-                        <th key={header.id} className={`px-4 py-2 font-medium cursor-pointer select-none ${i === 0 ? 'rounded-tl-md' : ''}`} onClick={header.column.getToggleSortingHandler()}>
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: ' ðŸ”¼',
-                            desc: ' ðŸ”½',
-                          }[header.column.getIsSorted()] ?? null}
-                        </th>
-                      ))}
-                      {canEdit && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="divide-y divide-stroke">
-                  {newAssetType === 'general' && (
-                    <AssetRow
-                      asset={{ isNew: true, type: 'general', asset_name: '', condition: 'Baik' }}
-                      canEdit={canEdit}
-                      onUpdate={handleSaveAsset}
-                      onCancelAdd={handleCancelAdd}
-                      departmentsData={departmentsData}
-                    />
-                  )}
-                  {generalTable.getRowModel().rows.length > 0 ? generalTable.getRowModel().rows.map(row => (
-                    <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
-                  )) : (newAssetType !== 'general' && <tr><td colSpan={5} className="text-center py-4 text-gray-400">No data found</td></tr>)}
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-bold text-boxdark">Individual Assets</h4>
-              {canEdit && (
-                <div className="flex gap-1">
-                  <button onClick={() => handleImportModal('email')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
-                    Import
-                  </button>
-                  <button onClick={() => handleAddAsset('individual')} disabled={newAssetType === 'individual'} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
-                    <Plus size={14} /> Add Asset
-                  </button>
+                {/* Condition Filter */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Kondisi:</label>
+                  <select
+                    value={assetConditionFilter}
+                    onChange={(e) => {
+                      setAssetConditionFilter(e.target.value);
+                      setAssetPagination(p => ({ ...p, pageIndex: 0 }));
+                    }}
+                    className="bg-white border border-stroke rounded-lg px-2.5 py-1.5 text-xs font-medium text-boxdark hover:border-primary focus:border-primary outline-none cursor-pointer shadow-sm"
+                  >
+                    <option value="all">Semua Kondisi</option>
+                    <option value="baik">Baik</option>
+                    <option value="rusak">Rusak</option>
+                    <option value="hilang">Hilang</option>
+                    <option value="perlu servis">Perlu Servis</option>
+                  </select>
                 </div>
-              )}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left whitespace-nowrap">
-                <thead className="bg-gray-50 text-gray-500">
-                  {individualTable.getHeaderGroups().map(headerGroup => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header, i) => (
-                        <th key={header.id} className={`px-4 py-2 font-medium cursor-pointer select-none ${i === 0 ? 'rounded-tl-md' : ''}`} onClick={header.column.getToggleSortingHandler()}>
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: ' ðŸ”¼',
-                            desc: ' ðŸ”½',
-                          }[header.column.getIsSorted()] ?? null}
-                        </th>
-                      ))}
-                      {canEdit && <th className="px-4 py-2 font-medium rounded-tr-md text-right w-24">Actions</th>}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="divide-y divide-stroke">
-                  {newAssetType === 'individual' && (
-                    <AssetRow
-                      asset={{ isNew: true, type: 'individual', asset_name: '', condition: 'Baik' }}
-                      canEdit={canEdit}
-                      onUpdate={handleSaveAsset}
-                      onCancelAdd={handleCancelAdd}
-                      departmentsData={departmentsData}
-                    />
+              </div>
+
+              {/* Search & Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input
+                    type="text"
+                    value={assetSearch}
+                    onChange={(e) => {
+                      setAssetSearch(e.target.value);
+                      setAssetPagination(p => ({ ...p, pageIndex: 0 }));
+                    }}
+                    placeholder={selectedAssetTab === 'general' ? 'Cari nama, brand, lokasi...' : 'Cari penerima, dept, spesifikasi...'}
+                    className="w-full bg-white border border-stroke rounded-lg pl-8 pr-7 py-1.5 text-xs text-boxdark placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  />
+                  {assetSearch && (
+                    <button
+                      onClick={() => {
+                        setAssetSearch('');
+                        setAssetPagination(p => ({ ...p, pageIndex: 0 }));
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={12} />
+                    </button>
                   )}
-                  {individualTable.getRowModel().rows.length > 0 ? individualTable.getRowModel().rows.map(row => (
-                    <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
-                  )) : (newAssetType !== 'individual' && <tr><td colSpan={8} className="text-center py-4 text-gray-400">No data found</td></tr>)}
-                </tbody>
-              </table>
+                </div>
+
+                {canEdit && (
+                  <div className="flex gap-1.5">
+                    <button onClick={() => handleImportModal(selectedAssetTab === 'general' ? 'asset' : 'email')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                      Import
+                    </button>
+                    <button onClick={() => handleAddAsset(selectedAssetTab)} disabled={newAssetType === selectedAssetTab} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
+                      <Plus size={14} /> Add Asset
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Table Content */}
+            {selectedAssetTab === 'general' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-600 border-b border-stroke text-xs">
+                    {generalTable.getHeaderGroups().map(headerGroup => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header, i) => (
+                          <th
+                            key={header.id}
+                            className={`px-4 py-2.5 font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors ${i === 0 ? 'rounded-tl-md' : ''}`}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                              <span className="text-gray-400">
+                                {header.column.getIsSorted() === 'asc' ? (
+                                  <ArrowUp size={13} className="text-primary font-bold" />
+                                ) : header.column.getIsSorted() === 'desc' ? (
+                                  <ArrowDown size={13} className="text-primary font-bold" />
+                                ) : (
+                                  <ArrowUpDown size={12} className="opacity-40 hover:opacity-100" />
+                                )}
+                              </span>
+                            </div>
+                          </th>
+                        ))}
+                        {canEdit && <th className="px-4 py-2.5 font-semibold rounded-tr-md text-right w-24">Actions</th>}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody className="divide-y divide-stroke">
+                    {newAssetType === 'general' && (
+                      <AssetRow
+                        asset={{ isNew: true, type: 'general', asset_name: '', condition: 'Baik' }}
+                        canEdit={canEdit}
+                        onUpdate={handleSaveAsset}
+                        onCancelAdd={handleCancelAdd}
+                        departmentsData={departmentsData}
+                      />
+                    )}
+                    {generalTable.getRowModel().rows.length > 0 ? (
+                      generalTable.getRowModel().rows.map(row => (
+                        <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
+                      ))
+                    ) : (
+                      newAssetType !== 'general' && (
+                        <tr>
+                          <td colSpan={5} className="text-center py-8 text-gray-400">
+                            <p className="text-sm">Tidak ada data general asset yang cocok</p>
+                            {(assetSearch || assetConditionFilter !== 'all') && (
+                              <button
+                                onClick={() => { setAssetSearch(''); setAssetConditionFilter('all'); }}
+                                className="text-xs text-primary underline mt-1"
+                              >
+                                Reset filter & pencarian
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left whitespace-nowrap">
+                  <thead className="bg-gray-50 text-gray-600 border-b border-stroke text-xs">
+                    {individualTable.getHeaderGroups().map(headerGroup => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header, i) => (
+                          <th
+                            key={header.id}
+                            className={`px-4 py-2.5 font-semibold cursor-pointer select-none hover:bg-gray-100 transition-colors ${i === 0 ? 'rounded-tl-md' : ''}`}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                              <span className="text-gray-400">
+                                {header.column.getIsSorted() === 'asc' ? (
+                                  <ArrowUp size={13} className="text-primary font-bold" />
+                                ) : header.column.getIsSorted() === 'desc' ? (
+                                  <ArrowDown size={13} className="text-primary font-bold" />
+                                ) : (
+                                  <ArrowUpDown size={12} className="opacity-40 hover:opacity-100" />
+                                )}
+                              </span>
+                            </div>
+                          </th>
+                        ))}
+                        {canEdit && <th className="px-4 py-2.5 font-semibold rounded-tr-md text-right w-24">Actions</th>}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody className="divide-y divide-stroke">
+                    {newAssetType === 'individual' && (
+                      <AssetRow
+                        asset={{ isNew: true, type: 'individual', asset_name: '', condition: 'Baik' }}
+                        canEdit={canEdit}
+                        onUpdate={handleSaveAsset}
+                        onCancelAdd={handleCancelAdd}
+                        departmentsData={departmentsData}
+                      />
+                    )}
+                    {individualTable.getRowModel().rows.length > 0 ? (
+                      individualTable.getRowModel().rows.map(row => (
+                        <AssetRow key={row.original.id} asset={row.original} canEdit={canEdit} onUpdate={handleSaveAsset} onDelete={handleDeleteAsset} departmentsData={departmentsData} />
+                      ))
+                    ) : (
+                      newAssetType !== 'individual' && (
+                        <tr>
+                          <td colSpan={8} className="text-center py-8 text-gray-400">
+                            <p className="text-sm">Tidak ada data individual asset yang cocok</p>
+                            {(assetSearch || assetConditionFilter !== 'all') && (
+                              <button
+                                onClick={() => { setAssetSearch(''); setAssetConditionFilter('all'); }}
+                                className="text-xs text-primary underline mt-1"
+                              >
+                                Reset filter & pencarian
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {(() => {
+              const activeTable = selectedAssetTab === 'general' ? generalTable : individualTable;
+              const totalFiltered = selectedAssetTab === 'general' ? filteredGeneralData.length : filteredIndividualData.length;
+              const totalRaw = selectedAssetTab === 'general' ? (assetsData.general?.length || 0) : (assetsData.individual?.length || 0);
+              const startRow = totalFiltered === 0 ? 0 : assetPagination.pageIndex * assetPagination.pageSize + 1;
+              const endRow = Math.min((assetPagination.pageIndex + 1) * assetPagination.pageSize, totalFiltered);
+              const pageCount = activeTable.getPageCount();
+
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-3 border-t border-stroke text-xs text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Tampilkan:</span>
+                    <select
+                      value={assetPagination.pageSize}
+                      onChange={(e) => {
+                        const size = Number(e.target.value);
+                        setAssetPagination({ pageIndex: 0, pageSize: size });
+                      }}
+                      className="bg-white border border-stroke rounded px-2 py-1 text-xs text-boxdark font-medium focus:border-primary outline-none cursor-pointer shadow-sm"
+                    >
+                      {[10, 25, 50, 100].map(pageSize => (
+                        <option key={pageSize} value={pageSize}>{pageSize} baris</option>
+                      ))}
+                    </select>
+                    <span className="text-gray-500 ml-1">
+                      Menampilkan <span className="font-semibold text-boxdark">{startRow}</span> - <span className="font-semibold text-boxdark">{endRow}</span> dari <span className="font-semibold text-boxdark">{totalFiltered}</span> data
+                      {totalFiltered !== totalRaw && <span className="text-gray-400 ml-1">(difilter dari {totalRaw})</span>}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => activeTable.previousPage()}
+                      disabled={!activeTable.getCanPreviousPage()}
+                      className="px-2.5 py-1.5 border border-stroke rounded-md bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white text-boxdark font-medium flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed shadow-sm transition-colors"
+                      title="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Prev</span>
+                    </button>
+
+                    <div className="px-3 py-1 bg-gray-50 border border-stroke rounded-md font-semibold text-boxdark">
+                      Hal {pageCount === 0 ? 0 : assetPagination.pageIndex + 1} / {pageCount || 1}
+                    </div>
+
+                    <button
+                      onClick={() => activeTable.nextPage()}
+                      disabled={!activeTable.getCanNextPage()}
+                      className="px-2.5 py-1.5 border border-stroke rounded-md bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white text-boxdark font-medium flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed shadow-sm transition-colors"
+                      title="Halaman Selanjutnya"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </Modal>
@@ -1538,23 +1828,23 @@ export default function ITSystem({ user }) {
       <Modal isOpen={modalType === 'email'} onClose={() => setModalType(null)} title="Rincian Active Email" maxWidth="max-w-6xl">
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-2">
-            <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
+            <div className="bg-white rounded shadow-sm border border-stroke p-4 h-80 flex flex-col">
               <h5 className="text-sm font-bold text-boxdark mb-2">Distribusi Domain Email</h5>
               <div className="flex-1 w-full min-h-0 -ml-2 mt-2">
                 <Chart
-                  options={getBarOptions(domainData.map(d => d.name), '#3C50E0')}
-                  series={[{ name: 'Jumlah', data: domainData.map(d => d.count) }]}
+                  options={getHorizontalBarOptions(domainData.slice(0, 10).map(d => d.name), '#3C50E0')}
+                  series={[{ name: 'Jumlah', data: domainData.slice(0, 10).map(d => d.count) }]}
                   type="bar"
                   height="100%"
                 />
               </div>
             </div>
-            <div className="bg-white rounded shadow-sm border border-stroke p-4 h-72 flex flex-col">
-              <h5 className="text-sm font-bold text-boxdark mb-2">Distribusi Divisi / Dept</h5>
+            <div className="bg-white rounded shadow-sm border border-stroke p-4 h-80 flex flex-col">
+              <h5 className="text-sm font-bold text-boxdark mb-2">Top 10 Divisi / Departemen</h5>
               <div className="flex-1 w-full min-h-0 -ml-2 mt-2">
                 <Chart
-                  options={getBarOptions(divData.map(d => d.name), '#10B981')}
-                  series={[{ name: 'Jumlah', data: divData.map(d => d.count) }]}
+                  options={getHorizontalBarOptions(divData.slice(0, 10).map(d => d.name), '#10B981')}
+                  series={[{ name: 'Jumlah', data: divData.slice(0, 10).map(d => d.count) }]}
                   type="bar"
                   height="100%"
                 />
@@ -1773,38 +2063,89 @@ export default function ITSystem({ user }) {
       </Modal>
 
       {/* Ticketing Modal */}
-      <Modal isOpen={modalType === 'ticketing'} onClose={() => setModalType(null)} title="Rincian IT Ticketing" maxWidth="max-w-5xl">
+      <Modal isOpen={modalType === 'ticketing'} onClose={() => setModalType(null)} title="Rincian IT Ticketing" maxWidth="max-w-6xl">
         {ticketsData ? (
           <div className="space-y-6">
-            {/* Live API Status Banner */}
-            <div className="flex items-center justify-between bg-slate-50 border border-stroke rounded p-3 -mt-2">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${ticketsData.is_live ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
-                <span className="text-xs font-semibold text-boxdark">
-                  Sumber Tiket: {ticketsData.is_live ? 'Live Ticketing API Feed (v1/integrations/assets/tickets)' : 'Database Lokal (it_tickets)'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {ticketsData.is_live ? (
-                  <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-medium">
-                    Live Feed Active
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded font-medium">
-                    {ticketsData.has_token ? 'Mode Database Lokal' : 'Token Belum Dikonfigurasi'}
-                  </span>
-                )}
-                <button
-                  onClick={() => fetchTickets(true)}
-                  className="text-[10px] text-primary hover:underline font-medium ml-1 flex items-center gap-1"
-                  title="Refresh langsung dari API"
-                >
-                  <RefreshCw size={10} /> Refresh
-                </button>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Donut Kategori Ticket */}
+              <div className="bg-white rounded border border-stroke p-4 h-72 flex flex-col">
+                <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Kategori Ticket</h5>
+                {ticketsData.categories && ticketsData.categories.length > 0 ? (() => {
+                  const TICKET_COLORS = ['#EF4444','#F97316','#EAB308','#3B82F6','#8B5CF6','#10B981','#6366F1','#EC4899','#14B8A6','#F43F5E'];
+                  const total = ticketsData.categories.reduce((s, c) => s + parseInt(c.total || 0), 0);
+
+                  return (
+                    <div className="flex h-full min-h-0 w-full items-center justify-between gap-3 overflow-hidden">
+                      {/* Controlled Donut with Fixed Dimensions */}
+                      <div className="relative flex-shrink-0 w-[135px] h-[135px] flex items-center justify-center">
+                        <Chart
+                          options={{
+                            chart: { type: 'donut', fontFamily: 'Inter, sans-serif', sparkline: { enabled: true } },
+                            labels: ticketsData.categories.map(c => c.category),
+                            legend: { show: false },
+                            dataLabels: { enabled: false },
+                            colors: TICKET_COLORS,
+                            plotOptions: {
+                              pie: {
+                                donut: {
+                                  size: '72%',
+                                  labels: { show: false }
+                                }
+                              }
+                            },
+                            tooltip: {
+                              theme: 'light',
+                              y: {
+                                formatter: (val) => {
+                                  const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                  return `${val} (${pct}%)`;
+                                }
+                              }
+                            },
+                            stroke: { width: 1 }
+                          }}
+                          series={ticketsData.categories.map(c => parseInt(c.total || 0))}
+                          type="donut"
+                          height={135}
+                          width={135}
+                        />
+                        {/* HTML Center Overlay Label */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-sm font-bold text-boxdark leading-none">
+                            {ticketsData.total_resolved || 0}
+                          </span>
+                          <span className="text-[7px] font-semibold text-gray-400 uppercase mt-0.5 tracking-wider">
+                            RESOLVED
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Legend List */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 overflow-y-auto max-h-56 pr-1">
+                        {ticketsData.categories.map((c, i) => {
+                          const pct = total > 0 ? ((parseInt(c.total || 0) / total) * 100).toFixed(1) : 0;
+                          const color = TICKET_COLORS[i % TICKET_COLORS.length];
+                          return (
+                            <div key={i} className="flex items-center justify-between text-[11px] gap-1 leading-tight">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }}></span>
+                                <span className="truncate text-gray-600 font-medium text-[10px]" title={c.category}>{c.category}</span>
+                              </div>
+                              <span className="text-boxdark font-semibold shrink-0 text-right text-[10px]">
+                                {c.total} <span className="text-[9px] text-gray-400 font-normal">({pct}%)</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="flex items-center justify-center h-full text-gray-400 text-xs">Tidak ada data kategori</div>
+                )}
+              </div>
+
               {/* Ticket Volume (Tickets per Day) */}
               <div className="bg-white rounded border border-stroke p-4 h-72 flex flex-col">
                 <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Tickets per Day (Sen-Min)</h5>
@@ -1861,27 +2202,16 @@ export default function ITSystem({ user }) {
             <div className="bg-white rounded border border-stroke p-4">
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-bold text-boxdark">Daftar Ticket</h4>
-                <div className="flex gap-1.5 items-center">
-                  <button
-                    onClick={handleSyncTickets}
-                    disabled={isSyncingTickets}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 disabled:opacity-50 transition"
-                    title="Tarik tiket terbaru dari Ticketing API dan simpan ke database"
-                  >
-                    <RefreshCw size={12} className={isSyncingTickets ? 'animate-spin' : ''} />
-                    {isSyncingTickets ? 'Syncing...' : 'Sync Live API'}
-                  </button>
-                  {canEdit && (
-                    <>
-                      <button onClick={() => handleImportModal('ticketing')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
-                        Import Excel
-                      </button>
-                      <button onClick={() => setIsAddingTicket(true)} disabled={isAddingTicket} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
-                        <Plus size={14} /> Add Ticket
-                      </button>
-                    </>
-                  )}
-                </div>
+                {canEdit && (
+                  <div className="flex gap-1.5 items-center">
+                    <button onClick={() => handleImportModal('ticketing')} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 border border-gray-300 text-xs font-medium rounded hover:bg-gray-200">
+                      Import Excel
+                    </button>
+                    <button onClick={() => setIsAddingTicket(true)} disabled={isAddingTicket} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded hover:bg-opacity-90 disabled:opacity-50">
+                      <Plus size={14} /> Add Ticket
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="overflow-x-auto max-h-96">
                 <table className="w-full text-xs text-left">

@@ -145,21 +145,26 @@ class TicketingApiService
      */
     public function getDashboardTicketsData(?string $startDate = null, ?string $endDate = null, bool $forceRefresh = false): array
     {
-        $startDate = $startDate ?: date('Y-m-01');
-        $endDate = $endDate ?: date('Y-m-t');
-
-        $cacheKey = 'it_dashboard_live_tickets_' . md5($startDate . '_' . $endDate);
+        $isOvertime = empty($startDate) || empty($endDate);
+        $cacheKey = 'it_dashboard_live_tickets_' . ($isOvertime ? 'overtime' : md5($startDate . '_' . $endDate));
 
         if ($forceRefresh) {
             Cache::forget($cacheKey);
         }
 
-        return Cache::remember($cacheKey, 180, function () use ($startDate, $endDate) {
-            $fetched = $this->fetchAllTickets([
-                'date_from' => $startDate,
-                'date_to'   => $endDate,
-            ]);
+        return Cache::remember($cacheKey, 180, function () use ($startDate, $endDate, $isOvertime) {
+            $filters = [];
+            if (!$isOvertime) {
+                $filters['date_from'] = $startDate;
+                $filters['date_to']   = $endDate;
+            } else {
+                // Ketika overtime, remote API tech-radar membatasi ke bulan berjalan jika kosong.
+                // Kirim rentang luas dari awal sistem agar remote API mengembalikan seluruh data overtime.
+                $filters['date_from'] = '2020-01-01';
+                $filters['date_to']   = Carbon::now()->addYear()->format('Y-12-31');
+            }
 
+            $fetched = $this->fetchAllTickets($filters);
             $tickets = $fetched['tickets'] ?? [];
 
             return $this->computeDashboardMetrics($tickets, $startDate, $endDate, $fetched['summary'] ?? []);
@@ -169,7 +174,7 @@ class TicketingApiService
     /**
      * Menghitung metric KPI, grafik donut, grafik bar volume, dan tren resolusi dari koleksi tiket.
      */
-    public function computeDashboardMetrics(array $tickets, string $startDate, string $endDate, array $apiSummary = []): array
+    public function computeDashboardMetrics(array $tickets, ?string $startDate = null, ?string $endDate = null, array $apiSummary = []): array
     {
         $resolvedCount = 0;
         $totalMinutes = 0;
@@ -278,8 +283,13 @@ class TicketingApiService
         // Daily Resolution Chart (Line Chart)
         $dailyResolutionData = [];
         $dailyResolutionLabels = [];
-        $start = Carbon::parse($startDate);
-        $end = Carbon::parse($endDate);
+        if (empty($startDate) || empty($endDate)) {
+            $end = Carbon::now();
+            $start = Carbon::now()->subDays(13);
+        } else {
+            $start = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+        }
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateKey = $date->format('Y-m-d');
@@ -320,6 +330,11 @@ class TicketingApiService
      */
     public function syncToDatabase(array $filters = []): array
     {
+        if (empty($filters['date_from']) || empty($filters['date_to'])) {
+            $filters['date_from'] = '2020-01-01';
+            $filters['date_to']   = Carbon::now()->addYear()->format('Y-12-31');
+        }
+
         $fetched = $this->fetchAllTickets($filters);
         $tickets = $fetched['tickets'] ?? [];
 
