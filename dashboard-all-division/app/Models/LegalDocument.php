@@ -66,6 +66,10 @@ class LegalDocument extends Model
         $days = $this->days_remaining;
 
         if ($days === null) {
+            // Khusus SILO: tidak ada status permanen. Jika tanpa tanggal kedaluwarsa, statusnya adalah Pending Update
+            if ($this->category === 'silo') {
+                return 'pending';
+            }
             return 'no_expiry';
         }
 
@@ -78,10 +82,6 @@ class LegalDocument extends Model
 
         if ($days <= $criticalThreshold) {
             return 'critical'; // Perlu perpanjangan segera
-        }
-
-        if ($days <= 90) {
-            return 'warning'; // Mendekati jatuh tempo
         }
 
         return 'safe'; // Masih berlaku aman
