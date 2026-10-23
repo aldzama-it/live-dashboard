@@ -9,6 +9,7 @@ use App\Models\ItTicket;
 use App\Models\ItTicketKeyword;
 use App\Services\AccurateApiService;
 use App\Services\AssetApiService;
+use App\Services\OrbitApiService;
 use App\Services\TicketingApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,12 +22,18 @@ class ItDashboardController extends Controller
     protected $accurateApi;
     protected $ticketingApi;
     protected $assetApi;
+    protected $orbitApi;
 
-    public function __construct(AccurateApiService $accurateApi, TicketingApiService $ticketingApi, AssetApiService $assetApi)
-    {
+    public function __construct(
+        AccurateApiService $accurateApi, 
+        TicketingApiService $ticketingApi, 
+        AssetApiService $assetApi,
+        OrbitApiService $orbitApi
+    ) {
         $this->accurateApi = $accurateApi;
         $this->ticketingApi = $ticketingApi;
         $this->assetApi = $assetApi;
+        $this->orbitApi = $orbitApi;
     }
 
     public function getAssets(Request $request)
@@ -510,6 +517,22 @@ class ItDashboardController extends Controller
 
     public function getSoftware(Request $request)
     {
+        $isRefresh = $request->query('refresh') === 'true' || $request->query('refresh') === '1';
+
+        // 1. Jika API AZM ORBIT terkonfigurasi, ambil data live
+        if ($this->orbitApi->isConfigured()) {
+            try {
+                $liveSoftwareData = $this->orbitApi->getDashboardSoftwareData($isRefresh);
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $liveSoftwareData
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('ORBIT API live fetch failed, fallback to local DB: ' . $e->getMessage());
+            }
+        }
+
+        // 2. Fallback: Ambil dari database lokal (it_softwares)
         $softwares = \App\Models\ItSoftware::all();
         
         $launched = $softwares->where('status', 'launched')->values();
@@ -521,6 +544,8 @@ class ItDashboardController extends Controller
                 'summary' => [
                     'launched' => $launched->count(),
                     'development' => $development->count(),
+                    'total' => $launched->count() + $development->count(),
+                    'source' => 'local',
                 ],
                 'launched_list' => $launched,
                 'development_list' => $development

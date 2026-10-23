@@ -59,4 +59,9 @@ return [
     'token' => env('ASSET_API_V1_TOKEN'),
 ],
 
+'orbit' => [
+    'base_url' => env('ORBIT_BASE_URL'),
+    'token' => env('ORBIT_API_TOKEN'),
+],
+
 ];

@@ -604,6 +604,7 @@ export default function ITSystem({ user }) {
   const [isAddingBudget, setIsAddingBudget] = useState(false);
   const [softwareData, setSoftwareData] = useState(null);
   const [isAddingSoftware, setIsAddingSoftware] = useState(false);
+  const [isRefreshingSoftware, setIsRefreshingSoftware] = useState(false);
   const [highlightsData, setHighlightsData] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -673,12 +674,15 @@ export default function ITSystem({ user }) {
     }
   };
 
-  const fetchSoftware = async () => {
+  const fetchSoftware = async (isRefresh = false) => {
     try {
-      const res = await api.get('/api/it-dashboard/software');
+      if (isRefresh) setIsRefreshingSoftware(true);
+      const res = await api.get(`/api/it-dashboard/software${isRefresh ? '?refresh=true' : ''}`);
       setSoftwareData(res.data.data);
     } catch (err) {
       console.error(err);
+    } finally {
+      if (isRefresh) setIsRefreshingSoftware(false);
     }
   };
 
@@ -2017,43 +2021,119 @@ export default function ITSystem({ user }) {
       </Modal>
 
       {/* Software Modal */}
-      <Modal isOpen={modalType === 'software'} onClose={() => setModalType(null)} title="Rincian Software Develop" maxWidth="max-w-4xl">
+      <Modal 
+        isOpen={modalType === 'software'} 
+        onClose={() => setModalType(null)} 
+        title={
+          <div className="flex items-center justify-between w-full pr-6">
+            <span>Rincian Software Develop & Launched</span>
+            <button 
+              onClick={() => fetchSoftware(true)} 
+              disabled={isRefreshingSoftware}
+              title="Refresh Data"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 bg-primary/5 hover:bg-primary/10 rounded transition disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isRefreshingSoftware ? 'animate-spin' : ''} />
+              <span>{isRefreshingSoftware ? 'Menyinkronkan...' : 'Refresh'}</span>
+            </button>
+          </div>
+        } 
+        maxWidth="max-w-5xl"
+      >
         {softwareData && softwareData.summary ? (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Development Progress List */}
               <div className="bg-white rounded border border-stroke p-4 flex flex-col gap-3">
-                <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">In Development</h5>
-                {softwareData.development_list?.map((sw, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 rounded border border-stroke flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-semibold text-boxdark">{sw.name}</span>
-                      <span className="text-primary font-medium">{sw.progress}%</span>
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#3C50E0]"></span>
+                    In Development ({softwareData.development_list?.length || 0})
+                  </h5>
+                </div>
+                <div className="flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                  {softwareData.development_list?.map((sw, idx) => (
+                    <div key={sw.id || idx} className="p-3 bg-gray-50 rounded border border-stroke flex flex-col gap-2 transition hover:border-primary/40">
+                      <div className="flex justify-between items-start text-sm gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-boxdark truncate">{sw.name || sw.title}</span>
+                          {sw.description && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{sw.description}</p>}
+                        </div>
+                        <span className="text-primary font-bold text-xs shrink-0 bg-primary/10 px-2 py-0.5 rounded">{sw.progress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${sw.progress}%` }}></div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] text-gray-500 border-t border-gray-200/60 mt-1">
+                        {sw.pic_name && (
+                          <span className="bg-white px-2 py-0.5 rounded border border-gray-200">
+                            PIC: <span className="font-medium text-boxdark">{sw.pic_name}</span>
+                          </span>
+                        )}
+                        {sw.deadline && (
+                          <span className="bg-white px-2 py-0.5 rounded border border-gray-200">
+                            Deadline: <span className="font-medium text-boxdark">{sw.deadline}</span>
+                          </span>
+                        )}
+                        {sw.priority && (
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-medium">
+                            {sw.priority}
+                          </span>
+                        )}
+                        {sw.status_name && (
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-medium">
+                            {sw.status_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${sw.progress}%` }}></div>
-                    </div>
-                  </div>
-                ))}
-                {(!softwareData.development_list || softwareData.development_list.length === 0) && <p className="text-xs text-gray-400">No active development</p>}
+                  ))}
+                  {(!softwareData.development_list || softwareData.development_list.length === 0) && (
+                    <p className="text-xs text-gray-400 py-6 text-center">Tidak ada software dalam tahap development</p>
+                  )}
+                </div>
               </div>
 
               {/* Launched Software List */}
               <div className="bg-white rounded border border-stroke p-4 flex flex-col gap-3">
-                <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Launched Software</h5>
-                {softwareData.launched_list?.map((sw, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 rounded border border-stroke flex justify-between items-center">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold text-boxdark truncate">{sw.name}</span>
-                      <span className="text-xs text-gray-500 truncate">{sw.description}</span>
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#10B981]"></span>
+                    Launched Software ({softwareData.launched_list?.length || 0})
+                  </h5>
+                </div>
+                <div className="flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                  {softwareData.launched_list?.map((sw, idx) => (
+                    <div key={sw.id || idx} className="p-3 bg-gray-50 rounded border border-stroke flex flex-col gap-2 transition hover:border-emerald-300">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold text-boxdark truncate">{sw.name || sw.title}</span>
+                          {sw.description && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{sw.description}</p>}
+                        </div>
+                        <span className="text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-0.5 rounded-full shrink-0">
+                          Launched
+                        </span>
+                      </div>
+                      {(sw.pic_name || sw.completed_at || sw.start_date) && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] text-gray-500 border-t border-gray-200/60 mt-1">
+                          {sw.pic_name && (
+                            <span className="bg-white px-2 py-0.5 rounded border border-gray-200">
+                              PIC: <span className="font-medium text-boxdark">{sw.pic_name}</span>
+                            </span>
+                          )}
+                          {(sw.completed_at || sw.start_date) && (
+                            <span className="bg-white px-2 py-0.5 rounded border border-gray-200">
+                              Selesai: <span className="font-medium text-boxdark">{sw.completed_at || sw.start_date}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex flex-col items-end shrink-0 pl-2">
-                      <span className="text-xs font-semibold text-success bg-success/10 px-2.5 py-1 rounded-full">
-                        Launched
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                  {(!softwareData.launched_list || softwareData.launched_list.length === 0) && (
+                    <p className="text-xs text-gray-400 py-6 text-center">Belum ada software yang di-launch</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
