@@ -623,3 +623,16 @@ When developing or integrating endpoints related to Unified Asset API v1 (`/api/
 5. **Deduplication Logic**: For repeated handover categories (`camera`, `ht`, `laptop`, `general-inventory`, `tablet`), prioritize record with `return_date = null`; otherwise pick the latest record.
 6. **Data Privacy & Security**: Always use explicit column selection. Never expose credentials, passwords, access tokens, login usernames, or freeform text notes in responses.
 7. **Fallback & Caching**: Always implement caching (e.g., 5 minutes) and a local database fallback (`it_assets` / `it_emails`) so dashboards remain resilient if the remote server is unreachable.
+
+# 19. AZM ORBIT Project Software API v1 Standards
+
+When developing or integrating endpoints/services with AZM ORBIT Project Software API (`/api/v1/projects`):
+
+1. **Strictly Read-Only**: The AZM ORBIT API is read-only. Do not implement write, update, or mutation operations (POST, PUT, DELETE) against the remote service.
+2. **Server-to-Server Only (Security)**: The Sanctum token (`ORBIT_API_TOKEN`) with `projects:read` ability must NEVER be exposed to the browser or frontend client. All requests must be executed through backend services/controllers.
+3. **Cursor-Based Pagination**: Endpoint `GET /api/v1/projects` uses cursor pagination via `limit` (1-100, default 25) and `cursor` (ID integer). Loop pagination while `has_more` is true using `next_cursor`.
+4. **Scope & Invariants**: Only returns approved Software projects (`approval_status: APPROVED`). Both active (`is_completed: false`) and completed projects are returned. Category matching is case-insensitive.
+5. **Relations & Nullability**: In single-entity relationships, empty fields are `null`. In list relations (`tasks`, `contributors`, `notes`, `activities`, `board_statuses`, etc.), empty relations are always empty arrays `[]`.
+6. **Attachment Downloads**: Files listed under `tasks[].files` must be downloaded via `GET /api/v1/task-files/{id}` using the same `Authorization: Bearer <TOKEN>` header.
+7. **Privacy & Identity**: User identity objects only expose `id` and `name`. Never expect or expose sensitive user details.
+8. **Resilience & Caching**: Cache responses appropriately and implement graceful handling for 401, 403, 404, or network outages.
