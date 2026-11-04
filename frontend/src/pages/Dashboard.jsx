@@ -535,7 +535,11 @@ export default function Dashboard({ user, setUser }) {
               </ErrorBoundary>
             } />
             <Route path="/finance-admin/hrd/overview" element={<HRD user={user} />} />
-            <Route path="/finance-admin/qms-audit/overview" element={<QMSAudit user={user} />} />
+            <Route path="/finance-admin/qms-audit/overview" element={
+              <ErrorBoundary>
+                <QMSAudit user={user} />
+              </ErrorBoundary>
+            } />
             <Route path="/finance-admin/legal/overview" element={<Legal user={user} />} />
             <Route path="/finance-admin/it-system/overview" element={
               <ErrorBoundary>
