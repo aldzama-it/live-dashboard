@@ -118,7 +118,7 @@ const DATA_SOURCE_MAPPING = {
   },
   kpi: {
     folder: 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\',
-    file: 'Data KPI Divisi Legal 2026 .xlsx',
+    file: 'Data KPI Divisi Legal 2026.xlsx',
     sheet: '5 Sheet: Legal Review, Legal Advisory, Legal Drafting, Litigasi, Pelanggaran',
     label: 'KPI Kinerja Divisi Legal',
     desc: 'SLA Drafting, Review Kontrak, Advisory, Litigasi & Pelanggaran 2026'
@@ -155,6 +155,46 @@ const DATA_SOURCE_MAPPING = {
   }
 };
 
+function formatLastUpdate(timestamp) {
+  if (!timestamp) return null;
+  try {
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return String(timestamp);
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    const str = String(timestamp);
+    if (str.includes('T') || str.includes(':')) {
+      return `${day} ${month} ${year}, ${hours}:${minutes}`;
+    }
+    return `${day} ${month} ${year}`;
+  } catch (e) {
+    return null;
+  }
+}
+
+function LastUpdateBadge({ timestamp, className = "" }) {
+  if (!timestamp) return null;
+  const formatted = formatLastUpdate(timestamp);
+  if (!formatted) return null;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-slate-500 bg-slate-50 border border-slate-200/90 shadow-2xs shrink-0 ${className}`}
+      title={`Terakhir diperbarui: ${formatted}`}
+    >
+      <Clock size={9.5} className="text-slate-400 shrink-0" />
+      <span className="text-slate-400 font-normal hidden sm:inline">Update:</span>
+      <span className="font-semibold text-slate-600">{formatted}</span>
+    </span>
+  );
+}
+
 function DatasetBadgeButton({ source, label = "Dataset", onClick, className = "" }) {
   if (!source) return null;
   return (
@@ -175,13 +215,20 @@ function DatasetBadgeButton({ source, label = "Dataset", onClick, className = ""
 
 function DataSourceCard({ source, onOpenDetail }) {
   if (!source) return null;
+  const lastUpdate = source.lastUpdate;
 
   return (
     <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs gap-2">
-      <div className="flex items-center gap-1.5 min-w-0 text-slate-600 text-[11px]">
+      <div className="flex items-center gap-2 min-w-0 text-slate-600 text-[11px]">
         <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
         <span className="text-slate-400 hidden sm:inline">Dataset:</span>
         <span className="font-semibold text-slate-800 truncate">{source.label || 'Sumber Data Asal'}</span>
+        {lastUpdate && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-medium text-slate-600 bg-white border border-slate-200 shrink-0">
+            <Clock size={10} className="text-slate-400" />
+            <span>Terakhir Diperbarui: {formatLastUpdate(lastUpdate)}</span>
+          </span>
+        )}
       </div>
       <button
         type="button"
@@ -560,6 +607,10 @@ export default function Legal({ user }) {
   useEffect(() => {
     if (activeDetailModal === 'documents') {
       fetchDocumentsList();
+      const interval = setInterval(() => {
+        fetchDocumentsList();
+      }, 3000);
+      return () => clearInterval(interval);
     }
   }, [activeDetailModal, docCategoryTab, docUrgencyFilter, docSearch, docSiloTypeFilter]);
 
@@ -1074,6 +1125,7 @@ export default function Legal({ user }) {
         type: 'area',
         toolbar: { show: false },
         fontFamily: 'Inter, sans-serif',
+        parentHeightOffset: 0,
         events: {
           dataPointSelection: () => {
             setActiveDetailModal('kpi');
@@ -1099,21 +1151,31 @@ export default function Legal({ user }) {
       xaxis: {
         categories: months,
         labels: {
-          style: { fontSize: '9px', colors: '#64748b' },
+          show: true,
+          rotate: 0,
+          rotateAlways: false,
+          hideOverlappingLabels: false,
+          trim: false,
+          offsetY: -3,
+          style: { fontSize: '8.5px', colors: '#64748b', fontWeight: 500 },
         },
         axisBorder: { show: false },
         axisTicks: { show: false },
+        tooltip: { enabled: false },
       },
       yaxis: {
         labels: {
-          style: { fontSize: '9px', colors: '#64748b' },
+          style: { fontSize: '8.5px', colors: '#64748b' },
+          offsetX: -4,
         },
         min: 0,
+        tickAmount: 2,
       },
       legend: {
         position: 'top',
         horizontalAlign: 'right',
         fontSize: '9px',
+        offsetY: -6,
         markers: { radius: 2, width: 7, height: 7 },
         itemMargin: { horizontal: 3, vertical: 0 },
       },
@@ -1174,7 +1236,7 @@ export default function Legal({ user }) {
       grid: {
         borderColor: '#f1f5f9',
         strokeDashArray: 3,
-        padding: { top: -14, bottom: -6, left: 10, right: 10 },
+        padding: { top: -16, bottom: 0, left: 8, right: 8 },
       },
     };
 
@@ -1253,7 +1315,7 @@ export default function Legal({ user }) {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.silo} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...DATA_SOURCE_MAPPING.silo, lastUpdate: docs?.last_update }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -1476,7 +1538,7 @@ export default function Legal({ user }) {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.kpi} label="Dataset" onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...DATA_SOURCE_MAPPING.kpi, lastUpdate: kpi?.last_update }} label="Dataset" onClick={setSelectedDataSourceModal} />
               <button
                 type="button"
                 onClick={() => {
@@ -1553,16 +1615,14 @@ export default function Legal({ user }) {
           </div>
 
           {/* Area Chart: Monthly Trend */}
-          <div className="w-full flex-1 min-h-[80px] my-auto py-0.5 relative flex items-center justify-center">
-            <div className="w-full h-full min-h-[80px]">
-              <Chart
-                options={workloadTrendChart.options}
-                series={workloadTrendChart.series}
-                type="area"
-                height="100%"
-                width="100%"
-              />
-            </div>
+          <div className="w-full flex-1 min-h-[108px] h-[108px] relative">
+            <Chart
+              options={workloadTrendChart.options}
+              series={workloadTrendChart.series}
+              type="area"
+              height="100%"
+              width="100%"
+            />
           </div>
 
           <div className="pt-2 pb-0.5 border-t border-slate-100 flex items-center justify-between text-[9.5px] text-slate-500">
@@ -1626,7 +1686,7 @@ export default function Legal({ user }) {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.budget} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...DATA_SOURCE_MAPPING.budget, lastUpdate: budget?.last_update }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
             </div>
           </div>
@@ -1704,7 +1764,7 @@ export default function Legal({ user }) {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={DATA_SOURCE_MAPPING.regulations} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...DATA_SOURCE_MAPPING.regulations, lastUpdate: regulationsSummary?.last_update }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition ml-0.5" />
             </div>
           </div>
@@ -1744,7 +1804,7 @@ export default function Legal({ user }) {
           <div className="flex items-center justify-between text-[9.5px] text-slate-500 shrink-0 pt-2 pb-0.5 border-t border-slate-100">
             <span className="text-emerald-700 font-semibold flex items-center gap-1">
               <CheckCircle2 size={11} className="text-emerald-600" />
-              Tingkat Kepatuhan: {regulationsSummary.compliance_rate ?? 91}%
+              {regulationsSummary.comply ?? 59} Regulasi Terpenuhi
             </span>
             <span className="text-emerald-700 font-semibold group-hover:underline flex items-center gap-0.5">
               Lihat Detail <ChevronRight size={10} />
@@ -1786,7 +1846,7 @@ export default function Legal({ user }) {
           </div>
 
           {/* Asal Sumber Data File (Clean & Structured) */}
-          <DataSourceCard source={DATA_SOURCE_MAPPING[docCategoryTab]} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...DATA_SOURCE_MAPPING[docCategoryTab], lastUpdate: docs?.last_update }} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Search & Filter */}
           <div className="flex items-center justify-between gap-2">
@@ -2277,7 +2337,7 @@ export default function Legal({ user }) {
           </div>
 
           {/* Asal Sumber Data File (Clean & Structured) */}
-          <DataSourceCard source={DATA_SOURCE_MAPPING.manpower} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...DATA_SOURCE_MAPPING.manpower, lastUpdate: kpi?.last_update }} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Filter Toolbar: Name, Status, Branch/Site & Mode */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gray-50 border border-stroke rounded-lg">
@@ -2596,7 +2656,7 @@ export default function Legal({ user }) {
               </div>
 
               {/* Asal Sumber Data File (Clean & Structured) */}
-              <DataSourceCard source={DATA_SOURCE_MAPPING.kpi} onOpenDetail={setSelectedDataSourceModal} />
+              <DataSourceCard source={{ ...DATA_SOURCE_MAPPING.kpi, lastUpdate: kpi?.last_update }} onOpenDetail={setSelectedDataSourceModal} />
 
               {/* 7 Ringkasan Angka Utama */}
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
@@ -3000,7 +3060,7 @@ export default function Legal({ user }) {
       >
         <div className="space-y-4 text-xs">
           {/* Asal Sumber Data File (Clean & Structured) */}
-          <DataSourceCard source={DATA_SOURCE_MAPPING.budget} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...DATA_SOURCE_MAPPING.budget, lastUpdate: budget?.last_update }} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Toggle View: Filter Bulan vs Akumulasi YTD & Dropdown Tiap Bulan */}
           <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
@@ -3160,7 +3220,7 @@ export default function Legal({ user }) {
       >
         <div className="space-y-3.5 text-xs">
           {/* Top Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between text-slate-500 mb-1">
                 <span className="text-[10.5px] font-medium">Total Klausul</span>
@@ -3184,19 +3244,11 @@ export default function Legal({ user }) {
               </div>
               <div className="text-xl font-bold text-rose-700">{regulationsSummary.non_comply ?? 6}</div>
             </div>
-
-            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-              <div className="flex items-center justify-between text-blue-800 mb-1">
-                <span className="text-[10.5px] font-bold">Tingkat Kepatuhan</span>
-                <TrendingUp size={14} className="text-blue-600" />
-              </div>
-              <div className="text-xl font-bold text-blue-700">{regulationsSummary.compliance_rate ?? 91}%</div>
-            </div>
           </div>
 
           {/* Asal Sumber Data File (Clean & Structured) */}
           <DataSourceCard
-            source={DATA_SOURCE_MAPPING.regulations}
+            source={{ ...DATA_SOURCE_MAPPING.regulations, lastUpdate: regulationsSummary?.last_update }}
             onOpenDetail={setSelectedDataSourceModal}
           />
 
@@ -3593,7 +3645,7 @@ export default function Legal({ user }) {
         {selectedDocForDetail && (
           <div className="space-y-3.5 text-xs">
             {/* Box Sumber Data Asal Dokumen (Clean & Structured) */}
-            <DataSourceCard source={DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab]} onOpenDetail={setSelectedDataSourceModal} />
+            <DataSourceCard source={{ ...DATA_SOURCE_MAPPING[selectedDocForDetail.category || docCategoryTab], lastUpdate: docs?.last_update }} onOpenDetail={setSelectedDataSourceModal} />
 
             {/* Informasi Detail Dokumen */}
             <div className="p-3 bg-gray-50 border border-stroke rounded-xl space-y-2.5">
@@ -3804,6 +3856,19 @@ export default function Legal({ user }) {
                   <span className="text-[10px] text-slate-400 font-medium">Worksheet Aktif</span>
                 </div>
               </div>
+
+              {/* Terakhir Diperbarui */}
+              {selectedDataSourceModal.lastUpdate && (
+                <div>
+                  <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Terakhir Diperbarui (Last Modified):</span>
+                  <div className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-lg">
+                    <Clock size={13} className="text-emerald-600 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-slate-800">
+                      {formatLastUpdate(selectedDataSourceModal.lastUpdate)}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Deskripsi & Keterangan */}
               {selectedDataSourceModal.desc && (

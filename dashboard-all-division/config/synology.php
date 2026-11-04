@@ -89,8 +89,8 @@ return [
             'imports' => ['regulations' => \App\Imports\Legal\LegalRegulationImport::class],
         ],
         'Legal_Kpi' => [
-            'file' => 'dashboard-data/legal/Data KPI Divisi Legal 2026 .xlsx',
-            'direct_path' => 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\Data KPI Divisi Legal 2026 .xlsx',
+            'file' => 'dashboard-data/legal/Data KPI Divisi Legal 2026.xlsx',
+            'direct_path' => 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\Data KPI Divisi Legal 2026.xlsx',
             'imports' => ['kpi' => \App\Imports\Legal\LegalKpiImport::class],
         ],
         'Legal_Budget' => [
