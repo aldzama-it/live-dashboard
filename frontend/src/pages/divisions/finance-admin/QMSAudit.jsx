@@ -55,46 +55,86 @@ const MONTH_NAMES = [
 
 const QMS_DATA_SOURCES = {
   kpi: {
-    folder: 'Z:\\dashboard-data\\qms\\',
-    file: '1. Monitoring KPI 2026.xlsx',
-    fullFile: '1. Monitoring KPI 2026.xlsx',
+    folder: '\\\\192.168.5.2\\Internal ISO Documents\\02_Corporate Secretary\\3. KPI & RnR Perusahaan\\',
+    file: 'FRM - AZM - 602- 026 Monitoring KPI 2026.xlsx',
+    fullFile: 'FRM - AZM - 602- 026 Monitoring KPI 2026.xlsx',
     sheet: '19 Sheet Divisi (Rekap KPI Bulanan)',
     label: 'Monitoring KPI Seluruh Divisi',
     desc: 'Rekapitulasi target dan realisasi KPI 19 divisi perusahaan per bulan / tahun 2026 yang diisi oleh masing-masing PIC divisi.',
   },
   followup: {
-    folder: 'Z:\\dashboard-data\\qms\\',
-    file: '4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx',
-    fullFile: '4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx',
+    folder: '\\\\192.168.5.2\\Internal ISO Documents\\02_Corporate Secretary\\1. BOD Meeting\\2026\\',
+    file: 'FRM-AZM-602-022 Follow up Evaluasi dan Strategi BoD Register.xlsx',
+    fullFile: 'FRM-AZM-602-022 Follow up Evaluasi dan Strategi BoD Register.xlsx',
     sheet: 'Sheet Bulan (Januari s/d Desember)',
     label: 'Follow-up Evaluasi & Strategi BoD',
     desc: 'Formulir monitoring tindak lanjut notulen rapat BoD, progres penyelesaian tugas, status due date, dan PIC penanggung jawab per arahan direksi.',
   },
   risk: {
-    folder: 'Z:\\dashboard-data\\qms\\',
-    file: '3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx',
-    fullFile: '3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx',
+    folder: '\\\\192.168.5.2\\Internal ISO Documents\\01_QMS & Audit\\05. Risk Register\\Risk Assesment Q1-3\\',
+    file: 'RISK ASSESMENT - Consolidated FRM-602-009.xlsx',
+    fullFile: 'RISK ASSESMENT - Consolidated FRM-602-009.xlsx',
     sheet: 'Risk Assessment',
     label: 'Risk Assessment Register (FRM-602-009)',
     desc: 'Register mitigasi risiko konsolidasi seluruh divisi dengan kategori Strategic, Operational, Financial, dan Compliance.',
   },
   corrective: {
-    folder: 'Z:\\dashboard-data\\qms\\',
-    file: '2. CORRECTIVE ACTION REGISTER.xlsx',
-    fullFile: '2. CORRECTIVE ACTION REGISTER.xlsx',
+    folder: '\\\\192.168.5.2\\Internal ISO Documents\\01_QMS & Audit\\07. Internal Audit\\2026\\April\\',
+    file: 'FRM-AZM-602-008 Corrective Action Register List (2026).xlsx',
+    fullFile: 'FRM-AZM-602-008 Corrective Action Register List (2026).xlsx',
     sheet: 'CAR Register',
     label: 'Corrective Action Register (CAR)',
     desc: 'Register temuan audit internal/eksternal dan rencana aksi perbaikan mutu (CAR) dengan status Open, On Progress, dan Closed.',
   },
   kaizen: {
-    folder: 'Z:\\dashboard-data\\qms\\',
-    file: '5. KAIZEN RECAP (2).xlsx',
-    fullFile: '5. KAIZEN RECAP (2).xlsx',
+    folder: '\\\\192.168.5.2\\Internal ISO Documents\\01_QMS & Audit\\06. Kaizen\\',
+    file: 'KAIZEN RECAP Rev 01.xlsx',
+    fullFile: 'KAIZEN RECAP Rev 01.xlsx',
     sheet: 'Consolidated Scores',
     label: 'Kaizen Recap & Ranking Inovasi',
     desc: 'Rekapitulasi ide continuous improvement (Kaizen) seluruh karyawan AZM dengan sistem penilaian pembobotan 60% Direksi dan 40% Manager.',
   },
 };
+
+function formatLastUpdate(timestamp) {
+  if (!timestamp) return null;
+  try {
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return String(timestamp);
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    const str = String(timestamp);
+    if (str.includes('T') || str.includes(':')) {
+      return `${day} ${month} ${year}, ${hours}:${minutes}`;
+    }
+    return `${day} ${month} ${year}`;
+  } catch (e) {
+    return null;
+  }
+}
+
+function LastUpdateBadge({ timestamp, className = "" }) {
+  if (!timestamp) return null;
+  const formatted = formatLastUpdate(timestamp);
+  if (!formatted) return null;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-slate-500 bg-slate-50 border border-slate-200/90 shadow-2xs shrink-0 ${className}`}
+      title={`Terakhir diperbarui: ${formatted}`}
+    >
+      <Clock size={9.5} className="text-slate-400 shrink-0" />
+      <span className="text-slate-400 font-normal hidden sm:inline">Update:</span>
+      <span className="font-semibold text-slate-600">{formatted}</span>
+    </span>
+  );
+}
 
 function DatasetBadgeButton({ source, label = "Dataset", onClick, className = "" }) {
   if (!source) return null;
@@ -116,13 +156,20 @@ function DatasetBadgeButton({ source, label = "Dataset", onClick, className = ""
 
 function DataSourceCard({ source, onOpenDetail }) {
   if (!source) return null;
+  const lastUpdate = source.lastUpdate;
 
   return (
     <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs gap-2">
-      <div className="flex items-center gap-1.5 min-w-0 text-slate-600 text-[11px]">
+      <div className="flex items-center gap-2 min-w-0 text-slate-600 text-[11px]">
         <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
         <span className="text-slate-400 hidden sm:inline">Dataset:</span>
         <span className="font-semibold text-slate-800 truncate">{source.label || 'Sumber Data Asal'}</span>
+        {lastUpdate && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-medium text-slate-600 bg-white border border-slate-200 shrink-0">
+            <Clock size={10} className="text-slate-400" />
+            <span>Terakhir Diperbarui: {formatLastUpdate(lastUpdate)}</span>
+          </span>
+        )}
       </div>
       <button
         type="button"
@@ -247,7 +294,7 @@ export default function QMSAudit() {
   const [detailMonthFilter, setDetailMonthFilter] = useState('all');
   const [detailStatusFilter, setDetailStatusFilter] = useState('all');
   const [detailSearch, setDetailSearch] = useState('');
-  const [kpiSortColumn, setKpiSortColumn] = useState('compliance'); // 'division' | 'meeting' | 'not_meeting' | 'pending' | 'compliance'
+  const [kpiSortColumn, setKpiSortColumn] = useState('meeting'); // 'division' | 'meeting' | 'not_meeting' | 'pending'
   const [kpiSortDirection, setKpiSortDirection] = useState('desc'); // 'asc' | 'desc'
 
   const handleKpiSort = (col) => {
@@ -284,8 +331,8 @@ export default function QMSAudit() {
     return () => clearTimeout(t);
   }, []);
 
-  const fetchData = async (forceRefresh = false) => {
-    setLoading(true);
+  const fetchData = async (forceRefresh = false, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -306,14 +353,32 @@ export default function QMSAudit() {
       setDashboardData(json);
     } catch (err) {
       console.error('Error fetching QMS live data:', err);
-      setError(err.message || 'Gagal memuat data dari service QMS');
+      if (!isSilent) {
+        setError(err.message || 'Gagal memuat data dari service QMS');
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+
+    // Auto-update berkala tiap 30 detik agar selalu up to date dengan file Excel di server Synology
+    const interval = setInterval(() => {
+      fetchData(false, true);
+    }, 30000);
+
+    // Auto-sync saat pengguna kembali ke tab browser
+    const handleFocus = () => {
+      fetchData(false, true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [dateRange?.startDate, dateRange?.endDate]);
 
   // Download helper for CSV
@@ -806,7 +871,7 @@ export default function QMSAudit() {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={QMS_DATA_SOURCES.kpi} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...QMS_DATA_SOURCES.kpi, lastUpdate: dashboardData?.source?.modified_at || dashboardData?.source?.uploaded_at }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -991,7 +1056,7 @@ export default function QMSAudit() {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={QMS_DATA_SOURCES.followup} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...QMS_DATA_SOURCES.followup, lastUpdate: dashboardData?.follow_up_bod?.source?.modified_at || dashboardData?.follow_up_bod?.source?.uploaded_at }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -1115,7 +1180,7 @@ export default function QMSAudit() {
                   <option key={d.name} value={d.name}>{d.name}</option>
                 ))}
               </select>
-              <DatasetBadgeButton source={QMS_DATA_SOURCES.risk} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...QMS_DATA_SOURCES.risk, lastUpdate: dashboardData?.risk_assessment?.source?.modified_at || dashboardData?.risk_assessment?.source?.uploaded_at }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -1190,7 +1255,7 @@ export default function QMSAudit() {
               </h3>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={QMS_DATA_SOURCES.corrective} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...QMS_DATA_SOURCES.corrective, lastUpdate: dashboardData?.corrective_action?.source?.modified_at || dashboardData?.corrective_action?.source?.uploaded_at }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -1264,7 +1329,7 @@ export default function QMSAudit() {
               </h3>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <DatasetBadgeButton source={QMS_DATA_SOURCES.kaizen} onClick={setSelectedDataSourceModal} />
+              <DatasetBadgeButton source={{ ...QMS_DATA_SOURCES.kaizen, lastUpdate: dashboardData?.kaizen_recap?.source?.modified_at || dashboardData?.kaizen_recap?.source?.uploaded_at }} onClick={setSelectedDataSourceModal} />
               <Maximize2 size={11} className="text-slate-400 group-hover:text-slate-700 transition" />
             </div>
           </div>
@@ -1332,11 +1397,11 @@ export default function QMSAudit() {
         onBack={() => setActiveDetailModal(null)}
         backText="Kembali"
         backTitle="Kembali ke Dashboard Utama"
-        title={`Detail Kepatuhan & Monitoring KPI Divisi (${dashboardData?.period_label || '2026'})`}
+        title={`Detail Monitoring KPI Divisi (${dashboardData?.period_label || '2026'})`}
         maxWidth="max-w-5xl"
       >
         <div className="space-y-3 text-xs">
-          <DataSourceCard source={QMS_DATA_SOURCES.kpi} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...QMS_DATA_SOURCES.kpi, lastUpdate: dashboardData?.source?.modified_at || dashboardData?.source?.uploaded_at }} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Action & Filter Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
@@ -1404,13 +1469,12 @@ export default function QMSAudit() {
                 filename={`Monitoring_KPI_Divisi_${dateRange?.startDate || 'awal'}_sd_${dateRange?.endDate || 'akhir'}`}
                 sheetName="Monitoring KPI"
                 buttonLabel="Export Data"
-                headers={['No', 'Nama Divisi', 'Terpenuhi', 'Tidak Terpenuhi', 'Belum Lapor / Pending', 'Kepatuhan (%)']}
+                headers={['No', 'Nama Divisi', 'Terpenuhi', 'Tidak Terpenuhi', 'Belum Lapor / Pending']}
                 rows={() => (divisions || []).map((d, i) => {
                   const m = d.meeting_count ?? d.counts?.memenuhi ?? 0;
                   const nm = d.not_meeting_count ?? d.counts?.tidak_memenuhi ?? 0;
                   const p = d.report_pending_count ?? d.incomplete_count ?? ((d.counts?.belum_ada_laporan ?? 0) + (d.counts?.belum_lengkap ?? 0));
-                  const rate = Number(d.compliance_percentage ?? d.achievement_percentage ?? 0);
-                  return [i + 1, d.division, m, nm, p, `${rate.toFixed(1)}%`];
+                  return [i + 1, d.division, m, nm, p];
                 })}
               />
             </div>
@@ -1502,33 +1566,13 @@ export default function QMSAudit() {
                       )}
                     </div>
                   </th>
-                  <th
-                    onClick={() => handleKpiSort('compliance')}
-                    className={`p-2.5 text-center cursor-pointer select-none transition-colors group ${
-                      kpiSortColumn === 'compliance' ? 'bg-slate-100 text-blue-700' : 'hover:bg-slate-100/70 text-slate-700'
-                    }`}
-                    title="Klik untuk mengurutkan Kepatuhan % (Tertinggi / Terendah)"
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <span>Kepatuhan (%)</span>
-                      {kpiSortColumn === 'compliance' ? (
-                        kpiSortDirection === 'asc' ? (
-                          <ArrowUp size={13} className="text-blue-600 shrink-0" />
-                        ) : (
-                          <ArrowDown size={13} className="text-blue-600 shrink-0" />
-                        )
-                      ) : (
-                        <ArrowUpDown size={12} className="text-slate-300 group-hover:text-slate-500 shrink-0" />
-                      )}
-                    </div>
-                  </th>
                   <th className="p-2.5 text-center w-28 text-slate-600">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {sortedModalDivisions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-400 text-xs italic">
+                    <td colSpan={6} className="p-6 text-center text-slate-400 text-xs italic">
                       Tidak ada divisi yang sesuai dengan filter atau kata kunci pencarian.
                     </td>
                   </tr>
@@ -1537,7 +1581,6 @@ export default function QMSAudit() {
                     const mCount = div.meeting_count ?? div.counts?.memenuhi ?? 0;
                     const nmCount = div.not_meeting_count ?? div.counts?.tidak_memenuhi ?? 0;
                     const pCount = div.report_pending_count ?? div.incomplete_count ?? ((div.counts?.belum_ada_laporan ?? 0) + (div.counts?.belum_lengkap ?? 0));
-                    const cp = Number(div.compliance_percentage ?? div.achievement_percentage ?? 0);
                     const hasItems = Array.isArray(div.items) && div.items.length > 0;
                     const kpiTotalCount = div.indicator_count || (div.items ? Math.min(div.items.length, 25) : 0);
 
@@ -1576,7 +1619,6 @@ export default function QMSAudit() {
                         <td className="p-2.5 text-center font-bold text-emerald-600">{mCount}</td>
                         <td className="p-2.5 text-center font-bold text-amber-600">{nmCount}</td>
                         <td className="p-2.5 text-center font-semibold text-slate-600">{pCount}</td>
-                        <td className="p-2.5 text-center font-bold text-slate-800">{cp.toFixed(1)}%</td>
                         <td className="p-2.5 text-center">
                           <button
                             type="button"
@@ -1687,12 +1729,11 @@ export default function QMSAudit() {
           const nmCount = div.not_meeting_count ?? div.counts?.tidak_memenuhi ?? 0;
           const pCount = div.report_pending_count ?? div.incomplete_count ?? ((div.counts?.belum_ada_laporan ?? 0) + (div.counts?.belum_lengkap ?? 0));
           const totalKPI = div.indicator_count || (div.items ? Math.min(div.items.length, 25) : 0);
-          const cpRate = Number(div.compliance_percentage ?? div.achievement_percentage ?? 0);
 
           return (
             <div className="space-y-3.5 text-xs">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div
                   onClick={() => setDetailStatusFilter('all')}
                   className={`p-2.5 rounded-xl cursor-pointer transition border ${
@@ -1758,15 +1799,6 @@ export default function QMSAudit() {
                   </div>
                   <div className="text-lg font-extrabold text-rose-900 mt-0.5">
                     {pCount}
-                  </div>
-                </div>
-
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-[10px] text-slate-600 font-medium flex items-center gap-1">
-                    <Clock size={12} className="text-slate-500 shrink-0" /> Kepatuhan
-                  </div>
-                  <div className="text-lg font-extrabold text-slate-900 mt-0.5 flex items-center gap-1">
-                    <span>{cpRate.toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
@@ -2079,7 +2111,7 @@ export default function QMSAudit() {
         maxWidth="max-w-5xl"
       >
         <div className="space-y-3 text-xs">
-          <DataSourceCard source={QMS_DATA_SOURCES.followup} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...QMS_DATA_SOURCES.followup, lastUpdate: dashboardData?.follow_up_bod?.source?.modified_at || dashboardData?.follow_up_bod?.source?.uploaded_at }} onOpenDetail={setSelectedDataSourceModal} />
 
           <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="relative flex-1 min-w-[200px]">
@@ -2291,7 +2323,7 @@ export default function QMSAudit() {
         maxWidth="max-w-5xl"
       >
         <div className="space-y-3 text-xs">
-          <DataSourceCard source={QMS_DATA_SOURCES.risk} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...QMS_DATA_SOURCES.risk, lastUpdate: dashboardData?.risk_assessment?.source?.modified_at || dashboardData?.risk_assessment?.source?.uploaded_at }} onOpenDetail={setSelectedDataSourceModal} />
 
           <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="relative flex-1 min-w-[200px]">
@@ -2422,7 +2454,7 @@ export default function QMSAudit() {
         maxWidth="max-w-5xl"
       >
         <div className="space-y-3 text-xs">
-          <DataSourceCard source={QMS_DATA_SOURCES.corrective} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...QMS_DATA_SOURCES.corrective, lastUpdate: dashboardData?.corrective_action?.source?.modified_at || dashboardData?.corrective_action?.source?.uploaded_at }} onOpenDetail={setSelectedDataSourceModal} />
 
           {/* Quick Insight Stat Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -2813,7 +2845,7 @@ export default function QMSAudit() {
         maxWidth="max-w-5xl"
       >
         <div className="space-y-3 text-xs">
-          <DataSourceCard source={QMS_DATA_SOURCES.kaizen} onOpenDetail={setSelectedDataSourceModal} />
+          <DataSourceCard source={{ ...QMS_DATA_SOURCES.kaizen, lastUpdate: dashboardData?.kaizen_recap?.source?.modified_at || dashboardData?.kaizen_recap?.source?.uploaded_at }} onOpenDetail={setSelectedDataSourceModal} />
 
           <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="relative flex-1 min-w-[200px]">
@@ -2964,6 +2996,19 @@ export default function QMSAudit() {
                   </button>
                 </div>
               </div>
+
+              {/* Terakhir Diperbarui */}
+              {selectedDataSourceModal.lastUpdate && (
+                <div>
+                  <span className="text-[10.5px] font-semibold text-slate-500 block mb-1">Terakhir Diperbarui (Last Modified):</span>
+                  <div className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-lg">
+                    <Clock size={13} className="text-emerald-600 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-slate-800">
+                      {formatLastUpdate(selectedDataSourceModal.lastUpdate)}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Folder Location */}
               <div>

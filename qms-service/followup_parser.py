@@ -390,12 +390,22 @@ class CachedFollowUpRepository:
 
     def get(self, force_refresh: bool = False) -> dict[str, Any]:
         path = self.parser.excel_path
-        stat = path.stat()
-        cache_key = (str(path.resolve()), stat.st_mtime_ns, stat.st_size)
+        try:
+            stat = path.stat()
+            cache_key = (str(path.resolve()), stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            cache_key = None
+
         with self._lock:
-            if not force_refresh and self._cache_key == cache_key and self._cache is not None:
+            if not force_refresh and cache_key is not None and self._cache_key == cache_key and self._cache is not None:
                 return self._cache
-            parsed = self.parser.parse()
-            self._cache_key = cache_key
-            self._cache = parsed
-            return parsed
+            try:
+                parsed = self.parser.parse()
+                if cache_key is not None:
+                    self._cache_key = cache_key
+                self._cache = parsed
+                return parsed
+            except Exception:
+                if self._cache is not None:
+                    return self._cache
+                raise

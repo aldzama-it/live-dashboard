@@ -18211,7 +18211,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
                             <p id="correctiveEmptyNote" class="placeholder-note">Menyiapkan rekap status Open, On Progress, dan Closed.</p>
                         </div>
                     </div>
-                    <div id="correctiveFileFoot" class="file-foot" hidden>2. CORRECTIVE ACTION REGISTER.xlsx</div>
+                    <div id="correctiveFileFoot" class="file-foot" hidden>FRM-AZM-602-008 Corrective Action Register List (2026).xlsx</div>
                 </article>
 
                 <article id="riskCard" class="card secondary-card">
@@ -18284,7 +18284,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
                             <p id="riskEmptyNote" class="placeholder-note">Mohon tunggu sebentar.</p>
                         </div>
                     </div>
-                    <div id="riskFileFoot" class="file-foot" hidden>3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx</div>
+                    <div id="riskFileFoot" class="file-foot" hidden>RISK ASSESMENT - Consolidated FRM-602-009.xlsx</div>
                 </article>
 
                 <article id="followUpCard" class="card secondary-card">
@@ -18396,7 +18396,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
                             <p id="followupEmptyNote" class="placeholder-note">Mohon tunggu sebentar.</p>
                         </div>
                     </div>
-                    <div id="followupFileFoot" class="file-foot">4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx</div>
+                    <div id="followupFileFoot" class="file-foot">FRM-AZM-602-022 Follow up Evaluasi dan Strategi BoD Register.xlsx</div>
                 </article>
 
                 <article id="kaizenCard" class="card secondary-card" tabindex="0" role="button" aria-label="Buka seluruh ranking Kaizen dan detail ide">
@@ -18430,7 +18430,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
                             <p id="kaizenEmptyNote" class="placeholder-note">Top 5 tampil di dashboard; klik modul untuk melihat seluruh ranking dan detail ide.</p>
                         </div>
                     </div>
-                    <div id="kaizenFileFoot" class="file-foot">5. KAIZEN RECAP.xlsx</div>
+                    <div id="kaizenFileFoot" class="file-foot">KAIZEN RECAP Rev 01.xlsx</div>
                 </article>
             </section>
         </section>
@@ -18473,7 +18473,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         <div>
             <h2 class="dialog-title">Perbarui Data Corrective Action</h2>
             <p class="dialog-subtitle">
-                Upload file 2. CORRECTIVE ACTION REGISTER.xlsx terbaru. Sistem membaca sheet CAR Register,
+                Upload file FRM-AZM-602-008 Corrective Action Register List (2026).xlsx terbaru. Sistem membaca sheet CAR Register,
                 memvalidasi kolom NO CAR dan Status, lalu menyimpan file aktif beserta riwayatnya secara persisten.
                 Maksimal {{ max_upload_mb }} MB.
             </p>
@@ -19839,7 +19839,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
             document.getElementById("correctiveEmptyNote").textContent = corrective?.detail || "Klik Perbarui data untuk mengunggah Corrective Action Register.";
             stateBadge.textContent = "Belum aktif";
             stateBadge.classList.add("pending");
-            fileFoot.textContent = corrective?.source?.file_name || "2. CORRECTIVE ACTION REGISTER.xlsx";
+            fileFoot.textContent = corrective?.source?.file_name || "FRM-AZM-602-008 Corrective Action Register List (2026).xlsx";
             return;
         }
 
@@ -19857,7 +19857,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         stateBadge.textContent = "Aktif";
         stateBadge.classList.remove("pending");
         const source = corrective.source || {};
-        fileFoot.textContent = `${source.file_name || "2. CORRECTIVE ACTION REGISTER.xlsx"} · ${periodRecords.length}/${Number(corrective.total_actions) || 0} CAR pada ${selectedPeriodLabel()}`;
+        fileFoot.textContent = `${source.file_name || "FRM-AZM-602-008 Corrective Action Register List (2026).xlsx"} · ${periodRecords.length}/${Number(corrective.total_actions) || 0} CAR pada ${selectedPeriodLabel()}`;
         if (correctiveDetailDialog.open) renderCorrectiveDetailTable();
     }
 
@@ -19957,7 +19957,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         document.getElementById("correctiveDetailCompletion").textContent = `${records.length ? Math.round((closed / records.length) * 1000) / 10 : 0}%`;
 
         const source = corrective.source || {};
-        document.getElementById("correctiveDetailSource").textContent = `${selectedPeriodLabel()} · ${source.file_name || "2. CORRECTIVE ACTION REGISTER.xlsx"} · ${records.length} CAR`;
+        document.getElementById("correctiveDetailSource").textContent = `${selectedPeriodLabel()} · ${source.file_name || "FRM-AZM-602-008 Corrective Action Register List (2026).xlsx"} · ${records.length} CAR`;
         renderCorrectiveDetailTable();
         correctiveDetailDialog.showModal();
 
@@ -20752,8 +20752,8 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         if (!available) {
             kaizenLeaderboardBody.innerHTML = "";
             kaizenEmptyTitle.textContent = data.error || "Data Kaizen belum tersedia";
-            kaizenEmptyNote.textContent = data.detail || "Upload file 5. KAIZEN RECAP.xlsx untuk menghitung ranking otomatis.";
-            kaizenFileFoot.textContent = source.file_name || "5. KAIZEN RECAP.xlsx";
+            kaizenEmptyNote.textContent = data.detail || "Upload file KAIZEN RECAP Rev 01.xlsx untuk menghitung ranking otomatis.";
+            kaizenFileFoot.textContent = source.file_name || "KAIZEN RECAP Rev 01.xlsx";
             return;
         }
 
@@ -20768,7 +20768,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         }).join("");
 
         const total = Number(data.total_scored_entries) || rows.length;
-        kaizenFileFoot.textContent = `${source.file_name || "5. KAIZEN RECAP.xlsx"} · ${total} data · ranking Weighted Average 60/40`;
+        kaizenFileFoot.textContent = `${source.file_name || "KAIZEN RECAP Rev 01.xlsx"} · ${total} data · ranking Weighted Average 60/40`;
     }
 
     function openKaizenDetail() {
@@ -20781,7 +20781,7 @@ html body.qms-embed-mode #followUpCard .followup-detail-link {
         const source = data.source || {};
         const winner = data.winner || rows[0] || {};
         const basis = data.ranking_note || "Score = 60% Director's Average + 40% Manager's Average";
-        kaizenDetailSource.textContent = `${source.file_name || "5. KAIZEN RECAP.xlsx"} · ${basis}`;
+        kaizenDetailSource.textContent = `${source.file_name || "KAIZEN RECAP Rev 01.xlsx"} · ${basis}`;
         kaizenDetailWinner.textContent = winner.name || "-";
         kaizenDetailWinner.title = winner.name || "";
         kaizenDetailWinnerScore.textContent = formatKaizenScore(winner.score);

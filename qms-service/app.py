@@ -36,7 +36,7 @@ from corrective_parser import (
 from kaizen_parser import CachedKaizenRepository, KaizenWorkbookParser
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=True)
 
 
 def env_path(name: str, default: str = "") -> Path | None:
@@ -60,6 +60,19 @@ def is_existing_file(path: Path | None) -> bool:
         return path.is_file()
     except (OSError, ValueError):
         return False
+
+
+def is_readable_file(path: Path | None) -> bool:
+    """Memeriksa apakah file ada dan dapat dibuka untuk dibaca tanpa sharing lock / exclusive lock."""
+    if not is_existing_file(path):
+        return False
+    try:
+        with open(path, "rb") as f:
+            f.read(64)
+        return True
+    except (OSError, ValueError, PermissionError):
+        return False
+
 
 
 CONFIGURED_EXCEL_PATH = env_path("KPI_EXCEL_PATH")
@@ -1063,20 +1076,32 @@ def recover_active_upload() -> bool:
 
 def active_excel_path() -> Path:
     """Monitoring KPI: Synology menjadi sumber utama."""
-    if is_existing_file(CONFIGURED_EXCEL_PATH):
-        return CONFIGURED_EXCEL_PATH
+    configured = env_path("KPI_EXCEL_PATH") or CONFIGURED_EXCEL_PATH
+    if is_readable_file(configured):
+        try:
+            ensure_persistent_storage()
+            shutil.copy2(configured, ACTIVE_UPLOAD_PATH)
+        except Exception:
+            pass
+        return configured
 
-    if CONFIGURED_EXCEL_PATH is not None:
-        alt = Path(str(CONFIGURED_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
-        if is_existing_file(alt):
+    if configured is not None:
+        alt = Path(str(configured).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_readable_file(alt):
             return alt
+
+    if is_readable_file(ACTIVE_UPLOAD_PATH):
+        return ACTIVE_UPLOAD_PATH
 
     if recover_active_upload():
         return ACTIVE_UPLOAD_PATH
 
     local = BASE_DIR / "data" / "1. Monitoring KPI 2026.xlsx"
-    if is_existing_file(local):
+    if is_readable_file(local):
         return local
+
+    if is_existing_file(configured):
+        return configured
 
     return NO_WORKBOOK_PATH
 
@@ -1247,20 +1272,32 @@ def recover_active_corrective_upload() -> bool:
 
 def active_corrective_excel_path() -> Path:
     """Corrective Action: Synology menjadi sumber utama."""
-    if is_existing_file(CONFIGURED_CORRECTIVE_EXCEL_PATH):
-        return CONFIGURED_CORRECTIVE_EXCEL_PATH
+    configured = env_path("CORRECTIVE_ACTION_EXCEL_PATH") or CONFIGURED_CORRECTIVE_EXCEL_PATH
+    if is_readable_file(configured):
+        try:
+            ensure_persistent_storage()
+            shutil.copy2(configured, ACTIVE_CORRECTIVE_UPLOAD_PATH)
+        except Exception:
+            pass
+        return configured
 
-    if CONFIGURED_CORRECTIVE_EXCEL_PATH is not None:
-        alt = Path(str(CONFIGURED_CORRECTIVE_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
-        if is_existing_file(alt):
+    if configured is not None:
+        alt = Path(str(configured).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_readable_file(alt):
             return alt
+
+    if is_readable_file(ACTIVE_CORRECTIVE_UPLOAD_PATH):
+        return ACTIVE_CORRECTIVE_UPLOAD_PATH
 
     if recover_active_corrective_upload():
         return ACTIVE_CORRECTIVE_UPLOAD_PATH
 
     local = BASE_DIR / "data" / "2. CORRECTIVE ACTION REGISTER.xlsx"
-    if is_existing_file(local):
+    if is_readable_file(local):
         return local
+
+    if is_existing_file(configured):
+        return configured
 
     return NO_CORRECTIVE_WORKBOOK_PATH
 
@@ -1320,60 +1357,96 @@ def recover_active_kaizen_upload() -> bool:
 
 def active_kaizen_excel_path() -> Path:
     """Kaizen Recap: Synology menjadi sumber utama."""
-    if is_existing_file(CONFIGURED_KAIZEN_EXCEL_PATH):
-        return CONFIGURED_KAIZEN_EXCEL_PATH
+    configured = env_path("KAIZEN_RECAP_EXCEL_PATH") or CONFIGURED_KAIZEN_EXCEL_PATH
+    if is_readable_file(configured):
+        try:
+            ensure_persistent_storage()
+            shutil.copy2(configured, ACTIVE_KAIZEN_UPLOAD_PATH)
+        except Exception:
+            pass
+        return configured
 
-    if CONFIGURED_KAIZEN_EXCEL_PATH is not None:
-        alt = Path(str(CONFIGURED_KAIZEN_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
-        if is_existing_file(alt):
+    if configured is not None:
+        alt = Path(str(configured).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_readable_file(alt):
             return alt
+
+    if is_readable_file(ACTIVE_KAIZEN_UPLOAD_PATH):
+        return ACTIVE_KAIZEN_UPLOAD_PATH
 
     if recover_active_kaizen_upload():
         return ACTIVE_KAIZEN_UPLOAD_PATH
 
     local = BASE_DIR / "data" / "5. KAIZEN RECAP.xlsx"
-    if is_existing_file(local):
+    if is_readable_file(local):
         return local
+
+    if is_existing_file(configured):
+        return configured
 
     return NO_KAIZEN_WORKBOOK_PATH
 
 
 def active_followup_excel_path() -> Path:
     """Follow-up Evaluasi & Strategi BoD: Synology menjadi sumber utama."""
-    if is_existing_file(CONFIGURED_FOLLOWUP_EXCEL_PATH):
-        return CONFIGURED_FOLLOWUP_EXCEL_PATH
+    configured = env_path("FOLLOWUP_BOD_EXCEL_PATH") or CONFIGURED_FOLLOWUP_EXCEL_PATH
+    if is_readable_file(configured):
+        try:
+            ensure_persistent_storage()
+            shutil.copy2(configured, ACTIVE_FOLLOWUP_UPLOAD_PATH)
+        except Exception:
+            pass
+        return configured
 
-    if CONFIGURED_FOLLOWUP_EXCEL_PATH is not None:
-        alt = Path(str(CONFIGURED_FOLLOWUP_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
-        if is_existing_file(alt):
+    if configured is not None:
+        alt = Path(str(configured).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_readable_file(alt):
             return alt
+
+    if is_readable_file(ACTIVE_FOLLOWUP_UPLOAD_PATH):
+        return ACTIVE_FOLLOWUP_UPLOAD_PATH
 
     if recover_active_followup_upload():
         return ACTIVE_FOLLOWUP_UPLOAD_PATH
 
     local = BASE_DIR / "data" / "4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx"
-    if is_existing_file(local):
+    if is_readable_file(local):
         return local
+
+    if is_existing_file(configured):
+        return configured
 
     return NO_FOLLOWUP_WORKBOOK_PATH
 
 
 def active_risk_excel_path() -> Path:
     """Risk Assessment: Synology menjadi sumber utama."""
-    if is_existing_file(CONFIGURED_RISK_EXCEL_PATH):
-        return CONFIGURED_RISK_EXCEL_PATH
+    configured = env_path("RISK_EXCEL_PATH") or CONFIGURED_RISK_EXCEL_PATH
+    if is_readable_file(configured):
+        try:
+            ensure_persistent_storage()
+            shutil.copy2(configured, ACTIVE_RISK_UPLOAD_PATH)
+        except Exception:
+            pass
+        return configured
 
-    if CONFIGURED_RISK_EXCEL_PATH is not None:
-        alt = Path(str(CONFIGURED_RISK_EXCEL_PATH).replace("\\qms\\", "\\").replace("/qms/", "/"))
-        if is_existing_file(alt):
+    if configured is not None:
+        alt = Path(str(configured).replace("\\qms\\", "\\").replace("/qms/", "/"))
+        if is_readable_file(alt):
             return alt
+
+    if is_readable_file(ACTIVE_RISK_UPLOAD_PATH):
+        return ACTIVE_RISK_UPLOAD_PATH
 
     if recover_active_risk_upload():
         return ACTIVE_RISK_UPLOAD_PATH
 
     local = BASE_DIR / "data" / "3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx"
-    if is_existing_file(local):
+    if is_readable_file(local):
         return local
+
+    if is_existing_file(configured):
+        return configured
 
     return NO_RISK_WORKBOOK_PATH
 
@@ -1523,7 +1596,17 @@ def build_risk_payload(force_refresh: bool = False) -> dict[str, Any]:
             },
         }
     except Exception as exc:
-        app.logger.exception("Gagal membaca Risk Assessment")
+        app.logger.warning("Gagal membaca Risk Assessment dari %s (%s), mencoba cadangan...", current_path, exc)
+        for fb_path in [ACTIVE_RISK_UPLOAD_PATH, BASE_DIR / "data" / "3. RISK ASSESMENT - Consolidated FRM-602-009.xlsx"]:
+            if is_readable_file(fb_path):
+                try:
+                    fb_parser = RiskWorkbookParser(fb_path)
+                    payload = dict(fb_parser.parse())
+                    payload["source"] = risk_source_payload(payload.get("source", {}))
+                    return rebuild_risk_payload(payload)
+                except Exception:
+                    continue
+
         return {
             "available": False,
             "error": "Data Risk Assessment gagal dibaca.",
@@ -1595,7 +1678,25 @@ def build_followup_payload(
             },
         }
     except Exception as exc:
-        app.logger.exception("Gagal membaca Follow-up Evaluasi BoD")
+        app.logger.warning("Gagal membaca Follow-up BoD dari %s (%s), mencoba cadangan...", current_path, exc)
+        for fb_path in [ACTIVE_FOLLOWUP_UPLOAD_PATH, BASE_DIR / "data" / "4. FRM-AZM-602-021 Follow up Evaluasi dan Strategi BoD Register.xlsx"]:
+            if is_readable_file(fb_path):
+                try:
+                    fb_parser = FollowUpWorkbookParser(fb_path)
+                    payload = dict(fb_parser.parse())
+                    payload["source"] = followup_source_payload(payload.get("source", {}))
+                    payload["source"]["is_fallback"] = True
+                    payload["source"]["lock_note"] = "File utama sedang dibuka di Excel. Menampilkan data cadangan terbaru."
+                    return rebuild_followup_payload(
+                        payload,
+                        start_month=start_month,
+                        end_month=end_month,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                except Exception:
+                    continue
+
         return {
             "available": False,
             "error": "Data Follow-up Evaluasi BoD gagal dibaca.",
@@ -1667,7 +1768,23 @@ def build_corrective_payload(
             },
         }
     except Exception as exc:
-        app.logger.exception("Gagal membaca Corrective Action Register")
+        app.logger.warning("Gagal membaca Corrective Action Register dari %s (%s), mencoba cadangan...", current_path, exc)
+        for fb_path in [ACTIVE_CORRECTIVE_UPLOAD_PATH, BASE_DIR / "data" / "2. CORRECTIVE ACTION REGISTER.xlsx"]:
+            if is_readable_file(fb_path):
+                try:
+                    fb_parser = CorrectiveActionWorkbookParser(fb_path)
+                    payload = dict(fb_parser.parse())
+                    payload["source"] = corrective_source_payload(payload.get("source", {}))
+                    return rebuild_corrective_payload(
+                        payload,
+                        start_month=start_month,
+                        end_month=end_month,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                except Exception:
+                    continue
+
         return {
             "available": False,
             "error": "Data Corrective Action gagal dibaca.",
@@ -1727,7 +1844,17 @@ def build_kaizen_payload(force_refresh: bool = False) -> dict[str, Any]:
             },
         }
     except Exception as exc:
-        app.logger.exception("Gagal membaca Kaizen Recap")
+        app.logger.warning("Gagal membaca Kaizen Recap dari %s (%s), mencoba cadangan...", current_path, exc)
+        for fb_path in [ACTIVE_KAIZEN_UPLOAD_PATH, BASE_DIR / "data" / "5. KAIZEN RECAP.xlsx"]:
+            if is_readable_file(fb_path):
+                try:
+                    fb_parser = KaizenWorkbookParser(fb_path, top_limit=10)
+                    payload = dict(fb_parser.parse())
+                    payload["source"] = kaizen_source_payload(payload.get("source", {}))
+                    return rebuild_kaizen_payload(payload)
+                except Exception:
+                    continue
+
         return {
             "available": False,
             "error": "Data Kaizen Recap gagal dibaca.",
@@ -1814,11 +1941,7 @@ def build_month_payload(
             end_month=month,
         ),
         "risk_assessment": build_risk_payload(force_refresh=force_refresh),
-        "follow_up_bod": build_followup_payload(
-            force_refresh=force_refresh,
-            start_month=month,
-            end_month=month,
-        ),
+        "follow_up_bod": build_followup_payload(force_refresh=force_refresh),
         "kaizen_recap": build_kaizen_payload(force_refresh=force_refresh),
         "source": source_payload(workbook_data["source"]),
         "diagnostics": workbook_data["diagnostics"],
@@ -2054,13 +2177,7 @@ def build_all_months_payload(
             end_date=end_date,
         ),
         "risk_assessment": build_risk_payload(force_refresh=force_refresh),
-        "follow_up_bod": build_followup_payload(
-            force_refresh=force_refresh,
-            start_month=start_month,
-            end_month=end_month,
-            start_date=start_date,
-            end_date=end_date,
-        ),
+        "follow_up_bod": build_followup_payload(force_refresh=force_refresh),
         "kaizen_recap": build_kaizen_payload(force_refresh=force_refresh),
         "source": source_payload(workbook_data["source"]),
         "diagnostics": workbook_data["diagnostics"],
