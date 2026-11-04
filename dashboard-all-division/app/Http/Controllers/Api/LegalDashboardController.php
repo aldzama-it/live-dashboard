@@ -129,11 +129,54 @@ class LegalDashboardController extends Controller
         // 5 & 6. Downloads count
         $downloads = $this->getDownloadableFiles();
 
+        // 7. Last Updates Timestamps
+        $docsLastUpdate = LegalDocument::max('updated_at');
+        if (!$docsLastUpdate) {
+            $siloFile = base_path('../data legal/Monitoring SILO - Legal.xlsx');
+            if (File::exists($siloFile)) {
+                $docsLastUpdate = Carbon::createFromTimestamp(filemtime($siloFile))->toIso8601String();
+            }
+        } else {
+            $docsLastUpdate = Carbon::parse($docsLastUpdate)->toIso8601String();
+        }
+
+        $kpiLastUpdate = null;
+        $kpiDirectPath = config('synology.divisions.Legal_Kpi.direct_path');
+        if ($kpiDirectPath && File::exists($kpiDirectPath)) {
+            $kpiLastUpdate = Carbon::createFromTimestamp(filemtime($kpiDirectPath))->toIso8601String();
+        } elseif (File::exists(base_path('../data legal/Data KPI Divisi Legal 2026 .xlsx'))) {
+            $kpiLastUpdate = Carbon::createFromTimestamp(filemtime(base_path('../data legal/Data KPI Divisi Legal 2026 .xlsx')))->toIso8601String();
+        } elseif (File::exists(storage_path('app/legal_kpi_cache.json'))) {
+            $kpiLastUpdate = Carbon::createFromTimestamp(filemtime(storage_path('app/legal_kpi_cache.json')))->toIso8601String();
+        }
+
+        $budgetLastUpdate = null;
+        $budgetCache = storage_path('app/legal_budget_cache.json');
+        if (File::exists($budgetCache)) {
+            $budgetLastUpdate = Carbon::createFromTimestamp(filemtime($budgetCache))->toIso8601String();
+        } else {
+            $budgetDir = config('synology.divisions.Legal_Budget.direct_path');
+            if ($budgetDir && File::isDirectory($budgetDir)) {
+                $budgetLastUpdate = Carbon::createFromTimestamp(filemtime($budgetDir))->toIso8601String();
+            }
+        }
+
+        $regLastUpdate = LegalRegulation::max('updated_at');
+        if (!$regLastUpdate) {
+            $regDirectPath = config('synology.divisions.Legal_Matriks_Peruu.direct_path');
+            if ($regDirectPath && File::exists($regDirectPath)) {
+                $regLastUpdate = Carbon::createFromTimestamp(filemtime($regDirectPath))->toIso8601String();
+            }
+        } else {
+            $regLastUpdate = Carbon::parse($regLastUpdate)->toIso8601String();
+        }
+
         return response()->json([
             'status' => 'success',
             'data' => [
                 'selected_month' => $selectedMonth,
                 'documents' => array_merge($docStats, [
+                    'last_update' => $docsLastUpdate,
                     'chart_status' => [
                         'labels' => ['Aman / Valid', 'Pending Update', 'Kritis (H-30/60)', 'Expired'],
                         'series' => [
@@ -161,14 +204,17 @@ class LegalDashboardController extends Controller
                     'site_distribution' => array_values($siteDistribution),
                 ],
                 'kpi' => array_merge($kpiData['summary'], [
+                    'last_update' => $kpiLastUpdate,
                     'ytd_totals' => $kpiData['ytd_totals'],
                     'monthly_trend' => $kpiData['monthly_trend'],
                 ]),
                 'budget' => array_merge($budgetData['summary'], [
+                    'last_update' => $budgetLastUpdate,
                     'categories' => $budgetData['current_categories'] ?? [],
                     'monthly_trend' => $budgetData['monthly_trend'] ?? [],
                 ]),
                 'regulations' => [
+                    'last_update' => $regLastUpdate,
                     'total' => LegalRegulation::count(),
                     'comply' => LegalRegulation::where('compliance_status', 'Comply')->count(),
                     'non_comply' => LegalRegulation::where('compliance_status', 'Non-Comply')->count(),
@@ -1046,7 +1092,7 @@ class LegalDashboardController extends Controller
             }
         }
 
-        // Fallback default from actual Excel file "Data KPI Divisi Legal 2026 .xlsx" (5 sheets)
+        // Fallback default from actual Excel file "Data KPI Divisi Legal 2026.xlsx" (5 sheets)
         if (empty($monthly)) {
             $ytd = [
                 'total_review' => 49,

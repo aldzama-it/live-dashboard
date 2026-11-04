@@ -346,7 +346,7 @@ class LegalKpiImport implements WithEvents
 
         $payload = [
             'updated_at' => date('Y-m-d H:i:s'),
-            'source_file' => 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\Data KPI Divisi Legal 2026 .xlsx',
+            'source_file' => 'Y:\\Google Drive Legal\\FOLDER DRIVE (NEW)\\1. LEGAL\\14. KPI, RISK REGISTER, RNR, WLA, DAN BUDGETING\\KPI\\Data KPI Divisi Legal 2026.xlsx',
             'ytd' => $ytd,
             'monthly' => $monthly,
             'items' => $items,
